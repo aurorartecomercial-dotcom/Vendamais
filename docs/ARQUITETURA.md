@@ -20,6 +20,7 @@ Os dados são guardados como um único documento versionado na chave `vendamais_
 | `settings` | Dados da empresa, taxa de IVA e limite de stock padrão. |
 | `products` | Catálogo, preço de custo, preço de venda, stock e mínimo. |
 | `customers` | Contactos e identificação dos clientes. |
+| `receipts` | Recebimentos de vendas a crédito, ligados ao documento e ao cliente. |
 | `suppliers` | Contactos e identificação dos fornecedores. |
 | `sales` | Vendas concluídas e linhas de venda com o custo histórico. |
 | `purchases` | Compras a fornecedores e custos unitários. |
@@ -36,7 +37,14 @@ Guardar o preço e o custo em cada linha de venda preserva a coerência dos rela
 2. A quantidade não pode ultrapassar o stock actual.
 3. O sistema calcula subtotal, desconto, IVA e total.
 4. Ao confirmar o pagamento, cria uma venda e reduz o stock de cada produto.
-5. A venda passa a alimentar histórico, inventário e relatórios.
+5. A venda guarda uma cópia dos dados de facturação do cliente e passa a alimentar histórico, inventário e relatórios.
+
+### Crédito de cliente
+
+1. Apenas clientes guardados podem receber vendas a crédito.
+2. Empresas exigem NIF; cada cliente pode ter um limite de crédito opcional.
+3. A venda a crédito começa com saldo pendente e data de vencimento.
+4. A ficha de cliente permite registar recebimentos parciais ou totais; os saldos são recalculados no histórico e nos relatórios.
 
 ### Compra
 

@@ -1,6 +1,6 @@
 /* VendaMais — aplicação local de gestão comercial */
 const STORE = 'vendamais_local_v1';
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const icons = ['◈', '◇', '◉', '◆', '✦', '⬡'];
@@ -62,9 +62,9 @@ function demoData() {
     settings: { company: 'Comercial Horizonte, Lda.', nif: '5412345678', phone: '+244 923 000 000', email: 'geral@comercialhorizonte.ao', address: 'Luanda, Angola', taxRate: 14, stockLimit: 5 },
     products,
     customers: [
-      { id: 'c_ana', name: 'Ana Manuel', phone: '+244 923 444 120', email: 'ana.manuel@email.ao', nif: '003456789LA012', address: 'Viana, Luanda' },
-      { id: 'c_lucas', name: 'Lucas Tavares', phone: '+244 922 181 222', email: '', nif: '002116789LA037', address: 'Maianga, Luanda' },
-      { id: 'c_maria', name: 'Maria & Filhos', phone: '+244 924 860 110', email: 'compras@mariafilhos.ao', nif: '5001123901', address: 'Cacuaco, Luanda' }
+      { id: 'c_ana', type: 'Particular', name: 'Ana Manuel', phone: '+244 923 444 120', email: 'ana.manuel@email.ao', nif: '003456789LA012', address: 'Viana, Luanda', creditLimit: 0 },
+      { id: 'c_lucas', type: 'Particular', name: 'Lucas Tavares', phone: '+244 922 181 222', email: '', nif: '002116789LA037', address: 'Maianga, Luanda', creditLimit: 0 },
+      { id: 'c_maria', type: 'Empresa', name: 'Maria & Filhos, Lda.', phone: '+244 924 860 110', email: 'compras@mariafilhos.ao', nif: '5001123901', address: 'Cacuaco, Luanda', creditLimit: 250000 }
     ],
     suppliers: [
       { id: 's_kimb', name: 'Kimbos Distribuição', phone: '+244 222 300 210', email: 'vendas@kimbos.ao', nif: '5000872165', address: 'Luanda' },
@@ -72,6 +72,7 @@ function demoData() {
       { id: 's_alim', name: 'Alimenta Angola', phone: '+244 222 724 450', email: 'comercial@alimenta.ao', nif: '5411982312', address: 'Viana, Luanda' }
     ],
     sales,
+    receipts: [],
     purchases: [
       { id: 'buy_201', reference: 'CP-0201', date: dateISO(-7), supplierId: 's_kimb', payment: 'Transferência', total: 148500, items: [{ productId: 'p_agua', name: 'Água mineral 1,5L', quantity: 100, unitCost: 210 }, { productId: 'p_sumol', name: 'Sumo tropical 33cl', quantity: 100, unitCost: 310 }] },
       { id: 'buy_202', reference: 'CP-0202', date: dateISO(-3), supplierId: 's_alim', payment: 'Crédito', total: 172800, items: [{ productId: 'p_oleo', name: 'Óleo alimentar 1L', quantity: 60, unitCost: 1450 }, { productId: 'p_leite', name: 'Leite UHT 1L', quantity: 80, unitCost: 570 }] }
@@ -85,15 +86,31 @@ function demoData() {
   };
 }
 
+function customerSnapshot(customer) {
+  if (!customer) return { id: '', type: 'Consumidor final', name: 'Consumidor final', nif: '', phone: '', email: '', address: '' };
+  return { id: customer.id || '', type: customer.type === 'Empresa' ? 'Empresa' : 'Particular', name: customer.name || 'Cliente sem nome', nif: customer.nif || '', phone: customer.phone || '', email: customer.email || '', address: customer.address || '' };
+}
+function normaliseCustomer(customer = {}) {
+  return { ...customer, type: customer.type === 'Empresa' ? 'Empresa' : 'Particular', name: String(customer.name || '').trim(), phone: String(customer.phone || '').trim(), email: String(customer.email || '').trim(), nif: String(customer.nif || '').trim().toUpperCase(), address: String(customer.address || '').trim(), creditLimit: Math.max(0, Number(customer.creditLimit || 0)) };
+}
+function normaliseSale(sale = {}, customers = []) {
+  const total = Number(sale.total || 0);
+  const credit = sale.payment === 'Crédito' || sale.paymentStatus === 'Pendente' || Number(sale.balanceDue || 0) > 0;
+  const balanceDue = Math.min(total, Math.max(0, Number(sale.balanceDue ?? (credit ? total : 0))));
+  const customer = sale.customer?.name ? sale.customer : customerSnapshot(customers.find(item => item.id === sale.customerId));
+  return { ...sale, customer, documentType: sale.documentType || (credit ? 'Factura' : 'Factura-Recibo'), paymentStatus: balanceDue <= 0 ? 'Pago' : (balanceDue < total ? 'Parcial' : 'Pendente'), amountPaid: Math.max(0, Number(sale.amountPaid ?? (total - balanceDue))), balanceDue, dueDate: sale.dueDate || '' };
+}
 function normaliseData(candidate) {
   const base = demoData();
-  if (!candidate || typeof candidate !== 'object' || !candidate.settings) return base;
-  const collections = ['products', 'customers', 'suppliers', 'sales', 'purchases', 'movements'];
-  const restored = { ...base, ...candidate, settings: { ...base.settings, ...candidate.settings }, meta: { ...base.meta, ...candidate.meta, schemaVersion: STORAGE_VERSION } };
-  collections.forEach(key => { restored[key] = Array.isArray(candidate[key]) ? candidate[key] : []; });
+  const source = candidate && typeof candidate === 'object' && candidate.settings ? candidate : base;
+  const collections = ['products', 'suppliers', 'purchases', 'movements', 'receipts'];
+  const restored = { ...base, ...source, settings: { ...base.settings, ...source.settings }, meta: { ...base.meta, ...source.meta, schemaVersion: STORAGE_VERSION } };
+  collections.forEach(key => { restored[key] = Array.isArray(source[key]) ? source[key] : []; });
+  restored.customers = (Array.isArray(source.customers) ? source.customers : []).map(normaliseCustomer);
+  restored.sales = (Array.isArray(source.sales) ? source.sales : []).map(sale => normaliseSale(sale, restored.customers));
   return restored;
 }
-function loadData() { try { return normaliseData(JSON.parse(localStorage.getItem(STORE))); } catch { return demoData(); } }
+function loadData() { try { return normaliseData(JSON.parse(localStorage.getItem(STORE))); } catch { return normaliseData(null); } }
 let data = loadData();
 function saveData() {
   data.meta = { ...data.meta, schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() };
@@ -104,6 +121,9 @@ function notify(message) { const toast = $('#toast'); toast.textContent = messag
 function productById(id) { return data.products.find(item => item.id === id); }
 function customerById(id) { return data.customers.find(item => item.id === id); }
 function supplierById(id) { return data.suppliers.find(item => item.id === id); }
+function saleCustomer(sale) { return sale.customer?.name ? sale.customer : customerSnapshot(customerById(sale.customerId)); }
+function saleCustomerName(sale) { return saleCustomer(sale).name || 'Consumidor final'; }
+function saleBalanceDue(sale) { return Math.max(0, Number(sale.balanceDue || 0)); }
 function categoryList() { return [...new Set(data.products.map(product => product.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
 function saleCost(sale) { return sale.items.reduce((sum, item) => sum + Number(item.cost || 0) * Number(item.quantity || 0), 0); }
 function sum(array, fn) { return array.reduce((total, item) => total + Number(fn(item) || 0), 0); }
@@ -155,9 +175,10 @@ function renderDashboard() {
   $('#salesChart').innerHTML = dayData.map((item, index) => `<div class="bar-col"><span class="bar-value">${item.value ? number(item.value / 1000) + ' mil' : '—'}</span><div class="bar ${index === 6 ? 'today' : ''}" style="height:${Math.max(4, item.value / max * 100)}%"></div><span class="bar-label">${item.label}</span></div>`).join('');
   $('#lowStockList').innerHTML = low.length ? low.sort((a,b) => a.stock - b.stock).slice(0, 5).map((product, index) => `<div class="compact-item"><span class="mini-icon">${icons[index % icons.length]}</span><div class="item-main"><b>${escapeHtml(product.name)}</b><span>Limite: ${number(product.minStock)} un.</span></div><span class="stock-pill">${number(product.stock)} un.</span></div>`).join('') : '<div class="empty-state">O stock está dentro dos níveis definidos.</div>';
   const recent = [...data.sales].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-  $('#recentSales').innerHTML = recent.length ? recent.map(sale => `<tr><td><b>${sale.reference}</b><br><small class="muted">${shortDate(sale.date)}</small></td><td>${escapeHtml(customerById(sale.customerId)?.name || 'Consumidor final')}</td><td class="money"><b>${money(sale.total)}</b></td><td><span class="status completed">${sale.status}</span></td></tr>`).join('') : emptyRow(4);
+  $('#recentSales').innerHTML = recent.length ? recent.map(sale => `<tr><td><b>${sale.reference}</b><br><small class="muted">${shortDate(sale.date)}</small></td><td>${escapeHtml(saleCustomerName(sale))}</td><td class="money"><b>${money(sale.total)}</b></td><td><span class="status ${saleBalanceDue(sale) ? 'pending' : 'completed'}">${saleBalanceDue(sale) ? 'Em dívida' : 'Pago'}</span></td></tr>`).join('') : emptyRow(4);
   const costs = sum(monthly, saleCost); const purchaseTotal = sum(data.purchases.filter(p => p.date >= start), purchase => purchase.total);
-  $('#financialSummary').innerHTML = summaryRows([['Receitas de vendas', money(income)], ['Custo dos produtos vendidos', `− ${money(costs)}`], ['Compras de mercadoria', `− ${money(purchaseTotal)}`], ['Margem bruta', money(income - costs), true]]);
+  const receivable = sum(monthly, saleBalanceDue);
+  $('#financialSummary').innerHTML = summaryRows([['Faturação de vendas', money(income)], ['Valores por receber', money(receivable)], ['Custo dos produtos vendidos', `− ${money(costs)}`], ['Margem bruta', money(income - costs), true]]);
 }
 function summaryRows(rows) { return rows.map(([label, value, total]) => `<div class="summary-row ${total ? 'total' : ''}"><span>${label}</span><strong>${value}</strong></div>`).join(''); }
 
@@ -165,8 +186,23 @@ function renderPos() {
   const categorySelect = $('#posCategory'); const previousCategory = categorySelect.value;
   categorySelect.innerHTML = '<option value="">Todas as categorias</option>' + categoryList().map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('');
   categorySelect.value = previousCategory;
-  $('#saleCustomer').innerHTML = '<option value="">Consumidor final</option>' + data.customers.sort((a,b) => a.name.localeCompare(b.name)).map(customer => `<option value="${customer.id}">${escapeHtml(customer.name)}</option>`).join('');
+  const customerSelect = $('#saleCustomer'); const previousCustomer = customerSelect.value;
+  customerSelect.innerHTML = '<option value="">Consumidor final</option>' + [...data.customers].sort((a,b) => a.name.localeCompare(b.name)).map(customer => `<option value="${customer.id}">${escapeHtml(customer.name)}${customer.type === 'Empresa' ? ' · Empresa' : ''}</option>`).join('');
+  customerSelect.value = data.customers.some(customer => customer.id === previousCustomer) ? previousCustomer : '';
+  renderSaleCustomerInfo();
   renderPosProducts(); renderCart();
+}
+function renderSaleCustomerInfo() {
+  const customer = customerById($('#saleCustomer').value);
+  const info = $('#saleCustomerInfo'); const edit = $('#editSaleCustomer');
+  if (!customer) {
+    info.innerHTML = '<span class="customer-info-muted">Venda a consumidor final. Cadastre um cliente para guardar nome, contacto e dados fiscais.</span>';
+    edit.hidden = true;
+    return;
+  }
+  const identity = customer.type === 'Empresa' ? 'Empresa' : 'Cliente particular';
+  info.innerHTML = `<div><span class="customer-type-tag">${identity}</span><strong>${escapeHtml(customer.name)}</strong></div><span>${customer.nif ? `NIF: ${escapeHtml(customer.nif)}` : 'Sem NIF registado'}${customer.phone ? ` · ${escapeHtml(customer.phone)}` : ''}</span>`;
+  edit.hidden = false;
 }
 function renderPosProducts() {
   const search = $('#productSearch').value.trim().toLowerCase(); const category = $('#posCategory').value;
@@ -204,13 +240,16 @@ function renderInventory() {
   $('#movementsTable').innerHTML = movements.length ? movements.map(movement => `<tr><td>${fullDate(movement.date)}</td><td><b>${escapeHtml(movement.productName)}</b></td><td><span class="status ${movement.type === 'Saída' ? 'danger' : 'completed'}">${movement.type}</span></td><td><b class="${movement.type === 'Saída' ? 'text-danger' : ''}">${movement.type === 'Saída' ? '−' : '+'}${number(movement.quantity)}</b></td><td class="muted">${escapeHtml(movement.note || '—')}</td></tr>`).join('') : emptyRow(5);
 }
 
-function customerStats(customerId) { const sales = data.sales.filter(sale => sale.customerId === customerId); return { count: sales.length, total: sum(sales, sale => sale.total) }; }
+function customerStats(customerId) {
+  const sales = data.sales.filter(sale => sale.customerId === customerId);
+  return { count: sales.length, total: sum(sales, sale => sale.total), balance: sum(sales, saleBalanceDue), paid: sum(sales, sale => sale.amountPaid || 0) };
+}
 function renderCustomers() {
-  const total = data.customers.length; const bought = data.customers.filter(customer => customerStats(customer.id).count).length; const revenue = sum(data.sales.filter(sale => sale.customerId), sale => sale.total);
-  $('#customerMetrics').innerHTML = [['Clientes registados', total, 'Na sua base de dados', '♙', ''], ['Clientes activos', bought, 'Com pelo menos uma compra', '✓', 'positive'], ['Vendas a clientes', money(revenue), 'Histórico registado', '◷', ''], ['Saldo em dívida', money(0), 'Sem crédito em aberto', '◉', 'positive']].map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
+  const total = data.customers.length; const bought = data.customers.filter(customer => customerStats(customer.id).count).length; const revenue = sum(data.sales.filter(sale => sale.customerId), sale => sale.total); const outstanding = sum(data.customers, customer => customerStats(customer.id).balance);
+  $('#customerMetrics').innerHTML = [['Clientes registados', total, 'Particulares e empresas', '♙', ''], ['Clientes activos', bought, 'Com pelo menos uma compra', '✓', 'positive'], ['Vendas a clientes', money(revenue), 'Histórico registado', '◷', ''], ['Saldo em dívida', money(outstanding), outstanding ? 'Requer cobrança' : 'Sem crédito em aberto', '◉', outstanding ? 'warning' : 'positive']].map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
   filterCustomers();
 }
-function filterCustomers() { const search = $('.filter-input[data-table="customers"]').value.trim().toLowerCase(); const customers = data.customers.filter(customer => !search || `${customer.name} ${customer.phone} ${customer.nif}`.toLowerCase().includes(search)); $('#customersTable').innerHTML = customers.length ? customers.sort((a,b) => a.name.localeCompare(b.name)).map(customer => { const stats = customerStats(customer.id); return `<tr><td><b>${escapeHtml(customer.name)}</b><br><small class="muted">${escapeHtml(customer.email || 'Sem e-mail')}</small></td><td>${escapeHtml(customer.phone || '—')}</td><td>${escapeHtml(customer.nif || '—')}</td><td>${stats.count}</td><td class="money">${money(stats.total)}</td><td><span class="status completed">Regular</span></td><td><button class="action-btn" data-customer-action="edit" data-id="${customer.id}">Editar</button></td></tr>`; }).join('') : emptyRow(7, 'Nenhum cliente encontrado.'); }
+function filterCustomers() { const search = $('.filter-input[data-table="customers"]').value.trim().toLowerCase(); const customers = data.customers.filter(customer => !search || `${customer.name} ${customer.type} ${customer.phone} ${customer.nif}`.toLowerCase().includes(search)); $('#customersTable').innerHTML = customers.length ? [...customers].sort((a,b) => a.name.localeCompare(b.name)).map(customer => { const stats = customerStats(customer.id); const inDebt = stats.balance > 0; return `<tr><td><b>${escapeHtml(customer.name)}</b><br><small class="muted">${escapeHtml(customer.email || 'Sem e-mail')}</small></td><td><span class="customer-type-tag">${customer.type}</span></td><td>${escapeHtml(customer.phone || '—')}</td><td>${escapeHtml(customer.nif || '—')}</td><td>${stats.count}</td><td class="money">${money(stats.total)}</td><td><span class="status ${inDebt ? 'pending' : 'completed'}">${inDebt ? money(stats.balance) : 'Regular'}</span></td><td>${inDebt ? `<button class="action-btn" data-customer-action="receive" data-id="${customer.id}">Receber</button>` : ''}<button class="action-btn" data-customer-action="edit" data-id="${customer.id}">Editar</button></td></tr>`; }).join('') : emptyRow(8, 'Nenhum cliente encontrado.'); }
 
 function renderSuppliers() { filterSuppliers(); }
 function filterSuppliers() { const search = $('.filter-input[data-table="suppliers"]').value.trim().toLowerCase(); const suppliers = data.suppliers.filter(supplier => !search || `${supplier.name} ${supplier.phone} ${supplier.nif}`.toLowerCase().includes(search)); $('#suppliersTable').innerHTML = suppliers.length ? suppliers.sort((a,b) => a.name.localeCompare(b.name)).map(supplier => { const purchases = data.purchases.filter(purchase => purchase.supplierId === supplier.id); return `<tr><td><b>${escapeHtml(supplier.name)}</b><br><small class="muted">${escapeHtml(supplier.email || 'Sem e-mail')}</small></td><td>${escapeHtml(supplier.phone || '—')}</td><td>${escapeHtml(supplier.nif || '—')}</td><td>${escapeHtml(supplier.address || '—')}</td><td>${purchases.length} compra${purchases.length === 1 ? '' : 's'}</td><td><button class="action-btn" data-supplier-action="edit" data-id="${supplier.id}">Editar</button></td></tr>`; }).join('') : emptyRow(6, 'Nenhum fornecedor encontrado.'); }
@@ -224,11 +263,11 @@ function renderPurchases() {
 
 function renderReports() {
   const startInput = $('#reportStart'); const endInput = $('#reportEnd'); if (!startInput.value) startInput.value = monthStart(); if (!endInput.value) endInput.value = dateISO();
-  const sales = salesBetween(startInput.value, endInput.value); const revenue = sum(sales, sale => sale.total); const net = sum(sales, sale => sale.subtotal - sale.discountValue); const tax = sum(sales, sale => sale.tax); const cogs = sum(sales, saleCost); const profit = revenue - tax - cogs;
-  $('#reportMetrics').innerHTML = [['Faturação', money(revenue), `${sales.length} vendas concluídas`, '↗', 'positive'], ['Vendas líquidas', money(net), 'Antes de IVA', '◷', ''], ['IVA liquidado', money(tax), 'Incluído na faturação', '◒', ''], ['Margem bruta', money(profit), revenue ? `${number(profit / revenue * 100)}% da faturação` : 'Sem vendas no período', '◈', profit >= 0 ? 'positive' : 'warning']].map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
+  const sales = salesBetween(startInput.value, endInput.value); const revenue = sum(sales, sale => sale.total); const net = sum(sales, sale => sale.subtotal - sale.discountValue); const tax = sum(sales, sale => sale.tax); const cogs = sum(sales, saleCost); const profit = revenue - tax - cogs; const receivable = sum(sales, saleBalanceDue);
+  $('#reportMetrics').innerHTML = [['Faturação', money(revenue), `${sales.length} vendas concluídas`, '↗', 'positive'], ['Por receber', money(receivable), receivable ? 'Vendas a crédito em aberto' : 'Sem valores em dívida', '◷', receivable ? 'warning' : 'positive'], ['IVA liquidado', money(tax), 'Incluído na faturação', '◒', ''], ['Margem bruta', money(profit), revenue ? `${number(profit / revenue * 100)}% da faturação` : 'Sem vendas no período', '◈', profit >= 0 ? 'positive' : 'warning']].map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
   $('#incomeStatement').innerHTML = `<div class="statement-row"><span>Faturação total</span><strong>${money(revenue)}</strong></div><div class="statement-row"><span>IVA incluído</span><strong>− ${money(tax)}</strong></div><div class="statement-row"><span>Vendas sem IVA</span><strong>${money(revenue - tax)}</strong></div><div class="statement-row"><span>Custo dos produtos vendidos</span><strong>− ${money(cogs)}</strong></div><div class="statement-row emphasis ${profit < 0 ? 'loss' : ''}"><span>Resultado bruto</span><strong>${money(profit)}</strong></div>`;
   const payments = ['Dinheiro', 'Multicaixa', 'Transferência', 'Outro']; $('#paymentSummary').innerHTML = payments.map(payment => { const amount = sum(sales.filter(sale => sale.payment === payment), sale => sale.total); const count = sales.filter(sale => sale.payment === payment).length; return `<div class="summary-row"><span>${payment} <small class="muted">(${count})</small></span><strong>${money(amount)}</strong></div>`; }).join('');
-  $('#reportSalesTable').innerHTML = sales.length ? [...sales].sort((a,b) => new Date(b.date) - new Date(a.date)).map(sale => `<tr><td>${shortDate(sale.date)}</td><td><b>${sale.reference}</b></td><td>${escapeHtml(customerById(sale.customerId)?.name || 'Consumidor final')}</td><td>${escapeHtml(sale.payment)}</td><td class="money"><b>${money(sale.total)}</b></td></tr>`).join('') : emptyRow(5, 'Não existem vendas neste período.');
+  $('#reportSalesTable').innerHTML = sales.length ? [...sales].sort((a,b) => new Date(b.date) - new Date(a.date)).map(sale => `<tr><td>${shortDate(sale.date)}</td><td><b>${sale.reference}</b><br><small class="muted">${escapeHtml(sale.documentType || 'Venda')}</small></td><td>${escapeHtml(saleCustomerName(sale))}</td><td>${escapeHtml(sale.payment)}${saleBalanceDue(sale) ? '<br><small class="text-danger">Em dívida</small>' : ''}</td><td class="money"><b>${money(sale.total)}</b></td></tr>`).join('') : emptyRow(5, 'Não existem vendas neste período.');
   const products = {}; sales.forEach(sale => sale.items.forEach(item => { if (!products[item.productId]) products[item.productId] = { name: item.name, qty: 0, total: 0 }; products[item.productId].qty += item.quantity; products[item.productId].total += item.quantity * item.price; })); const ranked = Object.values(products).sort((a,b) => b.qty - a.qty).slice(0, 5);
   $('#topProducts').innerHTML = ranked.length ? ranked.map((item, index) => `<div class="compact-item"><span class="mini-icon">${index + 1}</span><div class="item-main"><b>${escapeHtml(item.name)}</b><span>${number(item.qty)} unidades vendidas</span></div><strong>${money(item.total)}</strong></div>`).join('') : '<div class="empty-state">Sem vendas neste período.</div>';
 }
@@ -262,10 +301,34 @@ function adjustmentModal() {
   openModal(`${modalHeader('Ajustar stock', 'Registe uma entrada, saída ou correcção de inventário.')}<form id="adjustmentForm"><div class="modal-form"><label class="full">Produto<select name="productId" required><option value="">Seleccione o produto</option>${options(data.products.sort((a,b) => a.name.localeCompare(b.name)), '', item => `${item.name} — ${number(item.stock)} un.`)}</select></label><label>Movimento<select name="type"><option>Entrada</option><option>Saída</option></select></label><label>Quantidade<input name="quantity" type="number" min="1" step="1" required /></label><label class="full">Motivo / nota<input name="note" required placeholder="Ex.: contagem física, mercadoria danificada" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Guardar movimento</button></div></form>`);
   $('#adjustmentForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const product = productById(values.productId); const quantity = Number(values.quantity); if (!product) return notify('Seleccione um produto.'); if (values.type === 'Saída' && quantity > product.stock) return notify('A saída não pode ser superior ao stock actual.'); product.stock += values.type === 'Entrada' ? quantity : -quantity; data.movements.push({ id: uid('mov'), date: new Date().toISOString(), productId: product.id, productName: product.name, type: values.type, quantity, note: values.note }); saveData(); closeModal(); notify('Movimento de stock registado.'); renderAll(); });
 }
-function contactModal(kind, entity) {
-  const isCustomer = kind === 'customer'; const title = isCustomer ? 'cliente' : 'fornecedor'; const item = entity || { name: '', phone: '', email: '', nif: '', address: '' };
-  openModal(`${modalHeader(entity ? `Editar ${title}` : `Novo ${title}`, isCustomer ? 'Guarde os dados e acompanhe as compras.' : 'Guarde os contactos dos seus parceiros de compra.')}<form id="contactForm"><div class="modal-form"><label>Nome / empresa<input name="name" required value="${escapeHtml(item.name)}" /></label><label>Telefone<input name="phone" value="${escapeHtml(item.phone)}" /></label><label>E-mail<input name="email" type="email" value="${escapeHtml(item.email)}" /></label><label>NIF<input name="nif" value="${escapeHtml(item.nif)}" /></label><label class="full">Morada<input name="address" value="${escapeHtml(item.address)}" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${entity ? 'Guardar alterações' : `Criar ${title}`}</button></div></form>`);
-  $('#contactForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const list = isCustomer ? data.customers : data.suppliers; if (entity) Object.assign(entity, values); else list.push({ id: uid(isCustomer ? 'customer' : 'supplier'), ...values }); saveData(); closeModal(); notify(`${isCustomer ? 'Cliente' : 'Fornecedor'} guardado com sucesso.`); renderAll(); });
+function updateCustomerForm(form) {
+  const isCompany = form.elements.type.value === 'Empresa';
+  $('#customerNameLabel', form).firstChild.textContent = isCompany ? 'Razão social' : 'Nome completo';
+  const nif = form.elements.nif;
+  nif.required = isCompany;
+  nif.placeholder = isCompany ? 'Obrigatório para empresa' : 'Opcional para particular';
+  $('#customerNifHint', form).textContent = isCompany ? 'obrigatório' : 'opcional';
+}
+function contactModal(kind, entity, afterSave = null) {
+  const isCustomer = kind === 'customer'; const title = isCustomer ? 'cliente' : 'fornecedor';
+  const item = isCustomer ? normaliseCustomer(entity || { type: 'Particular', name: '', phone: '', email: '', nif: '', address: '', creditLimit: 0 }) : (entity || { name: '', phone: '', email: '', nif: '', address: '' });
+  const customerFields = isCustomer ? `<label class="full">Tipo de cliente<select name="type" id="customerType"><option value="Particular" ${item.type !== 'Empresa' ? 'selected' : ''}>Particular</option><option value="Empresa" ${item.type === 'Empresa' ? 'selected' : ''}>Empresa</option></select></label><label id="customerNameLabel">Nome completo<input name="name" required value="${escapeHtml(item.name)}" /></label><label>Telefone<input name="phone" required value="${escapeHtml(item.phone)}" placeholder="Ex.: +244 9XX XXX XXX" /></label><label>E-mail<input name="email" type="email" value="${escapeHtml(item.email)}" /></label><label>NIF <small id="customerNifHint"></small><input name="nif" value="${escapeHtml(item.nif)}" /></label><label>Limite de crédito (Kz)<input name="creditLimit" type="number" min="0" step="0.01" value="${item.creditLimit}" /></label><label class="full">Morada de facturação<input name="address" value="${escapeHtml(item.address)}" /></label>` : `<label>Nome / empresa<input name="name" required value="${escapeHtml(item.name)}" /></label><label>Telefone<input name="phone" value="${escapeHtml(item.phone)}" /></label><label>E-mail<input name="email" type="email" value="${escapeHtml(item.email)}" /></label><label>NIF<input name="nif" value="${escapeHtml(item.nif)}" /></label><label class="full">Morada<input name="address" value="${escapeHtml(item.address)}" /></label>`;
+  openModal(`${modalHeader(entity ? `Editar ${title}` : `Novo ${title}`, isCustomer ? 'Os dados guardados serão usados em facturas, recibos e vendas a crédito.' : 'Guarde os contactos dos seus parceiros de compra.')}<form id="contactForm"><div class="modal-form">${customerFields}</div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${entity ? 'Guardar alterações' : `Criar ${title}`}</button></div></form>`);
+  const form = $('#contactForm');
+  if (isCustomer) { updateCustomerForm(form); form.elements.type.addEventListener('change', () => updateCustomerForm(form)); }
+  form.addEventListener('submit', event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const list = isCustomer ? data.customers : data.suppliers;
+    values.name = values.name.trim(); values.phone = values.phone.trim(); values.email = values.email.trim(); values.nif = values.nif.trim().toUpperCase(); values.address = values.address.trim();
+    if (isCustomer) {
+      values.creditLimit = Math.max(0, Number(values.creditLimit || 0));
+      if (values.type === 'Empresa' && !values.nif) return notify('O NIF é obrigatório para clientes empresariais.');
+      if (values.nif && data.customers.some(customer => customer.nif === values.nif && customer.id !== entity?.id)) return notify('Já existe um cliente com este NIF.');
+    }
+    let saved = entity;
+    if (entity) Object.assign(entity, values); else { saved = { id: uid(isCustomer ? 'customer' : 'supplier'), ...values }; list.push(saved); }
+    saveData(); closeModal(); notify(`${isCustomer ? 'Cliente' : 'Fornecedor'} guardado com sucesso.`);
+    if (afterSave) afterSave(saved); else renderAll();
+  });
 }
 function purchaseLine() { return `<div class="purchase-line"><div><span class="line-label">Produto</span><select name="productId" required><option value="">Seleccione</option>${options(data.products.sort((a,b) => a.name.localeCompare(b.name)), '', product => `${product.name} (${number(product.stock)} un.)`)}</select></div><div><span class="line-label">Quantidade</span><input name="quantity" type="number" min="1" step="1" required value="1" /></div><div><span class="line-label">Custo (Kz)</span><input name="unitCost" type="number" min="0" step="0.01" required /></div><button class="remove-line" type="button" title="Remover linha">×</button></div>`; }
 function purchaseModal() {
@@ -274,18 +337,53 @@ function purchaseModal() {
   $('#purchaseLines').addEventListener('click', event => { if (event.target.classList.contains('remove-line')) { const lines = $$('.purchase-line', $('#purchaseLines')); if (lines.length === 1) return notify('A compra deve ter pelo menos um artigo.'); event.target.closest('.purchase-line').remove(); } });
   $('#purchaseForm').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form).entries()); const lines = $$('.purchase-line', form).map(line => ({ productId: $('[name="productId"]', line).value, quantity: Number($('[name="quantity"]', line).value), unitCost: Number($('[name="unitCost"]', line).value) })); if (lines.some(line => !line.productId || line.quantity <= 0 || line.unitCost < 0)) return notify('Preencha todos os artigos da compra.'); const items = lines.map(line => ({ ...line, name: productById(line.productId).name })); const total = sum(items, item => item.quantity * item.unitCost); const purchase = { id: uid('buy'), reference: values.reference.trim() || `CP-${String(data.purchases.length + 1).padStart(4, '0')}`, date: values.date, supplierId: values.supplierId, payment: values.payment, total, items }; data.purchases.push(purchase); items.forEach(item => { const product = productById(item.productId); product.stock += item.quantity; product.cost = item.unitCost; data.movements.push({ id: uid('mov'), date: `${values.date}T12:00:00`, productId: product.id, productName: product.name, type: 'Entrada', quantity: item.quantity, note: `Compra ${purchase.reference}` }); }); saveData(); closeModal(); notify('Compra registada e stock actualizado.'); renderAll(); });
 }
+function updateCheckoutFields(form, total) {
+  const credit = form.elements.settlement.value === 'credit';
+  const payment = form.elements.payment.value;
+  form.elements.documentType.disabled = credit;
+  if (credit) form.elements.documentType.value = 'Factura';
+  $('#salePaymentMethodField', form).hidden = credit;
+  $('#saleDueDateField', form).hidden = !credit;
+  $('#saleCashReceivedField', form).hidden = credit || payment !== 'Dinheiro';
+  const feedback = $('#salePaymentFeedback', form);
+  if (credit) { feedback.textContent = 'A venda ficará em dívida até ao pagamento registado na ficha do cliente.'; return; }
+  if (payment === 'Dinheiro') {
+    const received = Number(form.elements.amountReceived.value || 0); const change = Math.max(0, received - total);
+    feedback.textContent = received < total ? `Faltam ${money(total - received)} para concluir.` : `Troco: ${money(change)}`;
+  } else feedback.textContent = 'Pagamento integral a confirmar.';
+}
 function saleModal() {
-  if (!cart.length) return notify('Adicione pelo menos um produto à venda.'); const totals = cartNumbers();
-  openModal(`${modalHeader('Finalizar venda', 'Confirme o pagamento para concluir a transação.')}<div class="sale-summary"><div><span>Artigos</span><strong>${sum(cart, item => item.quantity)}</strong></div><div><span>Subtotal</span><strong>${money(totals.subtotal)}</strong></div><div><span>IVA (${number(data.settings.taxRate)}%)</span><strong>${money(totals.tax)}</strong></div><div><span>Total a pagar</span><strong>${money(totals.total)}</strong></div></div><form id="saleForm"><label class="field-label">Meio de pagamento<div class="payment-options"><label class="payment-choice"><input type="radio" name="payment" value="Dinheiro" checked /><span>Dinheiro</span></label><label class="payment-choice"><input type="radio" name="payment" value="Multicaixa" /><span>Multicaixa</span></label><label class="payment-choice"><input type="radio" name="payment" value="Transferência" /><span>Transferência</span></label></div></label><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Voltar</button><button class="btn primary" type="submit">Confirmar pagamento</button></div></form>`);
-  $('#saleForm').addEventListener('submit', event => { event.preventDefault(); const payment = new FormData(event.currentTarget).get('payment'); for (const item of cart) { const product = productById(item.productId); if (!product || product.stock < item.quantity) return notify(`${item.name} já não tem stock suficiente.`); } const sale = { id: uid('sale'), reference: `VD-${String(data.sales.length + 1001).padStart(4, '0')}`, date: new Date().toISOString(), customerId: $('#saleCustomer').value, payment, items: cart.map(item => ({ ...item })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída' }; cart.forEach(item => productById(item.productId).stock -= item.quantity); data.sales.push(sale); saveData(); closeModal(); cart = []; renderPos(); notify(`Venda ${sale.reference} concluída com sucesso.`); printReceipt(sale); });
+  if (!cart.length) return notify('Adicione pelo menos um produto à venda.'); const totals = cartNumbers(); const customer = customerById($('#saleCustomer').value); const customerText = customer ? `${customer.name}${customer.nif ? ` · NIF ${customer.nif}` : ''}` : 'Consumidor final';
+  openModal(`${modalHeader('Finalizar venda', 'Confirme os dados comerciais e o pagamento antes de concluir.')}<div class="sale-summary"><div><span>Cliente</span><strong>${escapeHtml(customerText)}</strong></div><div><span>Artigos</span><strong>${sum(cart, item => item.quantity)}</strong></div><div><span>Subtotal</span><strong>${money(totals.subtotal)}</strong></div><div><span>IVA (${number(data.settings.taxRate)}%)</span><strong>${money(totals.tax)}</strong></div><div><span>Total a pagar</span><strong>${money(totals.total)}</strong></div></div><form id="saleForm"><div class="modal-form"><label class="full">Documento<select name="documentType"><option value="Factura-Recibo">Factura-recibo</option><option value="Factura">Factura</option><option value="Venda a dinheiro">Venda a dinheiro</option></select></label><label class="full">Condição de pagamento<select name="settlement" id="saleSettlement"><option value="paid">Pagamento imediato</option><option value="credit">Venda a crédito</option></select></label><label id="salePaymentMethodField">Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label id="saleCashReceivedField">Valor recebido (Kz)<input name="amountReceived" type="number" min="0" step="0.01" value="${totals.total.toFixed(2)}" /></label><label id="saleDueDateField" class="full" hidden>Data de vencimento<input name="dueDate" type="date" value="${dateISO(30)}" /></label><div id="salePaymentFeedback" class="payment-feedback full"></div></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Voltar</button><button class="btn primary" type="submit">Confirmar venda</button></div></form>`);
+  const form = $('#saleForm'); updateCheckoutFields(form, totals.total);
+  form.addEventListener('input', () => updateCheckoutFields(form, totals.total));
+  form.addEventListener('change', () => updateCheckoutFields(form, totals.total));
+  form.addEventListener('submit', event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const credit = values.settlement === 'credit'; const payment = credit ? 'Crédito' : values.payment; const received = Number(values.amountReceived || 0);
+    if (credit && !customer) return notify('Seleccione ou cadastre um cliente para fazer uma venda a crédito.');
+    if (credit && customer.creditLimit > 0 && customerStats(customer.id).balance + totals.total > customer.creditLimit) return notify('Esta venda ultrapassa o limite de crédito definido para o cliente.');
+    if (!credit && payment === 'Dinheiro' && received < totals.total) return notify('O valor recebido é inferior ao total da venda.');
+    for (const item of cart) { const product = productById(item.productId); if (!product || product.stock < item.quantity) return notify(`${item.name} já não tem stock suficiente.`); }
+    const balanceDue = credit ? totals.total : 0;
+    const sale = { id: uid('sale'), reference: `VD-${String(data.sales.length + 1001).padStart(4, '0')}`, date: new Date().toISOString(), customerId: customer?.id || '', customer: customerSnapshot(customer), documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída' };
+    cart.forEach(item => productById(item.productId).stock -= item.quantity); data.sales.push(sale); saveData(); closeModal(); cart = []; renderPos(); notify(`Venda ${sale.reference} concluída com sucesso.`); printReceipt(sale);
+  });
+}
+function receivePaymentModal(customer) {
+  const dueSales = data.sales.filter(sale => sale.customerId === customer.id && saleBalanceDue(sale) > 0).sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (!dueSales.length) return notify('Este cliente não tem valores pendentes.');
+  openModal(`${modalHeader('Registar recebimento', `Cliente: ${customer.name}`)}<form id="receiptForm"><div class="modal-form"><label class="full">Documento em dívida<select name="saleId">${dueSales.map(sale => `<option value="${sale.id}">${sale.reference} · vence ${shortDate(sale.dueDate || sale.date)} · saldo ${money(saleBalanceDue(sale))}</option>`).join('')}</select></label><label>Valor recebido (Kz)<input name="amount" type="number" min="0.01" step="0.01" required value="${saleBalanceDue(dueSales[0]).toFixed(2)}" /></label><label>Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label class="full">Data do recebimento<input name="date" type="date" required value="${dateISO()}" /></label><label class="full">Observação<input name="note" placeholder="Ex.: pagamento parcial, referência bancária" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Registar recebimento</button></div></form>`);
+  const form = $('#receiptForm');
+  form.elements.saleId.addEventListener('change', () => { const sale = data.sales.find(item => item.id === form.elements.saleId.value); form.elements.amount.value = saleBalanceDue(sale).toFixed(2); });
+  form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const sale = data.sales.find(item => item.id === values.saleId); const amount = Number(values.amount); if (!sale || amount <= 0) return notify('Introduza um valor válido.'); if (amount > saleBalanceDue(sale)) return notify('O valor é superior ao saldo deste documento.'); sale.amountPaid = Number(sale.amountPaid || 0) + amount; sale.balanceDue = Math.max(0, saleBalanceDue(sale) - amount); sale.paymentStatus = sale.balanceDue === 0 ? 'Pago' : 'Parcial'; data.receipts.push({ id: uid('receipt'), saleId: sale.id, customerId: customer.id, date: `${values.date}T12:00:00`, amount, payment: values.payment, note: values.note.trim() }); saveData(); closeModal(); notify(`Recebimento de ${money(amount)} registado.`); renderAll(); });
 }
 function printReceipt(sale) {
-  const customer = customerById(sale.customerId)?.name || 'Consumidor final'; const win = window.open('', '_blank', 'width=420,height=640'); if (!win) return; win.document.write(`<!doctype html><html><head><title>Recibo ${sale.reference}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#222;font-size:13px}.head{text-align:center;border-bottom:1px dashed #999;padding-bottom:13px}.head h2{margin:0 0 6px}table{width:100%;border-collapse:collapse;margin:17px 0}td{padding:6px 0;border-bottom:1px solid #eee}.right{text-align:right}.total{font-size:17px;font-weight:bold;border-top:2px solid #222;padding-top:9px;margin-top:8px}.foot{text-align:center;color:#666;margin-top:26px;font-size:11px}@media print{button{display:none}}</style></head><body><div class="head"><h2>${escapeHtml(data.settings.company)}</h2><div>NIF: ${escapeHtml(data.settings.nif || '—')}</div><div>${escapeHtml(data.settings.address || '')}</div></div><p><b>Recibo:</b> ${sale.reference}<br><b>Data:</b> ${fullDate(sale.date)}<br><b>Cliente:</b> ${escapeHtml(customer)}</p><table>${sale.items.map(item => `<tr><td>${escapeHtml(item.name)}<br><small>${number(item.quantity)} × ${money(item.price)}</small></td><td class="right">${money(item.quantity * item.price)}</td></tr>`).join('')}</table><div>Subtotal <span style="float:right">${money(sale.subtotal)}</span></div>${sale.discountValue ? `<div>Desconto <span style="float:right">− ${money(sale.discountValue)}</span></div>` : ''}<div>IVA <span style="float:right">${money(sale.tax)}</span></div><div class="total">TOTAL <span style="float:right">${money(sale.total)}</span></div><p>Pagamento: <b>${escapeHtml(sale.payment)}</b></p><div class="foot">Obrigado pela sua preferência.</div><button onclick="window.print()">Imprimir recibo</button></body></html>`); win.document.close(); }
+  const customer = saleCustomer(sale); const clientDetails = `${escapeHtml(customer.name)}${customer.type && customer.type !== 'Consumidor final' ? `<br><small>${escapeHtml(customer.type)}${customer.nif ? ` · NIF: ${escapeHtml(customer.nif)}` : ''}</small>` : ''}${customer.address ? `<br><small>${escapeHtml(customer.address)}</small>` : ''}`; const win = window.open('', '_blank', 'width=420,height=700'); if (!win) return; win.document.write(`<!doctype html><html><head><title>${escapeHtml(sale.documentType || 'Recibo')} ${sale.reference}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#222;font-size:13px}.head{text-align:center;border-bottom:1px dashed #999;padding-bottom:13px}.head h2{margin:0 0 6px}table{width:100%;border-collapse:collapse;margin:17px 0}td{padding:6px 0;border-bottom:1px solid #eee}.right{text-align:right}.total{font-size:17px;font-weight:bold;border-top:2px solid #222;padding-top:9px;margin-top:8px}.foot{text-align:center;color:#666;margin-top:26px;font-size:11px}@media print{button{display:none}}</style></head><body><div class="head"><h2>${escapeHtml(data.settings.company)}</h2><div>NIF: ${escapeHtml(data.settings.nif || '—')}</div><div>${escapeHtml(data.settings.address || '')}</div></div><p><b>${escapeHtml(sale.documentType || 'Recibo')}:</b> ${escapeHtml(sale.reference)}<br><b>Data:</b> ${fullDate(sale.date)}<br><b>Cliente:</b><br>${clientDetails}</p><table>${sale.items.map(item => `<tr><td>${escapeHtml(item.name)}<br><small>${number(item.quantity)} × ${money(item.price)}</small></td><td class="right">${money(item.quantity * item.price)}</td></tr>`).join('')}</table><div>Subtotal <span style="float:right">${money(sale.subtotal)}</span></div>${sale.discountValue ? `<div>Desconto <span style="float:right">− ${money(sale.discountValue)}</span></div>` : ''}<div>IVA <span style="float:right">${money(sale.tax)}</span></div><div class="total">TOTAL <span style="float:right">${money(sale.total)}</span></div><p>Pagamento: <b>${escapeHtml(sale.payment)}</b><br>Estado: <b>${escapeHtml(sale.paymentStatus || 'Pago')}</b>${saleBalanceDue(sale) ? `<br>Saldo por pagar: <b>${money(saleBalanceDue(sale))}</b>${sale.dueDate ? `<br>Vencimento: ${shortDate(sale.dueDate)}` : ''}` : ''}${sale.change ? `<br>Troco: <b>${money(sale.change)}</b>` : ''}</p><div class="foot">Documento gerado pelo VendaMais. Confirme os requisitos fiscais aplicáveis antes da emissão oficial.<br>Obrigado pela sua preferência.</div><button onclick="window.print()">Imprimir documento</button></body></html>`); win.document.close(); }
 
-function exportSales() { const start = $('#reportStart').value; const end = $('#reportEnd').value; const rows = salesBetween(start, end); const headers = ['Data', 'Referência', 'Cliente', 'Pagamento', 'Subtotal', 'Desconto', 'IVA', 'Total']; const csv = [headers, ...rows.map(sale => [sale.date, sale.reference, customerById(sale.customerId)?.name || 'Consumidor final', sale.payment, sale.subtotal, sale.discountValue, sale.tax, sale.total])].map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(';')).join('\n'); download(`vendas-${start || 'inicio'}-${end || 'hoje'}.csv`, new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' })); notify('Relatório de vendas exportado.'); }
+function exportSales() { const start = $('#reportStart').value; const end = $('#reportEnd').value; const rows = salesBetween(start, end); const headers = ['Data', 'Referência', 'Documento', 'Cliente', 'Tipo de cliente', 'NIF', 'Pagamento', 'Estado', 'Saldo em dívida', 'Subtotal', 'Desconto', 'IVA', 'Total']; const csv = [headers, ...rows.map(sale => { const customer = saleCustomer(sale); return [sale.date, sale.reference, sale.documentType, customer.name, customer.type, customer.nif, sale.payment, sale.paymentStatus, saleBalanceDue(sale), sale.subtotal, sale.discountValue, sale.tax, sale.total]; })].map(row => row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(';')).join('\n'); download(`vendas-${start || 'inicio'}-${end || 'hoje'}.csv`, new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' })); notify('Relatório de vendas exportado.'); }
 function download(filename, blob) { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url); }
 function backup() { download(`vendamais-copia-${dateISO()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); notify('Cópia de segurança preparada.'); }
-function restore(file) { if (!file) return; const reader = new FileReader(); reader.onload = event => { try { const restored = JSON.parse(event.target.result); if (!restored.settings || !Array.isArray(restored.products)) throw new Error(); data = restored; saveData(); cart = []; $('#companyName').textContent = data.settings.company; renderAll(); notify('Cópia restaurada com sucesso.'); } catch { notify('Este ficheiro não parece ser uma cópia válida do VendaMais.'); } }; reader.readAsText(file); }
+function restore(file) { if (!file) return; const reader = new FileReader(); reader.onload = event => { try { const restored = JSON.parse(event.target.result); if (!restored.settings || !Array.isArray(restored.products)) throw new Error(); data = normaliseData(restored); saveData(); cart = []; $('#companyName').textContent = data.settings.company; renderAll(); notify('Cópia restaurada com sucesso.'); } catch { notify('Este ficheiro não parece ser uma cópia válida do VendaMais.'); } }; reader.readAsText(file); }
 
 document.addEventListener('click', event => {
   const nav = event.target.closest('.nav-link'); if (nav) return showView(nav.dataset.view);
@@ -300,7 +398,9 @@ document.addEventListener('click', event => {
   const productAction = event.target.closest('[data-product-action]'); if (productAction) return productModal(productById(productAction.dataset.id));
   if (event.target.closest('#newAdjustment')) return adjustmentModal();
   if (event.target.closest('#newCustomer')) return contactModal('customer');
-  const customerAction = event.target.closest('[data-customer-action]'); if (customerAction) return contactModal('customer', customerById(customerAction.dataset.id));
+  if (event.target.closest('#quickNewCustomer')) return contactModal('customer', null, customer => { renderPos(); $('#saleCustomer').value = customer.id; renderSaleCustomerInfo(); });
+  if (event.target.closest('#editSaleCustomer')) { const customer = customerById($('#saleCustomer').value); if (customer) return contactModal('customer', customer, saved => { renderPos(); $('#saleCustomer').value = saved.id; renderSaleCustomerInfo(); }); }
+  const customerAction = event.target.closest('[data-customer-action]'); if (customerAction) { const customer = customerById(customerAction.dataset.id); return customerAction.dataset.customerAction === 'receive' ? receivePaymentModal(customer) : contactModal('customer', customer); }
   if (event.target.closest('#newSupplier')) return contactModal('supplier');
   const supplierAction = event.target.closest('[data-supplier-action]'); if (supplierAction) return contactModal('supplier', supplierById(supplierAction.dataset.id));
   if (event.target.closest('#newPurchase')) return purchaseModal();
@@ -311,7 +411,7 @@ document.addEventListener('click', event => {
   if (event.target.closest('#resetDemo')) { if (confirm('Isto substitui todos os dados actuais pelos dados de demonstração. Continuar?')) { data = demoData(); cart = []; saveData(); $('#companyName').textContent = data.settings.company; renderAll(); notify('Dados de demonstração repostos.'); } return; }
 });
 document.addEventListener('input', event => { if (event.target.id === 'productSearch') renderPosProducts(); if (event.target.id === 'saleDiscount') renderCart(); const table = event.target.dataset?.table; if (table === 'products') filterProducts(); if (table === 'customers') filterCustomers(); if (table === 'suppliers') filterSuppliers(); });
-document.addEventListener('change', event => { if (event.target.id === 'posCategory') renderPosProducts(); if (event.target.id === 'productCategoryFilter') filterProducts(); if (event.target.id === 'restoreData') restore(event.target.files[0]); });
+document.addEventListener('change', event => { if (event.target.id === 'posCategory') renderPosProducts(); if (event.target.id === 'productCategoryFilter') filterProducts(); if (event.target.id === 'saleCustomer') renderSaleCustomerInfo(); if (event.target.id === 'restoreData') restore(event.target.files[0]); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && $('#modalBackdrop').classList.contains('open')) closeModal(); });
 $('#settingsForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.taxRate = Number(values.taxRate); values.stockLimit = Number(values.stockLimit); data.settings = { ...data.settings, ...values }; saveData(); $('#companyName').textContent = data.settings.company; notify('Definições guardadas.'); renderAll(); });
 

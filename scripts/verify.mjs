@@ -30,6 +30,7 @@ const requiredFunctions = [
   'renderInventory',
   'renderReports',
   'saleModal',
+  'receivePaymentModal',
   'purchaseModal',
   'backup',
   'restore'
@@ -51,6 +52,8 @@ for (const fn of requiredFunctions) {
 }
 if (!app.includes('localStorage')) failures.push('Persistência local não encontrada.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
+if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
+if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
 
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));

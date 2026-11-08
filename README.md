@@ -14,6 +14,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Inventário | Registar entradas, saídas e ajustes; consultar o histórico de movimentos. |
 | Compras | Registar compras por fornecedor e actualizar automaticamente custo e stock. |
 | Clientes e fornecedores | Manter contactos, NIF, morada e histórico comercial. |
+| Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
 | Segurança dos dados | Exportar/restaurar cópias completas em JSON e exportar vendas em CSV. |
 
@@ -81,6 +82,7 @@ vendamais/
 - Crie uma cópia periódica em **Definições → Guardar cópia**.
 - Para mudar de computador, use **Restaurar cópia** no novo navegador.
 - Limpar os dados do navegador sem criar uma cópia apaga os registos locais.
+- Em cada venda, a aplicação guarda uma cópia do nome, NIF e morada de facturação do cliente para preservar o documento mesmo depois de a ficha ser alterada.
 
 ## Preparação para produção
 

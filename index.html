@@ -27,7 +27,7 @@
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais <span>•</span> v1.1.0</div>
+      <div class="sidebar-foot">VendaMais <span>•</span> v1.2.0</div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -55,7 +55,12 @@
           </div>
           <aside class="cart-panel">
             <div class="cart-head"><div><h2>Venda atual</h2><span id="cartCount">0 artigos</span></div><button class="icon-btn" id="clearCart" title="Limpar venda">⌫</button></div>
-            <label class="field-label">Cliente <select id="saleCustomer"><option value="">Consumidor final</option></select></label>
+            <div class="sale-customer-block">
+              <div class="customer-field-head"><label class="field-label" for="saleCustomer">Cliente / dados de facturação</label><button class="text-btn" id="quickNewCustomer" type="button">＋ Cadastrar cliente</button></div>
+              <select id="saleCustomer"><option value="">Consumidor final</option></select>
+              <div id="saleCustomerInfo" class="sale-customer-info" aria-live="polite"></div>
+              <button class="text-btn edit-customer-link" id="editSaleCustomer" type="button" hidden>Editar dados do cliente</button>
+            </div>
             <div id="cartItems" class="cart-items"><div class="empty-cart">O carrinho está vazio.<br><small>Escolha produtos ao lado.</small></div></div>
             <div class="cart-discount"><label>Desconto <div class="input-suffix"><input id="saleDiscount" type="number" min="0" step="0.01" value="0" /><span>%</span></div></label></div>
             <div class="cart-totals"><div><span>Subtotal</span><strong id="cartSubtotal">0,00 Kz</strong></div><div><span>IVA <small id="taxRateLabel">14%</small></span><strong id="cartTax">0,00 Kz</strong></div><div class="grand-total"><span>Total</span><strong id="cartTotal">0,00 Kz</strong></div></div>
@@ -80,7 +85,7 @@
         <div class="section-head"><div><h2>Clientes</h2><p>Organize os contactos e o histórico de compras.</p></div><button class="btn primary" id="newCustomer">＋ Novo cliente</button></div>
         <div class="metric-grid compact" id="customerMetrics"></div>
         <div class="toolbar"><div class="searchbox"><span>⌕</span><input class="filter-input" data-table="customers" placeholder="Procurar cliente, telefone ou NIF" /></div></div>
-        <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Contacto</th><th>NIF</th><th>Compras</th><th>Total comprado</th><th>Saldo</th><th></th></tr></thead><tbody id="customersTable"></tbody></table></div></div>
+        <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Tipo</th><th>Contacto</th><th>NIF</th><th>Compras</th><th>Total comprado</th><th>Saldo</th><th></th></tr></thead><tbody id="customersTable"></tbody></table></div></div>
       </section>
 
       <section class="view" id="suppliersView">
