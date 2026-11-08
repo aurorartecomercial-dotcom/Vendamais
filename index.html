@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-AO">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#163d36" />
+  <meta name="description" content="VendaMais — sistema local de ponto de venda, inventário e gestão comercial." />
+  <title>VendaMais — Gestão Comercial</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark">V</span><span>Venda<span>Mais</span></span></div>
+      <p class="company-name" id="companyName">Minha Empresa</p>
+      <nav class="nav" aria-label="Navegação principal">
+        <button class="nav-link active" data-view="dashboard"><i>▦</i> Visão geral</button>
+        <button class="nav-link" data-view="pos"><i>▣</i> Nova venda</button>
+        <div class="nav-label">Gestão</div>
+        <button class="nav-link" data-view="products"><i>◈</i> Produtos & stock</button>
+        <button class="nav-link" data-view="inventory"><i>↕</i> Inventário</button>
+        <button class="nav-link" data-view="customers"><i>♙</i> Clientes</button>
+        <button class="nav-link" data-view="suppliers"><i>♧</i> Fornecedores</button>
+        <button class="nav-link" data-view="purchases"><i>⊞</i> Compras</button>
+        <div class="nav-label">Análise</div>
+        <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
+        <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
+      </nav>
+      <div class="sidebar-foot">VendaMais <span>•</span> v1.1.0</div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
+        <div><p class="eyebrow" id="topDate"></p><h1 id="viewTitle">Visão geral</h1></div>
+        <div class="top-actions"><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><div class="avatar">AD</div></div>
+      </header>
+
+      <section class="view active" id="dashboardView">
+        <div class="welcome-row"><div><h2>Bom dia, Administrador</h2><p>Acompanhe hoje o desempenho do seu negócio.</p></div><button class="btn primary" data-go="pos">＋ Registar venda</button></div>
+        <div class="metric-grid" id="metrics"></div>
+        <div class="dashboard-grid">
+          <article class="panel chart-panel"><div class="panel-head"><div><h3>Vendas dos últimos 7 dias</h3><p>Faturação diária</p></div><span class="badge positive" id="weekTotal"></span></div><div class="bar-chart" id="salesChart"></div></article>
+          <article class="panel"><div class="panel-head"><div><h3>Stock reduzido</h3><p>Produtos abaixo do limite</p></div><button class="text-btn" data-go="products">Ver todos</button></div><div id="lowStockList" class="compact-list"></div></article>
+          <article class="panel recent-panel"><div class="panel-head"><div><h3>Vendas recentes</h3><p>Últimas transações</p></div><button class="text-btn" data-go="reports">Relatório</button></div><div class="table-wrap"><table><thead><tr><th>Referência</th><th>Cliente</th><th>Total</th><th>Estado</th></tr></thead><tbody id="recentSales"></tbody></table></div></article>
+          <article class="panel"><div class="panel-head"><div><h3>Resumo financeiro</h3><p>Este mês</p></div></div><div id="financialSummary" class="summary-list"></div></article>
+        </div>
+      </section>
+
+      <section class="view" id="posView">
+        <div class="pos-layout">
+          <div class="pos-catalog panel">
+            <div class="pos-tools"><div class="searchbox"><span>⌕</span><input id="productSearch" placeholder="Procurar produto por nome ou código" /></div><select id="posCategory"><option value="">Todas as categorias</option></select></div>
+            <div class="product-grid" id="posProducts"></div>
+          </div>
+          <aside class="cart-panel">
+            <div class="cart-head"><div><h2>Venda atual</h2><span id="cartCount">0 artigos</span></div><button class="icon-btn" id="clearCart" title="Limpar venda">⌫</button></div>
+            <label class="field-label">Cliente <select id="saleCustomer"><option value="">Consumidor final</option></select></label>
+            <div id="cartItems" class="cart-items"><div class="empty-cart">O carrinho está vazio.<br><small>Escolha produtos ao lado.</small></div></div>
+            <div class="cart-discount"><label>Desconto <div class="input-suffix"><input id="saleDiscount" type="number" min="0" step="0.01" value="0" /><span>%</span></div></label></div>
+            <div class="cart-totals"><div><span>Subtotal</span><strong id="cartSubtotal">0,00 Kz</strong></div><div><span>IVA <small id="taxRateLabel">14%</small></span><strong id="cartTax">0,00 Kz</strong></div><div class="grand-total"><span>Total</span><strong id="cartTotal">0,00 Kz</strong></div></div>
+            <button class="btn primary wide" id="finishSale">Finalizar venda <span>→</span></button>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="productsView">
+        <div class="section-head"><div><h2>Produtos e stock</h2><p>Cadastre produtos, preços e limites de reposição.</p></div><button class="btn primary" id="newProduct">＋ Novo produto</button></div>
+        <div class="toolbar"><div class="searchbox"><span>⌕</span><input class="filter-input" data-table="products" placeholder="Procurar produto ou código" /></div><select class="filter-select" data-table="products" id="productCategoryFilter"><option value="">Todas as categorias</option></select><span class="table-count" id="productsCount"></span></div>
+        <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Categoria</th><th>Preço de venda</th><th>Custo</th><th>Stock</th><th>Estado</th><th></th></tr></thead><tbody id="productsTable"></tbody></table></div></div>
+      </section>
+
+      <section class="view" id="inventoryView">
+        <div class="section-head"><div><h2>Inventário</h2><p>Controle entradas, saídas e ajustes do stock.</p></div><button class="btn primary" id="newAdjustment">↕ Ajustar stock</button></div>
+        <div class="metric-grid compact" id="inventoryMetrics"></div>
+        <div class="dashboard-grid inventory-grid"><article class="panel"><div class="panel-head"><div><h3>Estado do inventário</h3><p>Valor do stock ao custo</p></div></div><div id="inventoryStatus" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Movimentos recentes</h3><p>Histórico de entradas e saídas</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Movimento</th><th>Quantidade</th><th>Nota</th></tr></thead><tbody id="movementsTable"></tbody></table></div></article></div>
+      </section>
+
+      <section class="view" id="customersView">
+        <div class="section-head"><div><h2>Clientes</h2><p>Organize os contactos e o histórico de compras.</p></div><button class="btn primary" id="newCustomer">＋ Novo cliente</button></div>
+        <div class="metric-grid compact" id="customerMetrics"></div>
+        <div class="toolbar"><div class="searchbox"><span>⌕</span><input class="filter-input" data-table="customers" placeholder="Procurar cliente, telefone ou NIF" /></div></div>
+        <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Contacto</th><th>NIF</th><th>Compras</th><th>Total comprado</th><th>Saldo</th><th></th></tr></thead><tbody id="customersTable"></tbody></table></div></div>
+      </section>
+
+      <section class="view" id="suppliersView">
+        <div class="section-head"><div><h2>Fornecedores</h2><p>Guarde parceiros de compra e respectivos contactos.</p></div><button class="btn primary" id="newSupplier">＋ Novo fornecedor</button></div>
+        <div class="toolbar"><div class="searchbox"><span>⌕</span><input class="filter-input" data-table="suppliers" placeholder="Procurar fornecedor ou contacto" /></div></div>
+        <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Fornecedor</th><th>Contacto</th><th>NIF</th><th>Localização</th><th>Compras registadas</th><th></th></tr></thead><tbody id="suppliersTable"></tbody></table></div></div>
+      </section>
+
+      <section class="view" id="purchasesView">
+        <div class="section-head"><div><h2>Compras e entradas</h2><p>Registe compras para actualizar o stock automaticamente.</p></div><button class="btn primary" id="newPurchase">＋ Registar compra</button></div>
+        <div class="metric-grid compact" id="purchaseMetrics"></div>
+        <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Referência</th><th>Data</th><th>Fornecedor</th><th>Produtos</th><th>Total</th><th>Pagamento</th></tr></thead><tbody id="purchasesTable"></tbody></table></div></div>
+      </section>
+
+      <section class="view" id="reportsView">
+        <div class="section-head"><div><h2>Balanço e relatórios</h2><p>Veja a saúde financeira do negócio e exporte os dados.</p></div><button class="btn secondary" id="exportReport">⇩ Exportar vendas CSV</button></div>
+        <div class="report-filters panel"><label>De <input type="date" id="reportStart" /></label><label>Até <input type="date" id="reportEnd" /></label><button class="btn primary" id="applyReport">Actualizar</button></div>
+        <div class="metric-grid" id="reportMetrics"></div>
+        <div class="dashboard-grid"><article class="panel recent-panel"><div class="panel-head"><div><h3>Demonstrativo simplificado</h3><p>Receitas, custos e resultado do período</p></div></div><div id="incomeStatement" class="statement"></div></article><article class="panel"><div class="panel-head"><div><h3>Meios de pagamento</h3><p>Vendas do período</p></div></div><div id="paymentSummary" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Vendas no período</h3><p>Transações concluídas</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Referência</th><th>Cliente</th><th>Pagamento</th><th>Total</th></tr></thead><tbody id="reportSalesTable"></tbody></table></div></article><article class="panel"><div class="panel-head"><div><h3>Produtos mais vendidos</h3><p>Por quantidade</p></div></div><div id="topProducts" class="compact-list"></div></article></div>
+      </section>
+
+      <section class="view" id="settingsView">
+        <div class="section-head"><div><h2>Definições</h2><p>Dados da empresa, impostos e cópia de segurança.</p></div></div>
+        <div class="settings-grid"><form id="settingsForm" class="panel form-card"><h3>Dados da empresa</h3><div class="form-grid"><label>Nome da empresa<input name="company" required /></label><label>NIF<input name="nif" /></label><label>Telefone<input name="phone" /></label><label>E-mail<input name="email" type="email" /></label><label class="span-2">Morada<input name="address" /></label><label>IVA (%)<input name="taxRate" min="0" max="100" step="0.01" type="number" required /></label><label>Limite padrão de stock<input name="stockLimit" min="0" type="number" required /></label></div><button class="btn primary" type="submit">Guardar definições</button></form><article class="panel form-card"><h3>Cópia de segurança</h3><p>Exporte os dados completos para guardar uma cópia ou transfira-os para outro computador.</p><div class="backup-actions"><button class="btn secondary" id="backupData" type="button">⇩ Guardar cópia</button><label class="btn secondary import-btn">⇧ Restaurar cópia<input type="file" id="restoreData" accept="application/json" hidden /></label></div><hr><h3>Dados de demonstração</h3><p>Reponha a aplicação com dados de exemplo. Esta operação substitui todos os dados actuais.</p><button class="text-danger" id="resetDemo" type="button">Repor dados de demonstração</button></article></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true"><div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"></div></div>
+  <script src="app.js"></script>
+</body>
+</html>

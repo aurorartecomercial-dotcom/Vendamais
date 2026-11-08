@@ -1,0 +1,16 @@
+# Sistema operativo e editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Dependências e relatórios locais
+node_modules/
+coverage/
+
+# Ficheiros de ambiente e cópias locais
+.env
+.env.*
+*.local
+vendamais-copia-*.json
+vendas-*.csv
