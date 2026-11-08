@@ -2,6 +2,23 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.3.0] — 2026-11-09
+
+### Adicionado
+
+- Turnos de caixa, fundo inicial, movimentos, fecho com contagem e diferenças.
+- Documentos comerciais, impressão, exportação e devolução com nota de crédito interna.
+- Perfis operacionais de Administrador, Gerente e Caixa, com selecção de sessão local.
+- Registo de auditoria local das principais operações.
+- Produtos com código de barras, unidades, armazém, lote e validade.
+- Sugestão de reposição, compras a crédito e pagamentos parciais a fornecedores.
+- Esquema PostgreSQL/Supabase e guia de segurança para implantação multiutilizador.
+
+### Segurança
+
+- Vendas e recebimentos em dinheiro exigem um turno de caixa aberto.
+- Devoluções em dinheiro exigem caixa aberto e registam saída de caixa.
+
 ## [1.2.0] — 2026-11-09
 
 ### Adicionado

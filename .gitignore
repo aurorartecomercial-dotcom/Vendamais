@@ -11,6 +11,7 @@ coverage/
 # Ficheiros de ambiente e cópias locais
 .env
 .env.*
+!.env.example
 *.local
 vendamais-copia-*.json
 vendas-*.csv

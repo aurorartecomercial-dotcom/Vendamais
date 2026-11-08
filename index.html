@@ -23,17 +23,19 @@
         <button class="nav-link" data-view="customers"><i>♙</i> Clientes</button>
         <button class="nav-link" data-view="suppliers"><i>♧</i> Fornecedores</button>
         <button class="nav-link" data-view="purchases"><i>⊞</i> Compras</button>
+        <button class="nav-link" data-view="cash"><i>▤</i> Caixa & turnos</button>
+        <button class="nav-link" data-view="documents"><i>▧</i> Documentos</button>
         <div class="nav-label">Análise</div>
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais <span>•</span> v1.2.0</div>
+      <div class="sidebar-foot">VendaMais <span>•</span> v1.3.0</div>
     </aside>
     <main class="main">
       <header class="topbar">
         <button class="icon-btn mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
         <div><p class="eyebrow" id="topDate"></p><h1 id="viewTitle">Visão geral</h1></div>
-        <div class="top-actions"><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><div class="avatar">AD</div></div>
+        <div class="top-actions"><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><button class="avatar" id="accountButton" title="Sessão de utilizador">AD</button></div>
       </header>
 
       <section class="view active" id="dashboardView">
@@ -95,9 +97,21 @@
       </section>
 
       <section class="view" id="purchasesView">
-        <div class="section-head"><div><h2>Compras e entradas</h2><p>Registe compras para actualizar o stock automaticamente.</p></div><button class="btn primary" id="newPurchase">＋ Registar compra</button></div>
+        <div class="section-head"><div><h2>Compras e entradas</h2><p>Registe compras para actualizar o stock automaticamente.</p></div><div class="inline-actions"><button class="btn secondary" id="suggestPurchase">↗ Sugerir reposição</button><button class="btn primary" id="newPurchase">＋ Registar compra</button></div></div>
         <div class="metric-grid compact" id="purchaseMetrics"></div>
         <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Referência</th><th>Data</th><th>Fornecedor</th><th>Produtos</th><th>Total</th><th>Pagamento</th></tr></thead><tbody id="purchasesTable"></tbody></table></div></div>
+      </section>
+
+      <section class="view" id="cashView">
+        <div class="section-head"><div><h2>Caixa & turnos</h2><p>Abra, movimente e feche o caixa por operador.</p></div><div class="inline-actions"><button class="btn secondary" id="cashMovement">↕ Movimento de caixa</button><button class="btn primary" id="cashPrimaryAction">Abrir caixa</button></div></div>
+        <div class="metric-grid compact" id="cashMetrics"></div>
+        <div class="dashboard-grid"><article class="panel form-card"><div class="panel-head"><div><h3 id="cashSessionTitle">Nenhum caixa aberto</h3><p id="cashSessionInfo">Abra um turno antes de efectuar vendas.</p></div></div><div id="cashSummary" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Movimentos do turno</h3><p>Entradas e saídas de dinheiro</p></div></div><div class="table-wrap"><table><thead><tr><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Operador</th></tr></thead><tbody id="cashMovementsTable"></tbody></table></div></article></div>
+      </section>
+
+      <section class="view" id="documentsView">
+        <div class="section-head"><div><h2>Documentos comerciais</h2><p>Consulte, imprima ou processe devoluções com rastreabilidade.</p></div><button class="btn secondary" id="exportDocuments">⇩ Exportar documentos CSV</button></div>
+        <div class="toolbar"><div class="searchbox"><span>⌕</span><input class="filter-input" data-table="documents" placeholder="Procurar referência, cliente ou NIF" /></div><select id="documentStatusFilter"><option value="">Todos os estados</option><option value="Concluída">Concluídos</option><option value="Devolvida">Devolvidos</option></select></div>
+        <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Data</th><th>Documento</th><th>Cliente</th><th>NIF</th><th>Pagamento</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody id="documentsTable"></tbody></table></div></div>
       </section>
 
       <section class="view" id="reportsView">
@@ -109,7 +123,7 @@
 
       <section class="view" id="settingsView">
         <div class="section-head"><div><h2>Definições</h2><p>Dados da empresa, impostos e cópia de segurança.</p></div></div>
-        <div class="settings-grid"><form id="settingsForm" class="panel form-card"><h3>Dados da empresa</h3><div class="form-grid"><label>Nome da empresa<input name="company" required /></label><label>NIF<input name="nif" /></label><label>Telefone<input name="phone" /></label><label>E-mail<input name="email" type="email" /></label><label class="span-2">Morada<input name="address" /></label><label>IVA (%)<input name="taxRate" min="0" max="100" step="0.01" type="number" required /></label><label>Limite padrão de stock<input name="stockLimit" min="0" type="number" required /></label></div><button class="btn primary" type="submit">Guardar definições</button></form><article class="panel form-card"><h3>Cópia de segurança</h3><p>Exporte os dados completos para guardar uma cópia ou transfira-os para outro computador.</p><div class="backup-actions"><button class="btn secondary" id="backupData" type="button">⇩ Guardar cópia</button><label class="btn secondary import-btn">⇧ Restaurar cópia<input type="file" id="restoreData" accept="application/json" hidden /></label></div><hr><h3>Dados de demonstração</h3><p>Reponha a aplicação com dados de exemplo. Esta operação substitui todos os dados actuais.</p><button class="text-danger" id="resetDemo" type="button">Repor dados de demonstração</button></article></div>
+        <div class="settings-grid"><form id="settingsForm" class="panel form-card"><h3>Dados da empresa</h3><div class="form-grid"><label>Nome da empresa<input name="company" required /></label><label>NIF<input name="nif" /></label><label>Telefone<input name="phone" /></label><label>E-mail<input name="email" type="email" /></label><label class="span-2">Morada<input name="address" /></label><label>IVA (%)<input name="taxRate" min="0" max="100" step="0.01" type="number" required /></label><label>Limite padrão de stock<input name="stockLimit" min="0" type="number" required /></label></div><button class="btn primary" type="submit">Guardar definições</button></form><article class="panel form-card"><h3>Operação e integrações</h3><p>Gestão local de operadores, auditoria e preferências dos equipamentos.</p><div class="backup-actions"><button class="btn secondary" id="manageUsers" type="button">♙ Utilizadores</button><button class="btn secondary" id="viewAudit" type="button">◒ Auditoria</button><button class="btn secondary" id="manageIntegrations" type="button">⚙ Integrações</button></div><hr><h3>Cópia de segurança</h3><p>Exporte os dados completos para guardar uma cópia ou transfira-os para outro computador.</p><div class="backup-actions"><button class="btn secondary" id="backupData" type="button">⇩ Guardar cópia</button><label class="btn secondary import-btn">⇧ Restaurar cópia<input type="file" id="restoreData" accept="application/json" hidden /></label></div><hr><h3>Dados de demonstração</h3><p>Reponha a aplicação com dados de exemplo. Esta operação substitui todos os dados actuais.</p><button class="text-danger" id="resetDemo" type="button">Repor dados de demonstração</button></article></div>
       </section>
     </main>
   </div>

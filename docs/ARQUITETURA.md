@@ -21,6 +21,10 @@ Os dados são guardados como um único documento versionado na chave `vendamais_
 | `products` | Catálogo, preço de custo, preço de venda, stock e mínimo. |
 | `customers` | Contactos e identificação dos clientes. |
 | `receipts` | Recebimentos de vendas a crédito, ligados ao documento e ao cliente. |
+| `supplierPayments` | Pagamentos a fornecedores e liquidação parcial de compras a crédito. |
+| `cashSessions` / `cashMovements` | Turnos de caixa, fundo inicial, movimentos físicos e fechos. |
+| `users` | Operadores locais e respectivas funções de acesso. |
+| `auditLog` | Registo local das operações relevantes. |
 | `suppliers` | Contactos e identificação dos fornecedores. |
 | `sales` | Vendas concluídas e linhas de venda com o custo histórico. |
 | `purchases` | Compras a fornecedores e custos unitários. |
@@ -45,6 +49,17 @@ Guardar o preço e o custo em cada linha de venda preserva a coerência dos rela
 2. Empresas exigem NIF; cada cliente pode ter um limite de crédito opcional.
 3. A venda a crédito começa com saldo pendente e data de vencimento.
 4. A ficha de cliente permite registar recebimentos parciais ou totais; os saldos são recalculados no histórico e nos relatórios.
+
+### Caixa e documentos
+
+1. Cada operador abre um turno com um fundo inicial.
+2. Vendas e recebimentos em dinheiro exigem um turno aberto; pagamentos a fornecedores e devoluções em dinheiro geram saídas de caixa.
+3. No fecho, o operador introduz o valor contado; qualquer diferença exige justificação.
+4. Uma devolução cria uma nota de crédito interna, repõe o stock e preserva a venda original como devolvida para auditoria.
+
+### Multiutilizador
+
+A interface local aplica perfis operacionais para orientar o acesso. A separação segura de utilizadores e empresas é fornecida pelo esquema PostgreSQL/Supabase em [PRODUCAO.md](PRODUCAO.md); em produção, a autorização deve ser sempre validada no servidor.
 
 ### Compra
 

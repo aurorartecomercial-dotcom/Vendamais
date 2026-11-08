@@ -15,6 +15,10 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Compras | Registar compras por fornecedor e actualizar automaticamente custo e stock. |
 | Clientes e fornecedores | Manter contactos, NIF, morada e histórico comercial. |
 | Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
+| Caixa e turnos | Abrir e fechar caixa por operador, controlar fundo inicial, movimentos físicos, contagem e diferenças. |
+| Documentos e devoluções | Consultar e imprimir documentos; processar devoluções com nota de crédito interna e reposição de stock. |
+| Operação | Perfis de Administrador, Gerente e Caixa, além de um registo local de auditoria. |
+| Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
 | Segurança dos dados | Exportar/restaurar cópias completas em JSON e exportar vendas em CSV. |
 
@@ -94,6 +98,8 @@ Esta edição é uma base sólida para uso numa máquina, demonstrações e pequ
 4. Disponibilizar cópias automáticas, sincronização e relatórios contabilísticos avançados.
 
 > O projecto não substitui software de facturação certificado nem valida obrigações fiscais. Confirme as regras aplicáveis antes de o usar para emissão oficial de documentos.
+
+Consulte também [Produção e segurança](docs/PRODUCAO.md): o projecto inclui um esquema PostgreSQL/Supabase inicial, mas a conta da base de dados, autenticação, credenciais bancárias e certificação devem ser configuradas pela empresa antes da operação online.
 
 ## Contribuir
 

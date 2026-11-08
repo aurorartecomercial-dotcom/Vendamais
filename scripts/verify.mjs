@@ -10,7 +10,9 @@ const requiredFiles = [
   'README.md',
   'LICENSE',
   'package.json',
-  'docs/ARQUITETURA.md'
+  'docs/ARQUITETURA.md',
+  'docs/PRODUCAO.md',
+  'supabase/schema.sql'
 ];
 const requiredInterfaceIds = [
   'dashboardView',
@@ -21,6 +23,8 @@ const requiredInterfaceIds = [
   'suppliersView',
   'purchasesView',
   'reportsView',
+  'cashView',
+  'documentsView',
   'settingsView'
 ];
 const requiredFunctions = [
@@ -31,6 +35,10 @@ const requiredFunctions = [
   'renderReports',
   'saleModal',
   'receivePaymentModal',
+  'renderCash',
+  'renderDocuments',
+  'usersModal',
+  'auditModal',
   'purchaseModal',
   'backup',
   'restore'
@@ -54,6 +62,8 @@ if (!app.includes('localStorage')) failures.push('Persistência local não encon
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
 if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
+if (!app.includes('cashSessions')) failures.push('Controlo de caixa não encontrado.');
+if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
 
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));
