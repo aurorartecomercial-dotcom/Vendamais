@@ -60,7 +60,15 @@ Guardar o preço e o custo em cada linha de venda preserva a coerência dos rela
 
 ### Multiutilizador
 
-A interface local aplica perfis operacionais para orientar o acesso. A separação segura de utilizadores e empresas é fornecida pelo esquema PostgreSQL/Supabase em [PRODUCAO.md](PRODUCAO.md); em produção, a autorização deve ser sempre validada no servidor.
+A interface local aplica três perfis operacionais e PIN por utilizador:
+
+| Perfil | Área disponível |
+| --- | --- |
+| Administrador | Acesso total, incluindo configurações, utilizadores, cópias, integrações e limpeza de dados. |
+| Gerente | Operação comercial, stock, compras, caixa, documentos, devoluções e relatórios. |
+| Vendedor | Nova venda, caixa próprio e documentos emitidos pelo próprio vendedor. Não altera catálogo, preços, stock, compras, fornecedores, relatórios ou definições. |
+
+Os PINs são uma barreira operacional local e não seguem nas cópias de segurança. Como a edição local guarda dados no navegador, esta separação não substitui autenticação de servidor contra alguém que possua acesso técnico ao dispositivo. A separação segura de utilizadores e empresas é fornecida pelo esquema PostgreSQL/Supabase em [PRODUCAO.md](PRODUCAO.md); em produção, a autorização deve ser sempre validada no servidor.
 
 ### Compra
 

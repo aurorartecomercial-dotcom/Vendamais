@@ -17,7 +17,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
 | Caixa e turnos | Abrir e fechar caixa por operador, controlar fundo inicial, movimentos físicos, contagem e diferenças. |
 | Documentos e devoluções | Consultar e imprimir documentos; processar devoluções com nota de crédito interna e reposição de stock. |
-| Operação | Perfis de Administrador, Gerente e Caixa, além de um registo local de auditoria. |
+| Operação | Acesso por PIN e perfis de Administrador, Gerente e Vendedor, além de um registo local de auditoria. |
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
 | Segurança dos dados | Exportar/restaurar cópias completas em JSON e relatórios organizados em Excel. |
@@ -32,6 +32,8 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 ### Utilização directa
 
 Abra o ficheiro `index.html` no navegador. A aplicação inicia com dados de demonstração e guarda as alterações apenas no navegador desse computador.
+
+No primeiro acesso, seleccione o utilizador e use o PIN temporário `0000`. O sistema obriga a criar um PIN pessoal antes de continuar. Crie os restantes utilizadores em **Definições → Utilizadores**.
 
 ### Desenvolvimento local
 
@@ -89,6 +91,17 @@ vendamais/
 - Em cada venda, a aplicação guarda uma cópia do nome, NIF e morada de facturação do cliente para preservar o documento mesmo depois de a ficha ser alterada.
 - Em **Balanço & relatórios**, use **Exportar relatório Excel**. O ficheiro contém as folhas Resumo, Vendas, Artigos vendidos, Stock actual, Clientes e Fornecedores, com colunas já preparadas para filtrar no Excel.
 - Para começar a trabalhar apenas com os seus dados, guarde primeiro uma cópia e use **Definições → Limpar dados comerciais**. Esta operação mantém a empresa e os utilizadores, mas remove produtos, clientes, fornecedores, documentos, compras, stock e movimentos.
+- As cópias de segurança não incluem PINs. Após restaurar uma cópia, cada utilizador entra com o PIN temporário `0000` e cria um PIN novo.
+
+## Áreas e permissões
+
+| Perfil | Acesso permitido |
+| --- | --- |
+| Administrador | Todas as áreas. Gere utilizadores, PINs, definições, cópias, integrações e limpeza de dados. |
+| Gerente | Vendas, produtos, stock, inventário, clientes, fornecedores, compras, caixa, documentos, devoluções e relatórios. Não altera utilizadores nem definições gerais. |
+| Vendedor | Apenas nova venda, abertura/fecho do próprio caixa e consulta/impressão dos documentos que emitiu. Pode cadastrar um cliente durante a venda, mas não muda preços, stock, compras, fornecedores ou relatórios. |
+
+> Esta separação protege a operação normal no navegador. Para segurança real entre computadores ou contra alguém com acesso técnico ao dispositivo, utilize a versão com servidor, contas autenticadas e base de dados centralizada.
 
 ## Preparação para produção
 

@@ -17,7 +17,7 @@
       <nav class="nav" aria-label="Navegação principal">
         <button class="nav-link active" data-view="dashboard"><i>▦</i> Visão geral</button>
         <button class="nav-link" data-view="pos"><i>▣</i> Nova venda</button>
-        <div class="nav-label">Gestão</div>
+        <div class="nav-label" data-nav-group="management">Gestão</div>
         <button class="nav-link" data-view="products"><i>◈</i> Produtos & stock</button>
         <button class="nav-link" data-view="inventory"><i>↕</i> Inventário</button>
         <button class="nav-link" data-view="customers"><i>♙</i> Clientes</button>
@@ -25,17 +25,17 @@
         <button class="nav-link" data-view="purchases"><i>⊞</i> Compras</button>
         <button class="nav-link" data-view="cash"><i>▤</i> Caixa & turnos</button>
         <button class="nav-link" data-view="documents"><i>▧</i> Documentos</button>
-        <div class="nav-label">Análise</div>
+        <div class="nav-label" data-nav-group="analysis">Análise</div>
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais <span>•</span> v1.4.0</div>
+      <div class="sidebar-foot">VendaMais <span>•</span> v1.5.0</div>
     </aside>
     <main class="main">
       <header class="topbar">
         <button class="icon-btn mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
         <div><p class="eyebrow" id="topDate"></p><h1 id="viewTitle">Visão geral</h1></div>
-        <div class="top-actions"><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><button class="avatar" id="accountButton" title="Sessão de utilizador">AD</button></div>
+        <div class="top-actions"><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><span class="session-role" id="sessionRole"></span><button class="icon-btn" id="lockSession" title="Bloquear sessão">◉</button><button class="avatar" id="accountButton" title="Trocar utilizador">AD</button></div>
       </header>
 
       <section class="view active" id="dashboardView">

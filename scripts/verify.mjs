@@ -44,6 +44,9 @@ const requiredFunctions = [
   'createExcelWorkbook',
   'exportReportExcel',
   'clearBusinessDataModal',
+  'applyRoleInterface',
+  'lockSession',
+  'changePinModal',
   'backup',
   'restore'
 ];
@@ -69,6 +72,9 @@ if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente
 if (!app.includes('cashSessions')) failures.push('Controlo de caixa não encontrado.');
 if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
 if (!app.includes('isAdministrator')) failures.push('Protecção de administrador não encontrada.');
+if (!app.includes('ROLE_VIEWS')) failures.push('Permissões por perfil não encontradas.');
+if (!app.includes('sessionLocked')) failures.push('Bloqueio de sessão não encontrado.');
+if (!app.includes('pinMustChange')) failures.push('Controlo de PIN não encontrado.');
 if (!app.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) failures.push('Exportação Excel não encontrada.');
 
 if (failures.length) {

@@ -15,10 +15,11 @@ Aplicação local de gestão comercial para uma pequena ou média loja. Para usa
 - **Compras:** registo de facturas de fornecedores e actualização automática do stock e custo unitário.
 - **Balanço e relatórios:** faturação, IVA, custo dos produtos vendidos, margem bruta, meios de pagamento, produtos mais vendidos e exportação em Excel com folhas organizadas.
 - **Cópia de segurança:** exportação e restauro integral dos dados em formato JSON.
+- **Áreas por função:** Administrador, Gerente e Vendedor com PIN pessoal e ecrãs limitados ao trabalho de cada perfil.
 
 ## Dados e segurança
 
-Os dados são guardados somente no navegador deste computador. Use regularmente **Definições → Guardar cópia**. Para começar com os seus produtos, clientes e fornecedores, use **Definições → Limpar dados comerciais** depois de guardar a cópia.
+Os dados são guardados somente no navegador deste computador. Use regularmente **Definições → Guardar cópia**. Para começar com os seus produtos, clientes e fornecedores, use **Definições → Limpar dados comerciais** depois de guardar a cópia. No primeiro acesso, use o PIN temporário `0000`; cada utilizador terá de escolher o seu próprio PIN.
 
 ## Limites desta versão local
 

@@ -2,6 +2,21 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.5.0] — 2026-11-09
+
+### Adicionado
+
+- Acesso por utilizador com PIN pessoal de 4 a 8 dígitos, bloqueio manual de sessão e alteração obrigatória do PIN inicial.
+- Área de vendedor limitada a nova venda, caixa próprio e documentos emitidos pelo próprio utilizador.
+- Migração automática do perfil antigo `Caixa` para o novo perfil `Vendedor`.
+
+### Alterado
+
+- Administrador mantém acesso total e exclusivo às definições, cópias, utilizadores, integrações e limpeza de dados.
+- Gerente opera produtos, inventário, compras, fornecedores, clientes, caixa, documentos e relatórios, sem gerir utilizadores ou definições gerais.
+- Vendedor deixa de alterar produtos, stock, preços, compras, fornecedores, relatórios e configurações; vendas a crédito, descontos, recebimentos e devoluções exigem gerente ou administrador.
+- Cópias de segurança deixam de incluir PINs. Depois de restaurar uma cópia, cada utilizador deve entrar com o PIN temporário e criar um PIN novo.
+
 ## [1.4.0] — 2026-11-09
 
 ### Adicionado
