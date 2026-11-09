@@ -20,7 +20,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Operação | Perfis de Administrador, Gerente e Caixa, além de um registo local de auditoria. |
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
-| Segurança dos dados | Exportar/restaurar cópias completas em JSON e exportar vendas em CSV. |
+| Segurança dos dados | Exportar/restaurar cópias completas em JSON e relatórios organizados em Excel. |
 
 ## Requisitos
 
@@ -87,6 +87,8 @@ vendamais/
 - Para mudar de computador, use **Restaurar cópia** no novo navegador.
 - Limpar os dados do navegador sem criar uma cópia apaga os registos locais.
 - Em cada venda, a aplicação guarda uma cópia do nome, NIF e morada de facturação do cliente para preservar o documento mesmo depois de a ficha ser alterada.
+- Em **Balanço & relatórios**, use **Exportar relatório Excel**. O ficheiro contém as folhas Resumo, Vendas, Artigos vendidos, Stock actual, Clientes e Fornecedores, com colunas já preparadas para filtrar no Excel.
+- Para começar a trabalhar apenas com os seus dados, guarde primeiro uma cópia e use **Definições → Limpar dados comerciais**. Esta operação mantém a empresa e os utilizadores, mas remove produtos, clientes, fornecedores, documentos, compras, stock e movimentos.
 
 ## Preparação para produção
 

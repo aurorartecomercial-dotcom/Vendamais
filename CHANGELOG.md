@@ -2,6 +2,19 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.4.0] — 2026-11-09
+
+### Adicionado
+
+- Exportação de relatórios em Excel (`.xlsx`) sem depender de serviços externos ou de internet.
+- Livro de relatório com folhas organizadas: Resumo, Vendas, Artigos vendidos, Stock actual, Clientes e Fornecedores.
+- Exportação Excel dos documentos comerciais, com colunas, cabeçalhos, filtros, datas e valores monetários formatados.
+- Opção protegida para limpar os dados comerciais e começar com produtos, clientes e fornecedores próprios.
+
+### Alterado
+
+- Os botões de exportação passaram de CSV para Excel, eliminando o problema de toda a informação abrir numa única coluna.
+
 ## [1.3.1] — 2026-11-09
 
 ### Corrigido

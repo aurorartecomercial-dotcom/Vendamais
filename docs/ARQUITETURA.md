@@ -72,6 +72,10 @@ A interface local aplica perfis operacionais para orientar o acesso. A separaç�
 
 O ficheiro JSON exportado representa o documento completo de dados. Ao restaurar, a aplicação normaliza campos ausentes e preserva a versão actual do esquema sempre que possível.
 
+### Relatórios Excel e preparação inicial
+
+O sistema gera ficheiros Excel (`.xlsx`) no próprio navegador, sem bibliotecas externas. O relatório de gestão inclui folhas para resumo, vendas, artigos vendidos, stock, clientes e fornecedores; cada folha tem cabeçalhos, filtros e valores numéricos próprios para análise no Excel. A opção de limpar dados comerciais remove apenas a operação do negócio, preservando a configuração da empresa e os utilizadores para permitir iniciar o catálogo com dados próprios.
+
 ## Decisões técnicas
 
 - **Sem dependências:** reduz risco de vulnerabilidades transitivas e facilita a publicação.

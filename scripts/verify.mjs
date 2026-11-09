@@ -41,6 +41,9 @@ const requiredFunctions = [
   'auditModal',
   'nextReference',
   'purchaseModal',
+  'createExcelWorkbook',
+  'exportReportExcel',
+  'clearBusinessDataModal',
   'backup',
   'restore'
 ];
@@ -66,6 +69,7 @@ if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente
 if (!app.includes('cashSessions')) failures.push('Controlo de caixa não encontrado.');
 if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
 if (!app.includes('isAdministrator')) failures.push('Protecção de administrador não encontrada.');
+if (!app.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) failures.push('Exportação Excel não encontrada.');
 
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));
