@@ -2,6 +2,16 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.3.1] — 2026-11-09
+
+### Corrigido
+
+- Numeração automática de vendas, compras e notas de crédito baseada na maior referência existente, evitando repetição após restauros.
+- Devoluções registam valor reembolsado e meio de reembolso, em vez de assumirem que todo o valor foi devolvido em dinheiro.
+- Reembolso em dinheiro exige caixa aberto; devoluções anulam o saldo em dívida sem duplicar movimentos de caixa.
+- Apenas administradores podem criar ou alterar utilizadores e preferências de integração.
+- O último administrador activo não pode ser removido ou rebaixado por engano.
+
 ## [1.3.0] — 2026-11-09
 
 ### Adicionado

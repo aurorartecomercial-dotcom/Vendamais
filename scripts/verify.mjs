@@ -39,6 +39,7 @@ const requiredFunctions = [
   'renderDocuments',
   'usersModal',
   'auditModal',
+  'nextReference',
   'purchaseModal',
   'backup',
   'restore'
@@ -64,6 +65,7 @@ if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do client
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
 if (!app.includes('cashSessions')) failures.push('Controlo de caixa não encontrado.');
 if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
+if (!app.includes('isAdministrator')) failures.push('Protecção de administrador não encontrada.');
 
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));

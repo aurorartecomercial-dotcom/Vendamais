@@ -56,6 +56,7 @@ Guardar o preço e o custo em cada linha de venda preserva a coerência dos rela
 2. Vendas e recebimentos em dinheiro exigem um turno aberto; pagamentos a fornecedores e devoluções em dinheiro geram saídas de caixa.
 3. No fecho, o operador introduz o valor contado; qualquer diferença exige justificação.
 4. Uma devolução cria uma nota de crédito interna, repõe o stock e preserva a venda original como devolvida para auditoria.
+5. Referências automáticas são calculadas a partir da maior referência existente; ao restaurar uma cópia, a próxima venda, compra ou nota de crédito mantém a sequência.
 
 ### Multiutilizador
 
