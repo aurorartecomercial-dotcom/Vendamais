@@ -2,6 +2,22 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.6.0] — 2026-11-09
+
+### Adicionado
+
+- Gestão de lojas e armazéns, acessível apenas ao administrador.
+- Stock separado por local para cada produto, com selector de local de operação no topo da aplicação.
+- Transferências de stock entre locais, com referência própria, validação de disponibilidade, movimentos de entrada/saída e auditoria.
+- Atribuição obrigatória de local a cada utilizador; vendedores ficam limitados ao local definido pelo administrador.
+- Caixa por local e exportação Excel com a nova folha **Stock por local**.
+
+### Alterado
+
+- Vendas, compras, produtos, ajustes de inventário, alertas e movimentos passaram a respeitar o local de operação.
+- Relatórios Excel passaram a incluir o local em cada venda e a distinguir stock total de stock por loja/armazém.
+- Limpar dados comerciais preserva os locais configurados para a empresa.
+
 ## [1.5.0] — 2026-11-09
 
 ### Adicionado

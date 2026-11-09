@@ -10,9 +10,10 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | --- | --- |
 | Ponto de venda | Procurar artigos, montar carrinho, aplicar desconto, escolher cliente e meio de pagamento. |
 | Recibos | Gerar uma janela de impressão após a conclusão de cada venda. |
-| Produtos e stock | Registar códigos, categorias, preço de custo, preço de venda e limite mínimo. |
-| Inventário | Registar entradas, saídas e ajustes; consultar o histórico de movimentos. |
-| Compras | Registar compras por fornecedor e actualizar automaticamente custo e stock. |
+| Produtos e stock | Registar códigos, categorias, preço de custo, preço de venda e limite mínimo, com stock separado por local. |
+| Lojas & armazéns | Criar locais de operação, consultar stock por loja/armazém e atribuir cada vendedor ao seu local. |
+| Inventário | Registar entradas, saídas, ajustes e transferências rastreáveis entre locais. |
+| Compras | Registar compras por fornecedor e local de entrada, actualizando automaticamente custo e stock. |
 | Clientes e fornecedores | Manter contactos, NIF, morada e histórico comercial. |
 | Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
 | Caixa e turnos | Abrir e fechar caixa por operador, controlar fundo inicial, movimentos físicos, contagem e diferenças. |
@@ -89,7 +90,7 @@ vendamais/
 - Para mudar de computador, use **Restaurar cópia** no novo navegador.
 - Limpar os dados do navegador sem criar uma cópia apaga os registos locais.
 - Em cada venda, a aplicação guarda uma cópia do nome, NIF e morada de facturação do cliente para preservar o documento mesmo depois de a ficha ser alterada.
-- Em **Balanço & relatórios**, use **Exportar relatório Excel**. O ficheiro contém as folhas Resumo, Vendas, Artigos vendidos, Stock actual, Clientes e Fornecedores, com colunas já preparadas para filtrar no Excel.
+- Em **Balanço & relatórios**, use **Exportar relatório Excel**. O ficheiro contém as folhas Resumo, Vendas, Artigos vendidos, Stock actual, Stock por local, Clientes e Fornecedores, com colunas já preparadas para filtrar no Excel.
 - Para começar a trabalhar apenas com os seus dados, guarde primeiro uma cópia e use **Definições → Limpar dados comerciais**. Esta operação mantém a empresa e os utilizadores, mas remove produtos, clientes, fornecedores, documentos, compras, stock e movimentos.
 - As cópias de segurança não incluem PINs. Após restaurar uma cópia, cada utilizador entra com o PIN temporário `0000` e cria um PIN novo.
 
@@ -100,6 +101,8 @@ vendamais/
 | Administrador | Todas as áreas. Gere utilizadores, PINs, definições, cópias, integrações e limpeza de dados. |
 | Gerente | Vendas, produtos, stock, inventário, clientes, fornecedores, compras, caixa, documentos, devoluções e relatórios. Não altera utilizadores nem definições gerais. |
 | Vendedor | Apenas nova venda, abertura/fecho do próprio caixa e consulta/impressão dos documentos que emitiu. Pode cadastrar um cliente durante a venda, mas não muda preços, stock, compras, fornecedores ou relatórios. |
+
+O administrador define o local atribuído ao criar cada utilizador. O vendedor fica automaticamente limitado a esse local; administradores e gerentes podem seleccionar o local de operação no topo da aplicação. Para mover mercadoria, use **Inventário → Transferir stock**, nunca ajuste manualmente ambos os lados.
 
 > Esta separação protege a operação normal no navegador. Para segurança real entre computadores ou contra alguém com acesso técnico ao dispositivo, utilize a versão com servidor, contas autenticadas e base de dados centralizada.
 

@@ -48,7 +48,11 @@ const requiredFunctions = [
   'lockSession',
   'changePinModal',
   'backup',
-  'restore'
+  'restore',
+  'locationsModal',
+  'transferModal',
+  'stockAt',
+  'changeStock'
 ];
 
 const failures = [];
@@ -76,6 +80,9 @@ if (!app.includes('ROLE_VIEWS')) failures.push('Permissões por perfil não enco
 if (!app.includes('sessionLocked')) failures.push('Bloqueio de sessão não encontrado.');
 if (!app.includes('pinMustChange')) failures.push('Controlo de PIN não encontrado.');
 if (!app.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) failures.push('Exportação Excel não encontrada.');
+if (!app.includes('stockByLocation')) failures.push('Stock por local não encontrado.');
+if (!app.includes('activeLocationId')) failures.push('Local de operação não encontrado.');
+if (!app.includes('data.transfers')) failures.push('Transferências de stock não encontradas.');
 
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));

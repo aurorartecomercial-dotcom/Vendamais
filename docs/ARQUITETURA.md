@@ -17,8 +17,9 @@ Os dados são guardados como um único documento versionado na chave `vendamais_
 
 | Colecção | Conteúdo |
 | --- | --- |
-| `settings` | Dados da empresa, taxa de IVA e limite de stock padrão. |
-| `products` | Catálogo, preço de custo, preço de venda, stock e mínimo. |
+| `settings` | Dados da empresa, taxa de IVA, limite de stock padrão e local de operação seleccionado. |
+| `locations` | Lojas e armazéns activos da empresa. |
+| `products` | Catálogo, preço de custo, preço de venda, mínimo e `stockByLocation` (quantidade por local). |
 | `customers` | Contactos e identificação dos clientes. |
 | `receipts` | Recebimentos de vendas a crédito, ligados ao documento e ao cliente. |
 | `supplierPayments` | Pagamentos a fornecedores e liquidação parcial de compras a crédito. |
@@ -28,7 +29,8 @@ Os dados são guardados como um único documento versionado na chave `vendamais_
 | `suppliers` | Contactos e identificação dos fornecedores. |
 | `sales` | Vendas concluídas e linhas de venda com o custo histórico. |
 | `purchases` | Compras a fornecedores e custos unitários. |
-| `movements` | Entradas, saídas e ajustes manuais de inventário. |
+| `movements` | Entradas, saídas, ajustes e movimentos de transferência, sempre ligados a um local. |
+| `transfers` | Documento de transferência entre origem e destino, com artigos e operador responsável. |
 | `meta` | Versão do esquema e data da última alteração. |
 
 Guardar o preço e o custo em cada linha de venda preserva a coerência dos relatórios mesmo quando o preço actual do produto muda.
@@ -38,9 +40,9 @@ Guardar o preço e o custo em cada linha de venda preserva a coerência dos rela
 ### Venda
 
 1. O utilizador adiciona produtos disponíveis ao carrinho.
-2. A quantidade não pode ultrapassar o stock actual.
+2. A quantidade não pode ultrapassar o stock do local de operação.
 3. O sistema calcula subtotal, desconto, IVA e total.
-4. Ao confirmar o pagamento, cria uma venda e reduz o stock de cada produto.
+4. Ao confirmar o pagamento, cria uma venda e reduz o stock do local de operação.
 5. A venda guarda uma cópia dos dados de facturação do cliente e passa a alimentar histórico, inventário e relatórios.
 
 ### Crédito de cliente
@@ -72,9 +74,17 @@ Os PINs são uma barreira operacional local e não seguem nas cópias de seguran
 
 ### Compra
 
-1. Selecciona-se fornecedor, data, pagamento e linhas de compra.
+1. Selecciona-se fornecedor, local de entrada, data, pagamento e linhas de compra.
 2. Ao guardar, o custo unitário do produto é actualizado.
-3. A quantidade entra em stock e é criado um movimento de inventário.
+3. A quantidade entra no local seleccionado e é criado um movimento de inventário.
+
+### Locais e transferências
+
+1. O administrador cria lojas e armazéns em **Definições → Lojas & armazéns**.
+2. Cada utilizador recebe um local atribuído; vendedores não podem mudar de local.
+3. Administradores e gerentes escolhem o local de operação no topo da aplicação.
+4. Uma transferência valida o stock na origem, baixa a quantidade na origem e acrescenta a mesma quantidade no destino, criando dois movimentos ligados à mesma referência.
+5. Um local com stock ou operadores activos não pode ser desactivado, protegendo a rastreabilidade.
 
 ### Cópias de segurança
 
@@ -82,7 +92,7 @@ O ficheiro JSON exportado representa o documento completo de dados. Ao restaurar
 
 ### Relatórios Excel e preparação inicial
 
-O sistema gera ficheiros Excel (`.xlsx`) no próprio navegador, sem bibliotecas externas. O relatório de gestão inclui folhas para resumo, vendas, artigos vendidos, stock, clientes e fornecedores; cada folha tem cabeçalhos, filtros e valores numéricos próprios para análise no Excel. A opção de limpar dados comerciais remove apenas a operação do negócio, preservando a configuração da empresa e os utilizadores para permitir iniciar o catálogo com dados próprios.
+O sistema gera ficheiros Excel (`.xlsx`) no próprio navegador, sem bibliotecas externas. O relatório de gestão inclui folhas para resumo, vendas, artigos vendidos, stock total, stock por local, clientes e fornecedores; cada folha tem cabeçalhos, filtros e valores numéricos próprios para análise no Excel. A opção de limpar dados comerciais remove apenas a operação do negócio, preservando a configuração da empresa, os locais e os utilizadores para permitir iniciar o catálogo com dados próprios.
 
 ## Decisões técnicas
 

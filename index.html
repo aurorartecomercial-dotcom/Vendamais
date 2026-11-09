@@ -7,6 +7,9 @@
   <meta name="description" content="VendaMais — sistema local de ponto de venda, inventário e gestão comercial." />
   <title>VendaMais — Gestão Comercial</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    .location-switcher{display:flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid #d7e4df;border-radius:8px;background:#f8fbf9;color:#64736d;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}.location-switcher select{max-width:165px;border:0;background:transparent;color:#123e35;font:inherit;font-size:11px;font-weight:750;outline:0;cursor:pointer}.location-switcher select:disabled{opacity:1;cursor:default}.location-note{font-size:10px;color:#126951;background:#e6f4ee;border-radius:12px;padding:6px 8px;font-weight:700;white-space:nowrap}.location-card{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid #e6ece9}.location-card:last-child{border-bottom:0}.location-card strong{display:block;font-size:13px}.location-card span{display:block;color:#6d7875;font-size:11px;margin-top:3px}.location-card .location-summary{margin-left:auto;text-align:right}.location-card .location-summary b{font-size:12px}.location-card .action-btn{margin-left:6px}.transfer-meta,.modal-note{font-size:11px;color:#6d7875;line-height:1.6;margin:15px 0 0}.transfer-meta{padding:10px 12px;background:#f3f8f6;border-radius:8px;color:#123e35;margin:12px 0 4px}@media(max-width:720px){.location-switcher span{display:none}.location-switcher select{max-width:120px}.location-note{width:100%}.location-card{align-items:flex-start}.location-card .location-summary{margin-left:0;text-align:left}.location-card{flex-wrap:wrap}}
+  </style>
 </head>
 <body>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -29,13 +32,13 @@
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais <span>•</span> v1.5.0</div>
+      <div class="sidebar-foot">VendaMais ERP <span>•</span> v1.6.0</div>
     </aside>
     <main class="main">
       <header class="topbar">
         <button class="icon-btn mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
         <div><p class="eyebrow" id="topDate"></p><h1 id="viewTitle">Visão geral</h1></div>
-        <div class="top-actions"><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><span class="session-role" id="sessionRole"></span><button class="icon-btn" id="lockSession" title="Bloquear sessão">◉</button><button class="avatar" id="accountButton" title="Trocar utilizador">AD</button></div>
+        <div class="top-actions"><label class="location-switcher" title="Local de operação"><span>Local</span><select id="activeLocationSelect" aria-label="Local de operação"></select></label><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><span class="session-role" id="sessionRole"></span><button class="icon-btn" id="lockSession" title="Bloquear sessão">◉</button><button class="avatar" id="accountButton" title="Trocar utilizador">AD</button></div>
       </header>
 
       <section class="view active" id="dashboardView">
@@ -52,7 +55,7 @@
       <section class="view" id="posView">
         <div class="pos-layout">
           <div class="pos-catalog panel">
-            <div class="pos-tools"><div class="searchbox"><span>⌕</span><input id="productSearch" placeholder="Procurar produto por nome ou código" /></div><select id="posCategory"><option value="">Todas as categorias</option></select></div>
+            <div class="pos-tools"><div class="searchbox"><span>⌕</span><input id="productSearch" placeholder="Procurar produto por nome ou código" /></div><select id="posCategory"><option value="">Todas as categorias</option></select><span class="location-note" id="posLocationLabel"></span></div>
             <div class="product-grid" id="posProducts"></div>
           </div>
           <aside class="cart-panel">
@@ -72,15 +75,16 @@
       </section>
 
       <section class="view" id="productsView">
-        <div class="section-head"><div><h2>Produtos e stock</h2><p>Cadastre produtos, preços e limites de reposição.</p></div><button class="btn primary" id="newProduct">＋ Novo produto</button></div>
+        <div class="section-head"><div><h2>Produtos e stock</h2><p>Cadastre produtos, preços e limites de reposição no local seleccionado.</p></div><button class="btn primary" id="newProduct">＋ Novo produto</button></div>
         <div class="toolbar"><div class="searchbox"><span>⌕</span><input class="filter-input" data-table="products" placeholder="Procurar produto ou código" /></div><select class="filter-select" data-table="products" id="productCategoryFilter"><option value="">Todas as categorias</option></select><span class="table-count" id="productsCount"></span></div>
         <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Categoria</th><th>Preço de venda</th><th>Custo</th><th>Stock</th><th>Estado</th><th></th></tr></thead><tbody id="productsTable"></tbody></table></div></div>
       </section>
 
       <section class="view" id="inventoryView">
-        <div class="section-head"><div><h2>Inventário</h2><p>Controle entradas, saídas e ajustes do stock.</p></div><button class="btn primary" id="newAdjustment">↕ Ajustar stock</button></div>
+        <div class="section-head"><div><h2>Inventário</h2><p>Controle entradas, saídas, ajustes e transferências entre locais.</p></div><div class="inline-actions"><button class="btn secondary" id="newTransfer">⇄ Transferir stock</button><button class="btn primary" id="newAdjustment">↕ Ajustar stock</button></div></div>
         <div class="metric-grid compact" id="inventoryMetrics"></div>
-        <div class="dashboard-grid inventory-grid"><article class="panel"><div class="panel-head"><div><h3>Estado do inventário</h3><p>Valor do stock ao custo</p></div></div><div id="inventoryStatus" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Movimentos recentes</h3><p>Histórico de entradas e saídas</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Movimento</th><th>Quantidade</th><th>Nota</th></tr></thead><tbody id="movementsTable"></tbody></table></div></article></div>
+        <div class="dashboard-grid inventory-grid"><article class="panel"><div class="panel-head"><div><h3>Estado do inventário</h3><p id="inventoryLocationHint">Valor do stock ao custo</p></div></div><div id="inventoryStatus" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Movimentos recentes</h3><p>Histórico de entradas, saídas e transferências</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Movimento</th><th>Quantidade</th><th>Nota</th></tr></thead><tbody id="movementsTable"></tbody></table></div></article></div>
+        <article class="panel recent-panel"><div class="panel-head"><div><h3>Transferências recentes</h3><p>Rastreabilidade entre lojas e armazéns</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Referência</th><th>Origem</th><th>Destino</th><th>Artigos</th><th>Operador</th></tr></thead><tbody id="transfersTable"></tbody></table></div></article>
       </section>
 
       <section class="view" id="customersView">
@@ -123,7 +127,7 @@
 
       <section class="view" id="settingsView">
         <div class="section-head"><div><h2>Definições</h2><p>Dados da empresa, impostos e cópia de segurança.</p></div></div>
-        <div class="settings-grid"><form id="settingsForm" class="panel form-card"><h3>Dados da empresa</h3><div class="form-grid"><label>Nome da empresa<input name="company" required /></label><label>NIF<input name="nif" /></label><label>Telefone<input name="phone" /></label><label>E-mail<input name="email" type="email" /></label><label class="span-2">Morada<input name="address" /></label><label>IVA (%)<input name="taxRate" min="0" max="100" step="0.01" type="number" required /></label><label>Limite padrão de stock<input name="stockLimit" min="0" type="number" required /></label></div><button class="btn primary" type="submit">Guardar definições</button></form><article class="panel form-card"><h3>Operação e integrações</h3><p>Gestão local de operadores, auditoria e preferências dos equipamentos.</p><div class="backup-actions"><button class="btn secondary" id="manageUsers" type="button">♙ Utilizadores</button><button class="btn secondary" id="viewAudit" type="button">◒ Auditoria</button><button class="btn secondary" id="manageIntegrations" type="button">⚙ Integrações</button></div><hr><h3>Cópia de segurança</h3><p>Guarde uma cópia completa antes de limpar ou mudar de computador.</p><div class="backup-actions"><button class="btn secondary" id="backupData" type="button">⇩ Guardar cópia</button><label class="btn secondary import-btn">⇧ Restaurar cópia<input type="file" id="restoreData" accept="application/json" hidden /></label></div><hr><h3>Começar com os seus dados</h3><p>Remove produtos, clientes, fornecedores, vendas, compras e movimentos de exemplo. Mantém os dados da empresa e os utilizadores.</p><button class="text-danger" id="clearBusinessData" type="button">Limpar dados comerciais</button><hr><h3>Dados de demonstração</h3><p>Se precisar de voltar a experimentar, reponha o catálogo e movimentos de exemplo.</p><button class="text-danger" id="resetDemo" type="button">Repor dados de demonstração</button></article></div>
+        <div class="settings-grid"><form id="settingsForm" class="panel form-card"><h3>Dados da empresa</h3><div class="form-grid"><label>Nome da empresa<input name="company" required /></label><label>NIF<input name="nif" /></label><label>Telefone<input name="phone" /></label><label>E-mail<input name="email" type="email" /></label><label class="span-2">Morada<input name="address" /></label><label>IVA (%)<input name="taxRate" min="0" max="100" step="0.01" type="number" required /></label><label>Limite padrão de stock<input name="stockLimit" min="0" type="number" required /></label></div><button class="btn primary" type="submit">Guardar definições</button></form><article class="panel form-card"><h3>Operação e integrações</h3><p>Controle os locais de operação, operadores, auditoria e equipamentos.</p><div class="backup-actions"><button class="btn secondary" id="manageLocations" type="button">⌂ Lojas & armazéns</button><button class="btn secondary" id="manageUsers" type="button">♙ Utilizadores</button><button class="btn secondary" id="viewAudit" type="button">◒ Auditoria</button><button class="btn secondary" id="manageIntegrations" type="button">⚙ Integrações</button></div><hr><h3>Cópia de segurança</h3><p>Guarde uma cópia completa antes de limpar ou mudar de computador.</p><div class="backup-actions"><button class="btn secondary" id="backupData" type="button">⇩ Guardar cópia</button><label class="btn secondary import-btn">⇧ Restaurar cópia<input type="file" id="restoreData" accept="application/json" hidden /></label></div><hr><h3>Começar com os seus dados</h3><p>Remove produtos, clientes, fornecedores, vendas, compras e movimentos de exemplo. Mantém os dados da empresa e os utilizadores.</p><button class="text-danger" id="clearBusinessData" type="button">Limpar dados comerciais</button><hr><h3>Dados de demonstração</h3><p>Se precisar de voltar a experimentar, reponha o catálogo e movimentos de exemplo.</p><button class="text-danger" id="resetDemo" type="button">Repor dados de demonstração</button></article></div>
       </section>
     </main>
   </div>
