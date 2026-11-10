@@ -2,6 +2,18 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.6.2] — 2026-11-10
+
+### Alterado
+
+- Separados visualmente os ambientes de Administrador, Gerente e Vendedor, com identificação e contexto próprios na navegação.
+- Mantido o controlo central de acesso por perfil (`ROLE_VIEWS`): os vendedores continuam limitados a vendas, caixa próprio e documentos das próprias vendas.
+- Clarificadas as autorizações de cada perfil no ecrã de gestão de utilizadores, sem alterar os fluxos de vendas, stock, caixa ou persistência.
+
+### Nota de segurança
+
+- As permissões continuam a ser aplicadas no navegador nesta edição local. Para segurança real entre dispositivos, a autorização deve ser validada também no servidor e na base de dados.
+
 ## [1.6.1] — 2026-11-10
 
 ### Corrigido
