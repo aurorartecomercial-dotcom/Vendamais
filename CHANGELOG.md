@@ -2,6 +2,17 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.6.1] — 2026-11-10
+
+### Corrigido
+
+- Escapados os nomes de clientes e fornecedores apresentados nos cabeçalhos dos modais de recebimento e pagamento, evitando interpretação de HTML fornecido pelo utilizador nesses pontos.
+- A conclusão de uma venda passa a guardar uma cópia do estado anterior e a repor os dados em memória se a persistência local falhar; a aplicação deixa de anunciar uma venda como concluída nesse cenário.
+
+### Nota técnica
+
+- Esta versão continua a ser uma aplicação local: PINs e permissões no navegador não constituem autenticação/segurança adequada para produção multiutilizador. A migração da autenticação e das operações financeiras para o servidor continua obrigatória antes de disponibilizar o sistema online.
+
 ## [1.6.0] — 2026-11-09
 
 ### Adicionado

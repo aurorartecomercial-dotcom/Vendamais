@@ -83,6 +83,10 @@ if (!app.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.s
 if (!app.includes('stockByLocation')) failures.push('Stock por local não encontrado.');
 if (!app.includes('activeLocationId')) failures.push('Local de operação não encontrado.');
 if (!app.includes('data.transfers')) failures.push('Transferências de stock não encontradas.');
+if (!app.includes("`Cliente: ${escapeHtml(customer.name)}`")) failures.push('Nome do cliente sem escape no modal de recebimento.');
+if (!app.includes("escapeHtml(supplier?.name || 'Fornecedor')")) failures.push('Nome do fornecedor sem escape no modal de pagamento.');
+if (!app.includes('const previousData = JSON.stringify(data);')) failures.push('Venda sem cópia de segurança para rollback local.');
+if (!app.includes('if (!saveData()) {')) failures.push('Venda não verifica falha de persistência local.');
 
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));
