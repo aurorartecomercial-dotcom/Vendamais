@@ -33,7 +33,7 @@
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais ERP <span>•</span> v1.6.2</div>
+      <div class="sidebar-foot">VendaMais ERP <span>•</span> v1.6.3</div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -123,7 +123,7 @@
         <div class="section-head"><div><h2>Balanço e relatórios</h2><p>Exporte um relatório Excel organizado, com resumo, vendas, artigos, stock e contactos.</p></div><button class="btn secondary" id="exportReport">⇩ Exportar relatório Excel</button></div>
         <div class="report-filters panel"><label>De <input type="date" id="reportStart" /></label><label>Até <input type="date" id="reportEnd" /></label><button class="btn primary" id="applyReport">Actualizar</button></div>
         <div class="metric-grid" id="reportMetrics"></div>
-        <div class="dashboard-grid"><article class="panel recent-panel"><div class="panel-head"><div><h3>Demonstrativo simplificado</h3><p>Receitas, custos e resultado do período</p></div></div><div id="incomeStatement" class="statement"></div></article><article class="panel"><div class="panel-head"><div><h3>Meios de pagamento</h3><p>Vendas do período</p></div></div><div id="paymentSummary" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Vendas no período</h3><p>Transações concluídas</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Referência</th><th>Cliente</th><th>Pagamento</th><th>Total</th></tr></thead><tbody id="reportSalesTable"></tbody></table></div></article><article class="panel"><div class="panel-head"><div><h3>Produtos mais vendidos</h3><p>Por quantidade</p></div></div><div id="topProducts" class="compact-list"></div></article></div>
+        <div class="dashboard-grid"><article class="panel recent-panel"><div class="panel-head"><div><h3>Demonstração de resultados</h3><p>Receitas, IVA, custo das vendas, despesas e resultado</p></div></div><div id="incomeStatement" class="statement"></div></article><article class="panel"><div class="panel-head"><div><h3>Meios de pagamento</h3><p>Vendas do período</p></div></div><div id="paymentSummary" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Despesas operacionais</h3><p>Registos do período</p></div><button class="btn primary" id="newExpense" type="button">＋ Registar despesa</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Pagamento</th><th>Valor</th></tr></thead><tbody id="reportExpensesTable"></tbody></table></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Vendas no período</h3><p>Transações concluídas</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Referência</th><th>Cliente</th><th>Pagamento</th><th>Total</th></tr></thead><tbody id="reportSalesTable"></tbody></table></div></article><article class="panel"><div class="panel-head"><div><h3>Produtos mais vendidos</h3><p>Por quantidade</p></div></div><div id="topProducts" class="compact-list"></div></article></div>
       </section>
 
       <section class="view" id="settingsView">

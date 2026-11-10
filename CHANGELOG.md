@@ -133,3 +133,13 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 ### Adicionado
 
 - Ponto de venda, recibos, gestão de produtos, stock, clientes, fornecedores, compras e relatórios.
+
+
+## Melhorias de interface e contabilidade
+
+- Menu lateral com rolagem própria para manter Balanço & Relatórios e Definições acessíveis em ecrãs baixos.
+- Aparência da área de gestão uniformizada entre Administrador e Gerente.
+- Registo de despesas operacionais por categoria, data, meio de pagamento e loja.
+- Demonstração de resultados com resultado bruto e resultado líquido estimado após despesas.
+- Indicadores de contas a receber e contas a pagar a fornecedores.
+- Exportação Excel actualizada com folha dedicada às despesas e resumo financeiro revisto.
