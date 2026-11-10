@@ -18,7 +18,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
 | Caixa e turnos | Abrir e fechar caixa por operador, controlar fundo inicial, movimentos físicos, contagem e diferenças. |
 | Documentos e devoluções | Consultar e imprimir documentos; processar devoluções com nota de crédito interna e reposição de stock. |
-| Operação | Acesso por PIN e perfis de Administrador, Gerente e Vendedor, além de um registo local de auditoria. |
+| Operação | Acesso por PIN com uma única área de gestão (Administrador/Gerente) e área individual de Vendedor. Cada novo vendedor recebe automaticamente uma loja exclusiva; a gestão pode criar e atribuir lojas nas Definições. |
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
 | Segurança dos dados | Exportar/restaurar cópias completas em JSON e relatórios organizados em Excel. |
@@ -34,7 +34,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 
 Abra o ficheiro `index.html` no navegador. A aplicação inicia com dados de demonstração e guarda as alterações apenas no navegador desse computador.
 
-No primeiro acesso, seleccione o utilizador e use o PIN temporário `0000`. O sistema obriga a criar um PIN pessoal antes de continuar. Crie os restantes utilizadores em **Definições → Utilizadores**.
+No primeiro acesso, seleccione o utilizador e use o PIN temporário `0000`. O sistema obriga a criar um PIN pessoal antes de continuar. Crie os restantes utilizadores em **Definições → Gestão de lojas e vendedores → Utilizadores**.
 
 ### Desenvolvimento local
 
