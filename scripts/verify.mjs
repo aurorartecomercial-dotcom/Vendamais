@@ -52,7 +52,9 @@ const requiredFunctions = [
   'locationsModal',
   'transferModal',
   'stockAt',
-  'changeStock'
+  'changeStock',
+  'expenseOccurrences',
+  'weekOfMonth'
 ];
 
 const failures = [];
@@ -82,6 +84,11 @@ if (!app.includes('pinMustChange')) failures.push('Controlo de PIN não encontra
 if (!app.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) failures.push('Exportação Excel não encontrada.');
 if (!app.includes('stockByLocation')) failures.push('Stock por local não encontrado.');
 if (!app.includes('activeLocationId')) failures.push('Local de operação não encontrado.');
+if (!app.includes('costType')) failures.push('Classificação de despesas fixas/variáveis não encontrada.');
+if (!app.includes("recurrence !== 'Mensal'")) failures.push('Despesas mensais recorrentes não encontradas.');
+if (!html.includes('id="storePerformanceTable"')) failures.push('Tabela financeira por loja não encontrada.');
+if (!html.includes('id="weeklySalesTable"')) failures.push('Tabela de vendas semanais não encontrada.');
+if (!html.includes('id="reportLocationFilter"')) failures.push('Filtro de loja nos relatórios não encontrado.');
 if (!app.includes('data.transfers')) failures.push('Transferências de stock não encontradas.');
 if (!app.includes("`Cliente: ${escapeHtml(customer.name)}`")) failures.push('Nome do cliente sem escape no modal de recebimento.');
 if (!app.includes("escapeHtml(supplier?.name || 'Fornecedor')")) failures.push('Nome do fornecedor sem escape no modal de pagamento.');

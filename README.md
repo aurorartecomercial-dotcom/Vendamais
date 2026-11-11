@@ -21,6 +21,9 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Operação | Acesso por PIN com uma única área de gestão (Administrador/Gerente) e área individual de Vendedor. Cada novo vendedor recebe automaticamente uma loja exclusiva; a gestão pode criar e atribuir lojas nas Definições. |
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
+| Gestão financeira por loja | Comparar faturação, custos fixos e variáveis, custo dos produtos e resultado estimado de cada loja ou de todas em conjunto. |
+| Despesas recorrentes | Registar despesas únicas ou mensais (renda, salários, internet, energia), classificadas por tipo de custo e loja. |
+| Vendas semanais | Consultar a faturação por Semana 1 a Semana 5 de cada mês. |
 | Segurança dos dados | Exportar/restaurar cópias completas em JSON e relatórios organizados em Excel. |
 
 ## Requisitos
