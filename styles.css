@@ -15,3 +15,15 @@
 .app-shell[data-workspace="manager"] .nav-link.active{background:#23735e}
 .app-shell[data-workspace="manager"] .brand-mark{background:#a9bd72;color:#28351f}
 @media(max-width:720px){.workspace-context{margin-bottom:12px}}
+
+/* Relatórios financeiros por loja */
+.report-filters select{height:39px;border:1px solid #d9e3df;border-radius:7px;outline:0;display:block;width:100%;margin-top:5px;padding:0 10px;font:inherit;background:#fff;color:var(--ink)}
+#storePerformanceTable td,#weeklySalesTable td{white-space:nowrap}
+
+/* Balanço organizado por separadores e custos fixos independentes por loja */
+.report-tabs{display:flex;gap:7px;overflow-x:auto;padding:7px;margin:0 0 16px;background:#eaf1ee;border-radius:11px;scrollbar-width:thin}
+.report-tab{flex:none;border:0;background:transparent;color:#52645d;border-radius:8px;padding:10px 15px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.report-tab.active{background:#fff;color:var(--green-deep);box-shadow:0 2px 9px rgba(18,55,43,.09)}
+.report-pane[hidden]{display:none!important}.report-pane{display:grid;gap:16px}.report-overview-grid{grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr)}
+.report-help{font-size:11px;color:var(--muted);margin:0 2px 4px}.fixed-cost-editor{border:1px solid var(--line);border-radius:10px;padding:14px;margin:16px 0}.fixed-cost-editor h3{font-size:13px;margin:0 0 4px}.fixed-cost-editor>p{font-size:11px;color:var(--muted);margin:0 0 12px}.fixed-cost-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:12px;margin-top:12px;font-size:12px}.fixed-cost-total strong{font-size:15px;color:var(--green-deep)}
+@media(max-width:720px){.report-overview-grid{grid-template-columns:1fr}.report-tabs{margin-right:-2px}.report-tab{padding:9px 12px}}
