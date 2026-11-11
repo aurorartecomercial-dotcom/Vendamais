@@ -13,7 +13,7 @@ Aplicação local de gestão comercial para uma pequena ou média loja. Para usa
 - **Clientes:** contactos, NIF, histórico e total de compras.
 - **Fornecedores:** contactos e compras relacionadas.
 - **Compras:** registo de facturas de fornecedores e actualização automática do stock e custo unitário.
-- **Balanço e relatórios:** faturação, IVA, custo dos produtos vendidos, margem bruta, meios de pagamento, produtos mais vendidos e exportação em Excel com folhas organizadas.
+- **Balanço e relatórios:** cálculos explicados de faturação, IVA, custo dos produtos vendidos, margem, despesas e resultado; inclui relatórios diários e mensais por vendedor e exportação Excel organizada.
 - **Cópia de segurança:** exportação e restauro integral dos dados em formato JSON.
 - **Áreas por função:** Administrador, Gerente e Vendedor com PIN pessoal e ecrãs limitados ao trabalho de cada perfil.
 

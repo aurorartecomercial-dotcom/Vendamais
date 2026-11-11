@@ -27,3 +27,22 @@
 .report-pane[hidden]{display:none!important}.report-pane{display:grid;gap:16px}.report-overview-grid{grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr)}
 .report-help{font-size:11px;color:var(--muted);margin:0 2px 4px}.fixed-cost-editor{border:1px solid var(--line);border-radius:10px;padding:14px;margin:16px 0}.fixed-cost-editor h3{font-size:13px;margin:0 0 4px}.fixed-cost-editor>p{font-size:11px;color:var(--muted);margin:0 0 12px}.fixed-cost-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:12px;margin-top:12px;font-size:12px}.fixed-cost-total strong{font-size:15px;color:var(--green-deep)}
 @media(max-width:720px){.report-overview-grid{grid-template-columns:1fr}.report-tabs{margin-right:-2px}.report-tab{padding:9px 12px}}
+
+/* Leitura financeira: cada valor do balanço tem contexto e fórmula explícita. */
+.report-period{font-size:11px;color:var(--muted);margin:-7px 2px 13px}
+.report-panel{padding:19px 20px}
+.statement-row.subtotal{background:#f5faf7;margin:0 -8px;padding:12px 8px}
+.statement-row.information{margin-top:7px;border-bottom:0;color:var(--muted)}
+.statement-row.information strong{font-weight:650}
+.calculation-guide{background:#edf6f1;border:1px solid #d3e8de;border-radius:var(--radius);padding:18px 20px}
+.calculation-guide h3{font-size:14px;margin:0 0 11px;color:var(--green-deep)}
+#calculationGuide{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#calculationGuide>div{background:#fff;border:1px solid #dfece6;border-radius:8px;padding:10px}
+#calculationGuide b{display:block;font-size:11px;margin-bottom:4px;color:var(--green-deep)}
+#calculationGuide span{display:block;font-size:11px;line-height:1.45;color:var(--muted)}
+.seller-filter{padding:14px 17px;display:flex;align-items:end;gap:18px}
+.seller-filter label{width:min(300px,100%);font-size:11px;font-weight:650;color:#596762}
+.seller-filter select{height:39px;border:1px solid #d9e3df;border-radius:7px;outline:0;display:block;width:100%;margin-top:5px;padding:0 10px;font:inherit;background:#fff;color:var(--ink)}
+.seller-filter p{font-size:11px;color:var(--muted);line-height:1.45;margin:0 0 2px;max-width:470px}
+.seller-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){#calculationGuide,.seller-report-grid{grid-template-columns:1fr}.seller-filter{align-items:stretch;flex-direction:column;gap:9px}.seller-filter label{width:100%}.report-panel{padding:16px}.report-period{margin-top:-3px}}

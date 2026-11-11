@@ -2,6 +2,21 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.7.0] — 2026-11-11
+
+### Adicionado
+
+- Novo separador **Vendedores** no balanço: resumo individual, vendas diárias e consolidação mensal, com faturação, média por venda e saldo por receber.
+- Configuração de custos fixos mensais em cada loja (renda, energia, água, internet, salários, segurança e outros).
+- Folhas **Custos fixos**, **Vendedores**, **Vendas diárias** e **Vendas mensais** no relatório Excel.
+
+### Corrigido e melhorado
+
+- O resultado financeiro passa a usar uma única regra em todo o sistema: vendas sem IVA menos custo histórico dos produtos, custos fixos e custos variáveis.
+- Os custos mensais configurados são imputados proporcionalmente aos dias do período seleccionado e são separados das despesas fixas registadas, deixando a origem de cada valor visível.
+- A demonstração financeira, produtos, vendas por semana, despesas e desempenho por loja foram reorganizados com mais detalhe e fórmulas explicadas no ecrã.
+- Restaurada a separação real entre os perfis Gerente e Administrador: o gerente opera e consulta relatórios, enquanto definições e utilizadores permanecem reservados ao administrador.
+
 ## [1.6.2] — 2026-11-10
 
 ### Alterado

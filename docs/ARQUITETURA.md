@@ -18,7 +18,7 @@ Os dados são guardados como um único documento versionado na chave `vendamais_
 | Colecção | Conteúdo |
 | --- | --- |
 | `settings` | Dados da empresa, taxa de IVA, limite de stock padrão e local de operação seleccionado. |
-| `locations` | Lojas e armazéns activos da empresa. |
+| `locations` | Lojas e armazéns activos da empresa, incluindo custos fixos mensais configurados por loja. |
 | `products` | Catálogo, preço de custo, preço de venda, mínimo e `stockByLocation` (quantidade por local). |
 | `customers` | Contactos e identificação dos clientes. |
 | `receipts` | Recebimentos de vendas a crédito, ligados ao documento e ao cliente. |
@@ -93,13 +93,13 @@ O ficheiro JSON exportado representa o documento completo de dados. Ao restaurar
 
 ### Gestão financeira por loja e despesas recorrentes
 
-O relatório de gestão permite filtrar uma loja ou consolidar todas as lojas. Por local, apresenta faturação, custo histórico dos produtos vendidos, despesas fixas, despesas variáveis, número de vendas e resultado líquido estimado. O cálculo considera a faturação sem IVA, subtrai o custo das mercadorias vendidas e as despesas do período.
+O relatório de gestão permite filtrar uma loja ou consolidar todas as lojas. Por local, apresenta faturação com IVA, vendas sem IVA, custo histórico dos produtos vendidos, despesas fixas, despesas variáveis, número de vendas e resultado líquido estimado. A fórmula é: **resultado líquido estimado = (faturação − IVA − custo dos produtos vendidos) − custos fixos − custos variáveis**. Os custos fixos configurados na loja são proporcionais aos dias abrangidos pelo período; despesas fixas registadas entram separadamente, para que não haja duplicação acidental.
 
-As despesas podem ser únicas ou mensais recorrentes. Uma recorrência é projectada nos meses abrangidos pelo relatório a partir da data de início, sem criar lançamentos duplicados na base de dados. Cada despesa pertence a uma loja e é classificada como fixa ou variável. As vendas podem ser analisadas por semana do mês (dias 1–7, 8–14, 15–21, 22–28 e 29–31).
+As despesas podem ser únicas ou mensais recorrentes. Uma recorrência é projectada nos meses abrangidos pelo relatório a partir da data de início, sem criar lançamentos duplicados na base de dados. Cada despesa pertence a uma loja e é classificada como fixa ou variável. As vendas podem ser analisadas por semana do mês (dias 1–7, 8–14, 15–21, 22–28 e 29–31). O relatório de vendedores usa o operador guardado no documento de venda e consolida as vendas concluídas por dia e por mês.
 
 ### Relatórios Excel e preparação inicial
 
-O sistema gera ficheiros Excel (`.xlsx`) no próprio navegador, sem bibliotecas externas. O relatório de gestão inclui folhas para resumo, vendas, artigos vendidos, stock total, stock por local, clientes, fornecedores, despesas e desempenho financeiro por loja; cada folha tem cabeçalhos, filtros e valores numéricos próprios para análise no Excel. A opção de limpar dados comerciais remove apenas a operação do negócio, preservando a configuração da empresa, os locais e os utilizadores para permitir iniciar o catálogo com dados próprios.
+O sistema gera ficheiros Excel (`.xlsx`) no próprio navegador, sem bibliotecas externas. O relatório de gestão inclui folhas para resumo, vendas, artigos vendidos, stock total, stock por local, clientes, fornecedores, despesas, desempenho financeiro por loja, custos fixos e vendas de vendedores (resumo, diário e mensal); cada folha tem cabeçalhos, filtros e valores numéricos próprios para análise no Excel. A opção de limpar dados comerciais remove apenas a operação do negócio, preservando a configuração da empresa, os locais e os utilizadores para permitir iniciar o catálogo com dados próprios.
 
 ## Decisões técnicas
 

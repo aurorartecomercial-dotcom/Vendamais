@@ -54,7 +54,11 @@ const requiredFunctions = [
   'stockAt',
   'changeStock',
   'expenseOccurrences',
-  'weekOfMonth'
+  'weekOfMonth',
+  'calculateReport',
+  'allocatedMonthlyCost',
+  'sellerRollup',
+  'productPerformance'
 ];
 
 const failures = [];
@@ -89,7 +93,11 @@ if (!app.includes("recurrence !== 'Mensal'")) failures.push('Despesas mensais re
 if (!html.includes('id="storePerformanceTable"')) failures.push('Tabela financeira por loja não encontrada.');
 if (!html.includes('id="weeklySalesTable"')) failures.push('Tabela de vendas semanais não encontrada.');
 if (!html.includes('id="reportLocationFilter"')) failures.push('Filtro de loja nos relatórios não encontrado.');
+if (!html.includes('id="sellerReportFilter"')) failures.push('Filtro de vendedores no relatório não encontrado.');
+if (!html.includes('id="sellerDailyTable"') || !html.includes('id="sellerMonthlyTable"')) failures.push('Tabelas diária e mensal de vendedores não encontradas.');
 if (!app.includes('data.transfers')) failures.push('Transferências de stock não encontradas.');
+if (!app.includes('fixedCosts')) failures.push('Custos fixos por loja não encontrados.');
+if (!app.includes('Vendas líquidas (sem IVA)')) failures.push('Cálculo de vendas sem IVA não encontrado.');
 if (!app.includes("`Cliente: ${escapeHtml(customer.name)}`")) failures.push('Nome do cliente sem escape no modal de recebimento.');
 if (!app.includes("escapeHtml(supplier?.name || 'Fornecedor')")) failures.push('Nome do fornecedor sem escape no modal de pagamento.');
 if (!app.includes('const previousData = JSON.stringify(data);')) failures.push('Venda sem cópia de segurança para rollback local.');

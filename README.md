@@ -18,12 +18,13 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
 | Caixa e turnos | Abrir e fechar caixa por operador, controlar fundo inicial, movimentos físicos, contagem e diferenças. |
 | Documentos e devoluções | Consultar e imprimir documentos; processar devoluções com nota de crédito interna e reposição de stock. |
-| Operação | Acesso por PIN com uma única área de gestão (Administrador/Gerente) e área individual de Vendedor. Cada novo vendedor recebe automaticamente uma loja exclusiva; a gestão pode criar e atribuir lojas nas Definições. |
+| Operação | Acesso por PIN com perfis distintos de Administrador, Gerente e Vendedor. Cada novo vendedor recebe automaticamente uma loja exclusiva; a gestão pode criar e atribuir lojas nas Definições. |
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
-| Gestão financeira por loja | Comparar faturação, custos fixos e variáveis, custo dos produtos e resultado estimado de cada loja ou de todas em conjunto. |
+| Gestão financeira por loja | Comparar faturação com e sem IVA, custos fixos e variáveis, custo histórico dos produtos e resultado estimado de cada loja ou de todas em conjunto. |
 | Despesas recorrentes | Registar despesas únicas ou mensais (renda, salários, internet, energia), classificadas por tipo de custo e loja. |
 | Vendas semanais | Consultar a faturação por Semana 1 a Semana 5 de cada mês. |
+| Relatório por vendedor | Consultar as vendas de cada vendedor por dia e por mês, com quantidade de vendas, faturação, média e valor por receber. |
 | Segurança dos dados | Exportar/restaurar cópias completas em JSON e relatórios organizados em Excel. |
 
 ## Requisitos
@@ -93,7 +94,7 @@ vendamais/
 - Para mudar de computador, use **Restaurar cópia** no novo navegador.
 - Limpar os dados do navegador sem criar uma cópia apaga os registos locais.
 - Em cada venda, a aplicação guarda uma cópia do nome, NIF e morada de facturação do cliente para preservar o documento mesmo depois de a ficha ser alterada.
-- Em **Balanço & relatórios**, use **Exportar relatório Excel**. O ficheiro contém as folhas Resumo, Vendas, Artigos vendidos, Stock actual, Stock por local, Clientes e Fornecedores, com colunas já preparadas para filtrar no Excel.
+- Em **Balanço & relatórios**, use **Exportar relatório Excel**. O ficheiro contém resumo, vendas, artigos vendidos, stock, clientes, fornecedores, despesas, lojas, custos fixos e três folhas de desempenho dos vendedores, com colunas já preparadas para filtrar no Excel.
 - Para começar a trabalhar apenas com os seus dados, guarde primeiro uma cópia e use **Definições → Limpar dados comerciais**. Esta operação mantém a empresa e os utilizadores, mas remove produtos, clientes, fornecedores, documentos, compras, stock e movimentos.
 - As cópias de segurança não incluem PINs. Após restaurar uma cópia, cada utilizador entra com o PIN temporário `0000` e cria um PIN novo.
 
