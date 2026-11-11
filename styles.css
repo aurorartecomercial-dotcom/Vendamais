@@ -15,7 +15,3 @@
 .app-shell[data-workspace="manager"] .nav-link.active{background:#23735e}
 .app-shell[data-workspace="manager"] .brand-mark{background:#a9bd72;color:#28351f}
 @media(max-width:720px){.workspace-context{margin-bottom:12px}}
-
-/* Relatórios financeiros por loja */
-.report-filters select{height:39px;border:1px solid #d9e3df;border-radius:7px;outline:0;display:block;width:100%;margin-top:5px;padding:0 10px;font:inherit;background:#fff;color:var(--ink)}
-#storePerformanceTable td,#weeklySalesTable td{white-space:nowrap}
