@@ -113,6 +113,9 @@ if (!html.includes('id="storeTodayTable"')) failures.push('Resumo diário por lo
 if (!html.includes('id="manageCloud"')) failures.push('Configuração de dados online não encontrada.');
 if (!app.includes('renderOperationalControl')) failures.push('Controlo operacional do administrador não encontrado.');
 if (!app.includes('cloudAccessManagementModal')) failures.push('Gestão de acessos online não encontrada.');
+if (!app.includes('BRAND_THEMES') || !app.includes('applyBrandTheme')) failures.push('Identidade visual por empresa não encontrada.');
+if (!app.includes('colorId') || !app.includes('themePickerHtml')) failures.push('Cores individuais por loja não encontradas.');
+if (!html.includes('companyThemePicker')) failures.push('Escolha de cores da empresa não encontrada.');
 if (!professionalSql.includes('record_vendamais_sale')) failures.push('Venda atómica central não encontrada.');
 if (!professionalSql.includes('business_backups')) failures.push('Cópias automáticas online não encontradas.');
 if (!professionalSql.includes('audit_events')) failures.push('Auditoria central não encontrada.');

@@ -2,6 +2,15 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [2.0.0] — 2026-11-14
+
+### Adicionado
+
+- Identidade visual por empresa com doze combinações de cores profissionais: Esmeralda, Oceano, Safira, Violeta, Ameixa, Coral, Pôr do sol, Lima, Turquesa, Ardósia, Cereja e Noite azul.
+- Escolha de cores durante o registo da empresa online e em **Definições → Dados da empresa**.
+- Cor individual por loja ou armazém, seleccionada ao criar/editar o local e mostrada nos cartões e no selector de local.
+- A identidade escolhida é sincronizada com a empresa, para que administrador, vendedores e lojas vejam a mesma imagem visual.
+
 ## [1.9.1] — 2026-11-14
 
 ### Corrigido

@@ -43,6 +43,14 @@ Essa chave é pública por desenho e pode estar no GitHub Pages. Nunca coloque a
 
 Cada empresa recebe um identificador interno próprio. Todas as tabelas importantes — catálogo/stock, lojas, vendas, cópias, auditoria e convites — têm esse identificador, e as regras de segurança do Supabase só deixam uma conta ler ou escrever a empresa presente no seu perfil. Portanto, uma loja de roupa e uma mercearia podem usar o mesmo projecto Supabase sem se misturarem: não partilham produtos, vendas, vendedores nem stock.
 
+## Cores e identidade visual
+
+- No primeiro registo da empresa, escolha uma das combinações de cores apresentadas antes de sincronizar.
+- Para alterar depois, entre como administrador em **Definições → Dados da empresa**, escolha a combinação e guarde.
+- Para dar uma identidade própria a cada loja, abra **Definições → Lojas & armazéns**, crie/edite a loja, escolha a cor e guarde.
+
+As cores ficam nos dados da própria empresa e são sincronizadas para todos os vendedores e dispositivos ligados a ela.
+
 ## Vendas sem internet
 
 - Quando a internet falhar, uma venda concluída fica marcada como pendente neste navegador.

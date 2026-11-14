@@ -6,6 +6,20 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const icons = ['◈', '◇', '◉', '◆', '✦', '⬡'];
 const FIXED_COST_LABELS = ['Renda', 'Energia', 'Água', 'Internet', 'Salários', 'Segurança', 'Outros'];
+const BRAND_THEMES = Object.freeze([
+  { id: 'esmeralda', name: 'Esmeralda', primary: '#126951', deep: '#123e35', secondary: '#36b987', light: '#a7ead0', soft: '#e6f4ee' },
+  { id: 'oceano', name: 'Oceano', primary: '#0e7490', deep: '#083344', secondary: '#22b8cf', light: '#9be7f1', soft: '#e0f7fb' },
+  { id: 'safira', name: 'Safira', primary: '#2563eb', deep: '#172554', secondary: '#7c9cff', light: '#b7c9ff', soft: '#eaf0ff' },
+  { id: 'violeta', name: 'Violeta', primary: '#7e22ce', deep: '#3b0764', secondary: '#c084fc', light: '#e2b8ff', soft: '#f5eaff' },
+  { id: 'ameixa', name: 'Ameixa', primary: '#9d174d', deep: '#500724', secondary: '#ec4899', light: '#f7b2d0', soft: '#fce9f1' },
+  { id: 'coral', name: 'Coral', primary: '#c2410c', deep: '#7c2d12', secondary: '#fb7185', light: '#fdba9b', soft: '#fff0e8' },
+  { id: 'por-do-sol', name: 'Pôr do sol', primary: '#b45309', deep: '#78350f', secondary: '#f59e0b', light: '#fbd38d', soft: '#fff7df' },
+  { id: 'limao', name: 'Lima', primary: '#4d7c0f', deep: '#365314', secondary: '#a3cf3d', light: '#d0ee8d', soft: '#f2f9df' },
+  { id: 'turquesa', name: 'Turquesa', primary: '#0f766e', deep: '#134e4a', secondary: '#2dd4bf', light: '#9ff1df', soft: '#ddfaf3' },
+  { id: 'ardosia', name: 'Ardósia', primary: '#334155', deep: '#0f172a', secondary: '#7c8ca3', light: '#c8d2df', soft: '#eef2f6' },
+  { id: 'cereja', name: 'Cereja', primary: '#b91c1c', deep: '#7f1d1d', secondary: '#f05252', light: '#ffb5b5', soft: '#fff0f0' },
+  { id: 'noite-azul', name: 'Noite azul', primary: '#4338ca', deep: '#1e1b4b', secondary: '#6d8dff', light: '#b9c7ff', soft: '#eef0ff' }
+]);
 let cart = [];
 let previouslyFocused = null;
 
@@ -28,6 +42,31 @@ function shortDate(value) { return new Intl.DateTimeFormat('pt-PT', { day: '2-di
 function fullDate(value) { return new Intl.DateTimeFormat('pt-PT', { dateStyle: 'medium', timeStyle: value.length > 10 ? 'short' : undefined }).format(new Date(value.length > 10 ? value : `${value}T12:00:00`)); }
 function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 function emptyRow(columns, label = 'Ainda não existem registos.') { return `<tr><td colspan="${columns}"><div class="empty-state">${label}</div></td></tr>`; }
+function brandTheme(id) { return BRAND_THEMES.find(theme => theme.id === id) || BRAND_THEMES[0]; }
+function themePickerHtml(name, selected, title = 'Cores da empresa', note = 'Escolha uma combinação que represente o seu negócio.') {
+  const active = brandTheme(selected).id;
+  return `<fieldset class="theme-picker"><legend>${escapeHtml(title)}</legend><p>${escapeHtml(note)}</p><div class="theme-choices">${BRAND_THEMES.map(theme => `<label class="theme-choice" title="${escapeHtml(theme.name)}"><input type="radio" name="${escapeHtml(name)}" value="${theme.id}" ${theme.id === active ? 'checked' : ''} /><span class="theme-choice-card" style="--choice-a:${theme.primary};--choice-b:${theme.secondary};--choice-c:${theme.light}"><span class="theme-swatch"><i></i><i></i><i></i></span><b>${escapeHtml(theme.name)}</b></span></label>`).join('')}</div></fieldset>`;
+}
+function applyLocationAccent(locationId = data?.settings?.activeLocationId) {
+  const location = (data?.locations || []).find(item => item.id === locationId);
+  const colour = brandTheme(location?.colorId);
+  const root = document.documentElement;
+  root.style.setProperty('--location-color', colour.primary);
+  root.style.setProperty('--location-soft', colour.soft);
+  root.style.setProperty('--location-light', colour.light);
+}
+function applyBrandTheme(themeId = data?.settings?.themeId) {
+  const theme = brandTheme(themeId);
+  const root = document.documentElement;
+  root.style.setProperty('--green', theme.primary);
+  root.style.setProperty('--green-deep', theme.deep);
+  root.style.setProperty('--green-soft', theme.soft);
+  root.style.setProperty('--brand-light', theme.light);
+  root.style.setProperty('--brand-secondary', theme.secondary);
+  root.style.setProperty('--brand-gradient', `linear-gradient(155deg, ${theme.deep} 0%, ${theme.primary} 54%, ${theme.secondary} 145%)`);
+  document.body?.setAttribute('data-brand-theme', theme.id);
+  applyLocationAccent();
+}
 
 function demoData() {
   const products = [
@@ -61,10 +100,10 @@ function demoData() {
   ];
   return {
     meta: { schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() },
-    settings: { company: 'Comercial Horizonte, Lda.', nif: '5412345678', phone: '+244 923 000 000', email: 'geral@comercialhorizonte.ao', address: 'Luanda, Angola', taxRate: 14, stockLimit: 5, defaultWarehouse: 'Armazém principal', activeLocationId: 'loc_main' },
+    settings: { company: 'Comercial Horizonte, Lda.', nif: '5412345678', phone: '+244 923 000 000', email: 'geral@comercialhorizonte.ao', address: 'Luanda, Angola', taxRate: 14, stockLimit: 5, defaultWarehouse: 'Armazém principal', activeLocationId: 'loc_main', themeId: 'esmeralda' },
     locations: [
-      { id: 'loc_main', name: 'Loja principal', type: 'Loja', address: 'Luanda, Angola', active: true, fixedCosts: { Renda: 150000, Energia: 25000, Internet: 15000, Salários: 220000 } },
-      { id: 'loc_central', name: 'Armazém central', type: 'Armazém', address: 'Luanda, Angola', active: true }
+      { id: 'loc_main', name: 'Loja principal', type: 'Loja', address: 'Luanda, Angola', active: true, colorId: 'oceano', fixedCosts: { Renda: 150000, Energia: 25000, Internet: 15000, Salários: 220000 } },
+      { id: 'loc_central', name: 'Armazém central', type: 'Armazém', address: 'Luanda, Angola', active: true, colorId: 'por-do-sol' }
     ],
     products,
     customers: [
@@ -132,7 +171,7 @@ function normaliseUser(user = {}, fallbackLocationId = 'loc_main') {
 }
 function normaliseLocation(location = {}) {
   const fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, Math.max(0, Number(location.fixedCosts?.[label] || 0))]));
-  return { ...location, id: String(location.id || uid('loc')), name: String(location.name || 'Local sem nome').trim(), type: location.type === 'Armazém' ? 'Armazém' : 'Loja', address: String(location.address || '').trim(), active: location.active !== false, dailyTarget: Math.max(0, Number(location.dailyTarget || 0)), monthlyTarget: Math.max(0, Number(location.monthlyTarget || 0)), fixedCosts };
+  return { ...location, id: String(location.id || uid('loc')), name: String(location.name || 'Local sem nome').trim(), type: location.type === 'Armazém' ? 'Armazém' : 'Loja', address: String(location.address || '').trim(), active: location.active !== false, colorId: brandTheme(location.colorId).id, dailyTarget: Math.max(0, Number(location.dailyTarget || 0)), monthlyTarget: Math.max(0, Number(location.monthlyTarget || 0)), fixedCosts };
 }
 function normaliseStockMap(value, fallbackLocationId, legacyStock = 0) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : { [fallbackLocationId]: legacyStock };
@@ -166,6 +205,7 @@ function normaliseData(candidate) {
   restored.locations = (Array.isArray(source.locations) && source.locations.length ? source.locations : base.locations).map(normaliseLocation);
   const fallbackLocationId = restored.locations.find(location => location.id === restored.settings.activeLocationId && location.active)?.id || restored.locations.find(location => location.active)?.id || restored.locations[0].id;
   restored.settings.activeLocationId = fallbackLocationId;
+  restored.settings.themeId = brandTheme(restored.settings.themeId).id;
   restored.users = (Array.isArray(source.users) ? source.users : base.users).map(user => normaliseUser(user, fallbackLocationId)).map(user => ({ ...user, locationId: restored.locations.some(location => location.id === user.locationId && location.active) ? user.locationId : fallbackLocationId }));
   restored.products = (Array.isArray(source.products) ? source.products : []).map(product => normaliseProduct(product, fallbackLocationId));
   restored.products.forEach(product => {
@@ -254,6 +294,7 @@ function canAccessView(view) {
 function applyRoleInterface() {
   const shell = $('.app-shell');
   const workspace = $('#workspaceContext');
+  applyLocationAccent();
   const workspaceConfig = {
     Administrador: { key: 'admin', title: 'Área de gestão', description: 'Gestão total, lojas, vendedores, stock, caixa e relatórios.' },
     Gerente: { key: 'manager', title: 'Área de gestão', description: 'Operação comercial, stock, caixa e relatórios. As definições ficam reservadas ao administrador.' },
@@ -303,7 +344,7 @@ function renderView(view) {
   if (view === 'reports') renderReports();
   if (view === 'settings') renderSettings();
 }
-function renderAll() { renderView($('.view.active').id.replace('View', '')); }
+function renderAll() { applyBrandTheme(); renderView($('.view.active').id.replace('View', '')); }
 
 function renderDashboard() {
   const today = dateISO(); const start = monthStart();
@@ -625,7 +666,12 @@ function renderReports() {
   const sellerDaily = $('#sellerDailyTable'); if (sellerDaily) sellerDaily.innerHTML = sellerData.daily.length ? sellerData.daily.map(row => `<tr><td>${shortDate(row.date)}</td><td>${escapeHtml(row.seller)}</td><td>${row.count}</td><td class="money"><b>${money(row.total)}</b></td><td class="money">${money(row.average)}</td></tr>`).join('') : emptyRow(5, 'Sem vendas diárias no período.');
   const sellerMonthly = $('#sellerMonthlyTable'); if (sellerMonthly) sellerMonthly.innerHTML = sellerData.monthly.length ? sellerData.monthly.map(row => `<tr><td>${shortMonth(row.month)}</td><td>${escapeHtml(row.seller)}</td><td>${row.count}</td><td class="money"><b>${money(row.total)}</b></td><td class="money">${money(row.average)}</td></tr>`).join('') : emptyRow(5, 'Sem vendas mensais no período.');
 }
-function renderSettings() { const form = $('#settingsForm'); Object.entries(data.settings).forEach(([key, value]) => { if (form.elements[key]) form.elements[key].value = value; }); }
+function renderSettings() {
+  const form = $('#settingsForm');
+  Object.entries(data.settings).forEach(([key, value]) => { if (form.elements[key]) form.elements[key].value = value; });
+  const picker = $('#companyThemePicker');
+  if (picker) picker.innerHTML = themePickerHtml('themeId', data.settings.themeId, 'Identidade visual da empresa', 'Escolha entre combinações de cores. Esta imagem aparece em todas as lojas desta empresa.');
+}
 
 function openModal(content) {
   previouslyFocused = document.activeElement;
@@ -893,15 +939,15 @@ function changePinModal(user = currentUser, mandatory = false) {
 }
 function locationsModal() {
   if (!canManage()) return notify('Apenas a área de gestão pode gerir lojas e armazéns.');
-  const rows = data.locations.map(location => { const units = sum(data.products, product => stockAt(product, location.id)); const value = sum(data.products, product => stockAt(product, location.id) * product.cost); const users = data.users.filter(user => user.locationId === location.id && user.active).length; const fixed = sum(FIXED_COST_LABELS, label => location.fixedCosts?.[label]); return `<div class="location-card"><span class="mini-icon">${location.type === 'Armazém' ? '▦' : '⌂'}</span><div class="item-main"><strong>${escapeHtml(location.name)}</strong><span>${escapeHtml(location.type)}${location.address ? ` · ${escapeHtml(location.address)}` : ''} · ${location.active ? 'Activo' : 'Inactivo'}</span></div><div class="location-summary"><b>${number(units)} un.</b><span>${money(value)} · ${users} operador${users === 1 ? '' : 'es'}${location.type === 'Loja' ? ` · fixos/mês ${money(fixed)}` : ''}</span></div><button class="action-btn" data-edit-location="${location.id}" type="button">Editar</button></div>`; }).join('');
+  const rows = data.locations.map(location => { const units = sum(data.products, product => stockAt(product, location.id)); const value = sum(data.products, product => stockAt(product, location.id) * product.cost); const users = data.users.filter(user => user.locationId === location.id && user.active).length; const fixed = sum(FIXED_COST_LABELS, label => location.fixedCosts?.[label]); const colour = brandTheme(location.colorId); return `<div class="location-card" style="--location-card-color:${colour.primary};--location-card-soft:${colour.soft}"><span class="mini-icon">${location.type === 'Armazém' ? '▦' : '⌂'}</span><div class="item-main"><strong>${escapeHtml(location.name)}</strong><span><i class="location-color-dot" aria-hidden="true"></i>${escapeHtml(colour.name)} · ${escapeHtml(location.type)}${location.address ? ` · ${escapeHtml(location.address)}` : ''} · ${location.active ? 'Activo' : 'Inactivo'}</span></div><div class="location-summary"><b>${number(units)} un.</b><span>${money(value)} · ${users} operador${users === 1 ? '' : 'es'}${location.type === 'Loja' ? ` · fixos/mês ${money(fixed)}` : ''}</span></div><button class="action-btn" data-edit-location="${location.id}" type="button">Editar</button></div>`; }).join('');
   openModal(`${modalHeader('Lojas e armazéns', 'Cada local possui stock próprio. Vendedores ficam limitados ao local atribuído.')}<div class="locations-list">${rows}</div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Fechar</button><button class="btn primary" id="newLocation" type="button">＋ Novo local</button></div>`);
 }
 function locationModal(location = null) {
   if (!canManage()) return notify('Apenas a área de gestão pode gerir lojas e armazéns.');
-  const item = normaliseLocation(location || { name: '', type: 'Loja', address: '', active: true }); const fixedFields = FIXED_COST_LABELS.map(label => `<label>${label} (Kz/mês)<input name="fixedCost_${label}" type="number" min="0" step="0.01" value="${Number(item.fixedCosts?.[label] || 0)}" /></label>`).join('');
+  const item = normaliseLocation(location || { name: '', type: 'Loja', address: '', active: true, colorId: 'oceano' }); const fixedFields = FIXED_COST_LABELS.map(label => `<label>${label} (Kz/mês)<input name="fixedCost_${label}" type="number" min="0" step="0.01" value="${Number(item.fixedCosts?.[label] || 0)}" /></label>`).join('');
   openModal(`${modalHeader(location ? 'Editar local' : 'Novo local', 'Os locais activos podem receber stock, compras, vendas e caixas próprios.')}<form id="locationForm"><div class="modal-form"><label>Nome do local<input name="name" required value="${escapeHtml(item.name)}" placeholder="Ex.: Loja Kilamba" /></label><label>Tipo<select name="type"><option ${item.type === 'Loja' ? 'selected' : ''}>Loja</option><option ${item.type === 'Armazém' ? 'selected' : ''}>Armazém</option></select></label><label class="full">Morada / referência<input name="address" value="${escapeHtml(item.address || '')}" /></label><label>Estado<select name="active"><option value="true" ${item.active !== false ? 'selected' : ''}>Activo</option><option value="false" ${item.active === false ? 'selected' : ''}>Inactivo</option></select></label></div><section class="fixed-cost-editor"><h3>Custos fixos mensais</h3><p>Estes valores são imputados proporcionalmente aos dias incluídos no relatório. Deixe a zero o que não se aplica.</p><div class="modal-form">${fixedFields}</div><div class="fixed-cost-total"><span>Total mensal configurado</span><strong id="fixedCostPreview">${money(sum(FIXED_COST_LABELS, label => item.fixedCosts?.[label]))}</strong></div></section><p class="modal-note">Um local com stock ou operadores atribuídos não pode ser desactivado até ser regularizado. Não duplique aqui despesas que já regista mensalmente na aba Despesas.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${location ? 'Guardar alterações' : 'Criar local'}</button></div></form>`);
   const form = $('#locationForm');
-  $('.modal-form', form).insertAdjacentHTML('beforeend', `<label>Meta diária (Kz)<input name="dailyTarget" type="number" min="0" step="0.01" value="${Number(item.dailyTarget || 0)}" /></label><label>Meta mensal (Kz)<input name="monthlyTarget" type="number" min="0" step="0.01" value="${Number(item.monthlyTarget || 0)}" /></label>`);
+  $('.modal-form', form).insertAdjacentHTML('beforeend', `<label>Meta diária (Kz)<input name="dailyTarget" type="number" min="0" step="0.01" value="${Number(item.dailyTarget || 0)}" /></label><label>Meta mensal (Kz)<input name="monthlyTarget" type="number" min="0" step="0.01" value="${Number(item.monthlyTarget || 0)}" /></label><div class="full">${themePickerHtml('colorId', item.colorId, 'Cor desta loja', 'A cor identifica a loja nos cartões e no selector de local. Pode ser diferente da empresa.')}</div>`);
   const refreshFixedTotal = () => { $('#fixedCostPreview').textContent = money(sum(FIXED_COST_LABELS, label => form.elements[`fixedCost_${label}`].value)); }; FIXED_COST_LABELS.forEach(label => form.elements[`fixedCost_${label}`].addEventListener('input', refreshFixedTotal));
   form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, Math.max(0, Number(values[`fixedCost_${label}`] || 0))])); FIXED_COST_LABELS.forEach(label => delete values[`fixedCost_${label}`]); values.dailyTarget = Math.max(0, Number(values.dailyTarget || 0)); values.monthlyTarget = Math.max(0, Number(values.monthlyTarget || 0)); values.name = values.name.trim(); values.address = values.address.trim(); values.active = values.active === 'true'; values.fixedCosts = fixedCosts; if (!values.name) return notify('Indique o nome do local.'); const duplicate = data.locations.find(existing => existing.name.toLowerCase() === values.name.toLowerCase() && existing.id !== location?.id); if (duplicate) return notify('Já existe um local com este nome.'); if (location && !values.active) { const units = sum(data.products, product => stockAt(product, location.id)); const assigned = data.users.some(user => user.locationId === location.id && user.active); if (units > 0 || assigned) return notify('Transfira o stock e atribua os operadores a outro local antes de desactivar.'); if (location.id === currentLocationId()) return notify('Seleccione outro local activo antes de desactivar este.'); } if (location) { Object.assign(location, normaliseLocation({ ...location, ...values })); } else data.locations.push(normaliseLocation({ id: uid('loc'), ...values })); audit(location ? 'Local actualizado' : 'Local criado', values.name); saveData(); closeModal(); applyRoleInterface(); renderAll(); notify('Local guardado.'); locationsModal(); });
 }
@@ -910,7 +956,7 @@ function changeActiveLocation(locationId) {
   if (!locationById(locationId)?.active) return notify('Seleccione um local activo.');
   if (locationId === currentLocationId()) return;
   if (cart.length && !confirm('A venda actual será limpa ao trocar de local. Continuar?')) { applyRoleInterface(); return; }
-  cart = []; data.settings.activeLocationId = locationId; audit('Local de operação alterado', locationName(locationId)); saveData(); applyRoleInterface(); renderAll(); notify(`Local de operação: ${locationName(locationId)}.`);
+  cart = []; data.settings.activeLocationId = locationId; applyLocationAccent(locationId); audit('Local de operação alterado', locationName(locationId)); saveData(); applyRoleInterface(); renderAll(); notify(`Local de operação: ${locationName(locationId)}.`);
 }
 function userModal(user = null) {
   if (!canManage()) return notify('Apenas a área de gestão pode criar ou alterar utilizadores.');
@@ -970,6 +1016,7 @@ function replaceDataFromCloud(remote, profile, authUser) {
   if (!profile && cloudUserId) currentUser = data.users.find(user => user.cloudUserId === cloudUserId) || currentUser || getSessionUser();
   if (currentUser) { localStorage.setItem(USER_SESSION, currentUser.id); sessionLocked = false; pinChangeRequired = false; }
   localStorage.setItem(STORE, JSON.stringify(data));
+  applyBrandTheme();
   $('#companyName').textContent = data.settings.company;
   renderAccountButton(); applyRoleInterface(); renderAll();
 }
@@ -981,11 +1028,14 @@ function mergeCloudSale(sale) {
   renderAll();
 }
 function cloudBootstrapModal() {
-  openModal(`${modalHeader('Criar empresa online', 'Esta primeira sincronização envia o catálogo, lojas, stock e vendas actuais para a base central.')}<form id="cloudBootstrapForm"><div class="modal-form"><label class="full">Nome da empresa<input name="company" required value="${escapeHtml(data.settings.company || '')}" /></label><label class="full">NIF<input name="nif" value="${escapeHtml(data.settings.nif || '')}" /></label></div><p class="modal-note">Depois desta etapa, cada venda confirmada será registada no livro central. Os PINs locais não são enviados: o acesso online usa a conta de e-mail e palavra-passe.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar e sincronizar</button></div></form>`);
+  openModal(`${modalHeader('Criar empresa online', 'Defina o nome e a identidade visual antes de ligar lojas, produtos e vendas à base central.')}<form id="cloudBootstrapForm"><div class="modal-form"><label class="full">Nome da empresa<input name="company" required value="${escapeHtml(data.settings.company || '')}" /></label><label class="full">NIF<input name="nif" value="${escapeHtml(data.settings.nif || '')}" /></label><div class="full">${themePickerHtml('themeId', data.settings.themeId, 'Cores da sua empresa', 'Escolha uma combinação profissional. Poderá alterá-la mais tarde nas Definições.')}</div></div><p class="modal-note">Depois desta etapa, cada venda confirmada será registada no livro central. Os PINs locais não são enviados: o acesso online usa a conta de e-mail e palavra-passe.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar e sincronizar</button></div></form>`);
   $('#cloudBootstrapForm').addEventListener('submit', async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-    try { await window.VendaMaisCloud.bootstrap(values.company, values.nif); closeModal(); notify('Empresa criada e dados sincronizados.'); }
-    catch (error) { notify(error.message || 'Não foi possível criar a empresa online.'); }
+    const previousSettings = { ...data.settings };
+    data.settings = { ...data.settings, company: String(values.company || '').trim(), nif: String(values.nif || '').trim(), themeId: brandTheme(values.themeId).id };
+    applyBrandTheme();
+    try { await window.VendaMaisCloud.bootstrap(values.company, values.nif); saveData({ skipCloudSync: true }); $('#companyName').textContent = data.settings.company; closeModal(); renderAll(); notify('Empresa criada, cores aplicadas e dados sincronizados.'); }
+    catch (error) { data.settings = previousSettings; applyBrandTheme(); notify(error.message || 'Não foi possível criar a empresa online.'); }
   });
 }
 function cloudNoProfileModal() {
@@ -1108,11 +1158,11 @@ document.addEventListener('click', event => {
 document.addEventListener('input', event => { if (event.target.id === 'productSearch') renderPosProducts(); if (event.target.id === 'saleDiscount') renderCart(); const table = event.target.dataset?.table; if (table === 'products') filterProducts(); if (table === 'customers') filterCustomers(); if (table === 'suppliers') filterSuppliers(); if (table === 'documents') filterDocuments(); });
 document.addEventListener('change', event => { if (event.target.id === 'posCategory') renderPosProducts(); if (event.target.id === 'productCategoryFilter') filterProducts(); if (event.target.id === 'saleCustomer') renderSaleCustomerInfo(); if (event.target.id === 'documentStatusFilter') filterDocuments(); if (event.target.id === 'activeLocationSelect') changeActiveLocation(event.target.value); if (event.target.id === 'reportLocationFilter' || event.target.id === 'sellerReportFilter') renderReports(); if (event.target.id === 'restoreData') restore(event.target.files[0]); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && $('#modalBackdrop').classList.contains('open')) closeModal(); });
-$('#settingsForm').addEventListener('submit', event => { event.preventDefault(); if (!isAdministrator()) return notify('Apenas administradores podem alterar definições.'); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.taxRate = Number(values.taxRate); values.stockLimit = Number(values.stockLimit); data.settings = { ...data.settings, ...values }; saveData(); $('#companyName').textContent = data.settings.company; notify('Definições guardadas.'); renderAll(); });
+$('#settingsForm').addEventListener('submit', event => { event.preventDefault(); if (!isAdministrator()) return notify('Apenas administradores podem alterar definições.'); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.taxRate = Number(values.taxRate); values.stockLimit = Number(values.stockLimit); values.themeId = brandTheme(values.themeId).id; data.settings = { ...data.settings, ...values }; applyBrandTheme(); saveData(); $('#companyName').textContent = data.settings.company; notify('Definições e identidade visual guardadas.'); renderAll(); });
 
 function initialize() {
   $('#topDate').textContent = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
-  $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderDashboard(); updateCloudUi();
+  applyBrandTheme(); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderDashboard(); updateCloudUi();
   if (window.VendaMaisCloud?.configured?.()) {
     window.VendaMaisCloud.prepare().then(result => { if (result?.needsBootstrap) return cloudNoProfileModal(); if (!result?.connected) cloudModal(); }).catch(() => cloudModal());
   } else accountModal();

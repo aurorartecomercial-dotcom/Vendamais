@@ -12,6 +12,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Recibos | Gerar uma janela de impressão após a conclusão de cada venda. |
 | Produtos e stock | Registar códigos, categorias, preço de custo, preço de venda e limite mínimo, com stock separado por local. |
 | Lojas & armazéns | Criar locais de operação, consultar stock por loja/armazém e atribuir cada vendedor ao seu local. |
+| Identidade visual | Escolher uma combinação de cores para a empresa e uma cor individual para identificar cada loja. |
 | Inventário | Registar entradas, saídas, ajustes e transferências rastreáveis entre locais. |
 | Compras | Registar compras por fornecedor e local de entrada, actualizando automaticamente custo e stock. |
 | Clientes e fornecedores | Manter contactos, NIF, morada e histórico comercial. |
