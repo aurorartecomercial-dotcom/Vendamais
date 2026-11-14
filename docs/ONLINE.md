@@ -28,6 +28,8 @@ O indicador com a nuvem no topo passa a mostrar **Online**. Pode clicar nele par
 
 ## 3. Criar acessos para cada loja
 
+> Se tiver executado `supabase/2026-11-professional-upgrade.sql`, siga o fluxo automático em [VendaMais Profissional](PROFESSIONAL.md): o colaborador pede acesso no próprio VendaMais e o administrador aprova, escolhe a função e associa a loja. Não precisa de criar UUIDs nem executar comandos manuais.
+
 Cada pessoa deve ter o seu próprio e-mail e palavra-passe. Não partilhe a conta do administrador.
 
 1. No VendaMais, crie a loja e o utilizador em **Definições** → **Lojas & armazéns** e **Utilizadores**. Aguarde o indicador mostrar **Online**.

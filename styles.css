@@ -49,6 +49,8 @@
 
 /* Estado da base central e resumo diário para administração multi-loja. */
 .cloud-status{display:inline-flex;align-items:center;gap:5px;border:1px solid #d8e4df;border-radius:999px;background:#f7faf8;color:#64736d;padding:6px 9px;font:inherit;font-size:10px;font-weight:750;cursor:pointer;white-space:nowrap}
-.cloud-status span:first-child{font-size:13px;line-height:1}.cloud-status.online{border-color:#b9decf;background:#e8f6ef;color:#126951}.cloud-status.syncing{border-color:#d8c890;background:#fff8df;color:#8b6712}.cloud-status.error{border-color:#ecc0c0;background:#fff0f0;color:#b23434}.cloud-status.configured{border-color:#c7d9ef;background:#eef6ff;color:#315f94}
+.cloud-status span:first-child{font-size:13px;line-height:1}.cloud-status.online{border-color:#b9decf;background:#e8f6ef;color:#126951}.cloud-status.syncing,.cloud-status.pending{border-color:#d8c890;background:#fff8df;color:#8b6712}.cloud-status.error{border-color:#ecc0c0;background:#fff0f0;color:#b23434}.cloud-status.configured{border-color:#c7d9ef;background:#eef6ff;color:#315f94}
 .store-today-panel{margin-top:18px;padding:19px 20px}.store-today-panel .table-wrap table{min-width:520px}
+.operational-control{margin-top:18px;padding:19px 20px}.control-grid{grid-template-columns:1fr 1fr;gap:32px}.goal-row{display:grid;grid-template-columns:minmax(120px,1fr) auto auto;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);font-size:12px}.goal-row:last-child{border-bottom:0}.goal-row span{color:var(--muted);font-size:11px;white-space:nowrap}
 @media(max-width:720px){.cloud-status{padding:6px 7px}.cloud-status span:last-child{display:none}.store-today-panel{padding:16px}.top-actions .cloud-status{display:inline-flex}}
+@media(max-width:720px){.control-grid{grid-template-columns:1fr;gap:8px}.goal-row{grid-template-columns:1fr;gap:4px}.goal-row span{white-space:normal}}

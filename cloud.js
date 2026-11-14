@@ -4,6 +4,7 @@
  */
 window.VendaMaisCloud = (() => {
   const CONFIG_KEY = 'vendamais_cloud_config_v1';
+  const PENDING_SALES_KEY = 'vendamais_pending_sales_v1';
   let config = readConfig();
   let client = null;
   let companyId = '';
@@ -11,6 +12,7 @@ window.VendaMaisCloud = (() => {
   let channel = null;
   let saveTimer = null;
   let saving = false;
+  let flushing = false;
   let hooks = {};
   let currentStatus = { kind: config ? 'configured' : 'offline', message: config ? 'Base online configurada — inicie sessão.' : 'Só neste dispositivo' };
 
@@ -29,11 +31,23 @@ window.VendaMaisCloud = (() => {
     hooks.onStatus?.(currentStatus);
   }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
+  function pendingSales() { try { const value = JSON.parse(localStorage.getItem(PENDING_SALES_KEY)); return Array.isArray(value) ? value : []; } catch { return []; } }
+  function savePendingSales(sales) { localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(sales)); hooks.onPending?.(sales.length); }
+  function queueSale(sale) {
+    const queued = pendingSales();
+    if (!queued.some(item => item.id === sale.id)) queued.push({ ...clone(sale), syncStatus: 'Pendente de sincronização', queuedAt: new Date().toISOString() });
+    savePendingSales(queued);
+    emitStatus('pending', `${queued.length} venda${queued.length === 1 ? '' : 's'} pendente${queued.length === 1 ? '' : 's'} de sincronização`);
+    return queued.find(item => item.id === sale.id) || sale;
+  }
   function serialisableState(data) {
     const state = clone(data);
     // As vendas têm livro próprio para evitar que duas lojas percam uma venda
     // ao gravar ao mesmo tempo. PINs nunca são enviados para a nuvem.
     state.sales = [];
+    // O local seleccionado é uma preferência deste navegador, não uma
+    // configuração global que outro gerente deve ver alterada.
+    if (state.settings) delete state.settings.activeLocationId;
     state.users = (state.users || []).map(({ pin, ...user }) => user);
     return state;
   }
@@ -136,7 +150,8 @@ window.VendaMaisCloud = (() => {
     remote.sales = sales;
     hooks.replaceData?.(remote, profile, authUser);
     subscribe();
-    emitStatus('online', 'Dados online sincronizados');
+    emitStatus(pendingSales().length ? 'pending' : 'online', pendingSales().length ? `${pendingSales().length} venda(s) pendente(s) de sincronização` : 'Dados online sincronizados');
+    if (!flushing) flushPendingSales().catch(error => emitStatus('pending', `Venda pendente: ${getErrorMessage(error)}`));
     return remote;
   }
   function subscribe() {
@@ -153,6 +168,7 @@ window.VendaMaisCloud = (() => {
   }
   async function saveNow() {
     if (!connected() || saving) return false;
+    if (navigator.onLine === false) { emitStatus('pending', 'Sem internet: alterações aguardam sincronização'); return false; }
     const source = hooks.getData?.();
     if (!source) return false;
     saving = true;
@@ -178,18 +194,83 @@ window.VendaMaisCloud = (() => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => saveNow(), 700);
   }
+  async function sendSale(sale) {
+    const { data, error } = await client.rpc('record_vendamais_sale', { p_sale: clone(sale), p_expected_revision: revision });
+    if (error) throw error;
+    if (!data?.sale || data?.revision === undefined) throw new Error('A base central não confirmou a venda. Execute a actualização profissional do Supabase.');
+    revision = Number(data.revision);
+    return { ok: true, sale: data.sale, duplicate: Boolean(data.duplicate) };
+  }
   async function recordSale(sale) {
-    if (!connected()) return true;
-    const row = { company_id: companyId, sale_id: sale.id, location_id: sale.locationId, occurred_at: sale.date, total: Number(sale.total || 0), status: sale.status || 'Concluída', sale_data: clone(sale) };
-    const { error } = await client.from('sales_ledger').insert(row);
-    if (error) { emitStatus('error', getErrorMessage(error, 'A venda não foi registada online.')); return false; }
-    return true;
+    if (!connected()) return { ok: false, requiresLogin: true };
+    if (navigator.onLine === false) return { ok: true, queued: true, sale: queueSale(sale) };
+    try { return await sendSale(sale); }
+    catch (error) {
+      const message = getErrorMessage(error);
+      if (/network|fetch|internet|failed to fetch/i.test(message)) return { ok: true, queued: true, sale: queueSale(sale) };
+      emitStatus('error', message);
+      return { ok: false, error: message };
+    }
+  }
+  async function flushPendingSales() {
+    if (!connected() || navigator.onLine === false || flushing) return false;
+    const queued = pendingSales();
+    if (!queued.length) return true;
+    flushing = true;
+    const remaining = [];
+    try {
+      for (let index = 0; index < queued.length; index += 1) {
+        const pending = queued[index];
+        try { await sendSale({ ...pending, syncStatus: 'Sincronizada' }); }
+        catch (error) { remaining.push(...queued.slice(index)); break; }
+      }
+      savePendingSales(remaining);
+      if (!remaining.length) await refresh();
+      emitStatus(remaining.length ? 'pending' : 'online', remaining.length ? `${remaining.length} venda(s) pendente(s) de sincronização` : 'Dados online sincronizados');
+      return remaining.length === 0;
+    } finally { flushing = false; }
   }
   async function updateSale(sale) {
     if (!connected()) return true;
     const { error } = await client.from('sales_ledger').update({ sale_data: clone(sale), status: sale.status || 'Concluída', total: Number(sale.total || 0) }).eq('company_id', companyId).eq('sale_id', sale.id);
     if (error) { emitStatus('error', getErrorMessage(error)); return false; }
     return true;
+  }
+  async function resetPassword(email) {
+    if (!client) createClient();
+    const { error } = await client.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: window.location.href });
+    if (error) throw error;
+    return true;
+  }
+  async function requestAccess(companyNif, fullName) {
+    if (!client) createClient();
+    const { data, error } = await client.rpc('request_vendamais_access', { p_company_nif: String(companyNif || '').trim(), p_full_name: String(fullName || '').trim() });
+    if (error) throw error;
+    return data;
+  }
+  async function accessRequests() {
+    if (!connected()) return [];
+    const { data, error } = await client.from('access_requests').select('id, full_name, status, requested_at, user_id').eq('status', 'Pendente').order('requested_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+  async function reviewAccess(requestId, role, locationId, approve) {
+    if (!connected()) throw new Error('Inicie a sessão online.');
+    const { data, error } = await client.rpc('review_vendamais_access', { p_request_id: requestId, p_role: role, p_location_id: locationId || '', p_approve: Boolean(approve) });
+    if (error) throw error;
+    return data;
+  }
+  async function auditEvents() {
+    if (!connected()) return [];
+    const { data, error } = await client.from('audit_events').select('action, detail, created_at').order('created_at', { ascending: false }).limit(100);
+    if (error) throw error;
+    return data || [];
+  }
+  async function backups() {
+    if (!connected()) return [];
+    const { data, error } = await client.from('business_backups').select('id, created_at').order('created_at', { ascending: false }).limit(30);
+    if (error) throw error;
+    return data || [];
   }
   async function signOut() {
     if (client) await client.auth.signOut();
@@ -204,7 +285,8 @@ window.VendaMaisCloud = (() => {
   }
   return {
     setHooks(nextHooks) { hooks = { ...hooks, ...nextHooks }; hooks.onStatus?.(currentStatus); },
-    configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale,
-    configured, connected, status: () => currentStatus, config: () => config
+    configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
+    resetPassword, requestAccess, accessRequests, reviewAccess, auditEvents, backups,
+    configured, connected, pendingCount: () => pendingSales().length, status: () => currentStatus, config: () => config
   };
 })();

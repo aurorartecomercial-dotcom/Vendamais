@@ -132,7 +132,7 @@ function normaliseUser(user = {}, fallbackLocationId = 'loc_main') {
 }
 function normaliseLocation(location = {}) {
   const fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, Math.max(0, Number(location.fixedCosts?.[label] || 0))]));
-  return { ...location, id: String(location.id || uid('loc')), name: String(location.name || 'Local sem nome').trim(), type: location.type === 'Armazém' ? 'Armazém' : 'Loja', address: String(location.address || '').trim(), active: location.active !== false, fixedCosts };
+  return { ...location, id: String(location.id || uid('loc')), name: String(location.name || 'Local sem nome').trim(), type: location.type === 'Armazém' ? 'Armazém' : 'Loja', address: String(location.address || '').trim(), active: location.active !== false, dailyTarget: Math.max(0, Number(location.dailyTarget || 0)), monthlyTarget: Math.max(0, Number(location.monthlyTarget || 0)), fixedCosts };
 }
 function normaliseStockMap(value, fallbackLocationId, legacyStock = 0) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : { [fallbackLocationId]: legacyStock };
@@ -188,9 +188,9 @@ function getSessionUser() { const id = localStorage.getItem(USER_SESSION); retur
 let currentUser = getSessionUser();
 let sessionLocked = true;
 let pinChangeRequired = false;
-function saveData() {
+function saveData(options = {}) {
   data.meta = { ...data.meta, schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() };
-  try { localStorage.setItem(STORE, JSON.stringify(data)); window.VendaMaisCloud?.scheduleSave(data); return true; }
+  try { localStorage.setItem(STORE, JSON.stringify(data)); if (!options.skipCloudSync) window.VendaMaisCloud?.scheduleSave(data); return true; }
   catch { notify('Não foi possível guardar os dados neste navegador.'); return false; }
 }
 function notify(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(notify.timer); notify.timer = setTimeout(() => toast.classList.remove('show'), 2800); }
@@ -340,6 +340,35 @@ function renderDashboard() {
       todayTable.innerHTML = rows.length ? rows.map(row => `<tr><td><b>${escapeHtml(row.location.name)}</b><br><small class="muted">${escapeHtml(row.location.address || 'Sem morada registada')}</small></td><td>${row.sales.length}</td><td class="money"><b>${money(row.total)}</b></td><td>${row.last ? `${escapeHtml(row.last.reference)}<br><small class="muted">${fullDate(row.last.date)}</small>` : '<span class="muted">Sem vendas hoje</span>'}</td></tr>`).join('') : emptyRow(4, 'Não existem lojas activas para apresentar.');
     }
   }
+  renderOperationalControl(today, start);
+}
+function renderOperationalControl(today, monthStartDate) {
+  let panel = $('#operationalControlPanel');
+  if (!panel) {
+    $('#dashboardView').insertAdjacentHTML('beforeend', '<article class="panel operational-control" id="operationalControlPanel"><div class="panel-head"><div><h3>Controlo operacional</h3><p>Alertas, caixa e metas das lojas.</p></div></div><div class="dashboard-grid control-grid"><div id="operationalAlerts" class="summary-list"></div><div id="storeGoals" class="summary-list"></div></div></article>');
+    panel = $('#operationalControlPanel');
+  }
+  panel.hidden = !canManage();
+  if (!canManage()) return;
+  const openCash = data.cashSessions.filter(session => session.status === 'Aberto');
+  const overdue = data.sales.filter(sale => saleBalanceDue(sale) > 0 && sale.dueDate && sale.dueDate < today && sale.status !== 'Devolvida');
+  const allLow = data.locations.filter(location => location.active).reduce((count, location) => count + data.products.filter(product => stockAt(product, location.id) <= product.minStock).length, 0);
+  const pending = window.VendaMaisCloud?.pendingCount?.() || 0;
+  $('#operationalAlerts').innerHTML = summaryRows([
+    ['Caixas abertos', `${openCash.length} turno${openCash.length === 1 ? '' : 's'}`, openCash.length > 0],
+    ['Documentos vencidos', `${overdue.length} em cobrança`, overdue.length > 0],
+    ['Alertas de stock', `${allLow} referência${allLow === 1 ? '' : 's'}`, allLow > 0],
+    ['Vendas por sincronizar', `${pending} pendente${pending === 1 ? '' : 's'}`, pending > 0]
+  ]);
+  const stores = data.locations.filter(location => location.type === 'Loja' && location.active);
+  $('#storeGoals').innerHTML = stores.length ? stores.map(location => {
+    const todayRevenue = sum(salesBetween(today, today).filter(sale => sale.locationId === location.id), sale => sale.total);
+    const monthRevenue = sum(salesBetween(monthStartDate, today).filter(sale => sale.locationId === location.id), sale => sale.total);
+    const daily = Number(location.dailyTarget || 0); const monthly = Number(location.monthlyTarget || 0);
+    const dailyText = daily ? `${money(todayRevenue)} / ${money(daily)}` : `${money(todayRevenue)} hoje`;
+    const monthlyText = monthly ? `${money(monthRevenue)} / ${money(monthly)}` : `${money(monthRevenue)} no mês`;
+    return `<div class="goal-row"><b>${escapeHtml(location.name)}</b><span>Diária: ${dailyText}</span><span>Mensal: ${monthlyText}</span></div>`;
+  }).join('') : '<div class="empty-state">Crie uma loja para acompanhar metas.</div>';
 }
 function summaryRows(rows) { return rows.map(([label, value, total]) => `<div class="summary-row ${total ? 'total' : ''}"><span>${label}</span><strong>${value}</strong></div>`).join(''); }
 
@@ -719,19 +748,22 @@ function saleModal() {
     if (payment === 'Dinheiro' && !cashSession) return notify('Abra o caixa antes de concluir uma venda em dinheiro.');
     for (const item of cart) { const product = productById(item.productId); if (!product || stockAt(product, locationId) < item.quantity) return notify(`${item.name} já não tem stock suficiente neste local.`); }
     const balanceDue = credit ? totals.total : 0;
-    const sale = { id: uid('sale'), reference: nextReference('VD', data.sales), date: new Date().toISOString(), locationId, customerId: customer?.id || '', customer: customerSnapshot(customer), operatorId: currentUser.id, operatorName: currentUser.name, cashSessionId: cashSession?.id || '', documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída' };
+    let sale = { id: uid('sale'), reference: nextReference('VD', data.sales), date: new Date().toISOString(), locationId, customerId: customer?.id || '', customer: customerSnapshot(customer), operatorId: currentUser.id, operatorName: currentUser.name, cashSessionId: cashSession?.id || '', documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída', syncStatus: 'Local' };
     if (window.VendaMaisCloud?.configured?.() && !window.VendaMaisCloud.connected()) return notify('Inicie a sessão em Dados online antes de confirmar vendas desta empresa.');
     if (window.VendaMaisCloud?.connected?.()) {
       const recorded = await window.VendaMaisCloud.recordSale(sale);
-      if (!recorded) return notify('A venda não foi concluída porque não foi possível registá-la na base central.');
+      if (!recorded?.ok) return notify(recorded?.error || 'A venda não foi concluída porque não foi possível registá-la na base central.');
+      sale = recorded.sale || sale;
+      if (recorded.queued) notify('Sem internet: a venda foi guardada neste equipamento e será sincronizada automaticamente.');
     }
     // A venda e os movimentos de stock devem ser persistidos como uma única operação local.
     // Se o armazenamento falhar, repomos o estado anterior e não anunciamos sucesso.
     const previousData = JSON.stringify(data);
     cart.forEach(item => changeStock(productById(item.productId), locationId, -item.quantity));
-    data.sales.push(sale);
+    const existingSaleIndex = data.sales.findIndex(item => item.id === sale.id);
+    if (existingSaleIndex >= 0) data.sales[existingSaleIndex] = sale; else data.sales.push(sale);
     audit('Venda concluída', `${sale.reference} · ${locationName(locationId)} · ${money(sale.total)} · ${sale.payment}`);
-    if (!saveData()) {
+    if (!saveData({ skipCloudSync: Boolean(window.VendaMaisCloud?.connected?.()) })) {
       data = normaliseData(JSON.parse(previousData));
       currentUser = getSessionUser();
       renderAll();
@@ -868,8 +900,10 @@ function locationModal(location = null) {
   if (!canManage()) return notify('Apenas a área de gestão pode gerir lojas e armazéns.');
   const item = normaliseLocation(location || { name: '', type: 'Loja', address: '', active: true }); const fixedFields = FIXED_COST_LABELS.map(label => `<label>${label} (Kz/mês)<input name="fixedCost_${label}" type="number" min="0" step="0.01" value="${Number(item.fixedCosts?.[label] || 0)}" /></label>`).join('');
   openModal(`${modalHeader(location ? 'Editar local' : 'Novo local', 'Os locais activos podem receber stock, compras, vendas e caixas próprios.')}<form id="locationForm"><div class="modal-form"><label>Nome do local<input name="name" required value="${escapeHtml(item.name)}" placeholder="Ex.: Loja Kilamba" /></label><label>Tipo<select name="type"><option ${item.type === 'Loja' ? 'selected' : ''}>Loja</option><option ${item.type === 'Armazém' ? 'selected' : ''}>Armazém</option></select></label><label class="full">Morada / referência<input name="address" value="${escapeHtml(item.address || '')}" /></label><label>Estado<select name="active"><option value="true" ${item.active !== false ? 'selected' : ''}>Activo</option><option value="false" ${item.active === false ? 'selected' : ''}>Inactivo</option></select></label></div><section class="fixed-cost-editor"><h3>Custos fixos mensais</h3><p>Estes valores são imputados proporcionalmente aos dias incluídos no relatório. Deixe a zero o que não se aplica.</p><div class="modal-form">${fixedFields}</div><div class="fixed-cost-total"><span>Total mensal configurado</span><strong id="fixedCostPreview">${money(sum(FIXED_COST_LABELS, label => item.fixedCosts?.[label]))}</strong></div></section><p class="modal-note">Um local com stock ou operadores atribuídos não pode ser desactivado até ser regularizado. Não duplique aqui despesas que já regista mensalmente na aba Despesas.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${location ? 'Guardar alterações' : 'Criar local'}</button></div></form>`);
-  const form = $('#locationForm'); const refreshFixedTotal = () => { $('#fixedCostPreview').textContent = money(sum(FIXED_COST_LABELS, label => form.elements[`fixedCost_${label}`].value)); }; FIXED_COST_LABELS.forEach(label => form.elements[`fixedCost_${label}`].addEventListener('input', refreshFixedTotal));
-  form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, Math.max(0, Number(values[`fixedCost_${label}`] || 0))])); FIXED_COST_LABELS.forEach(label => delete values[`fixedCost_${label}`]); values.name = values.name.trim(); values.address = values.address.trim(); values.active = values.active === 'true'; values.fixedCosts = fixedCosts; if (!values.name) return notify('Indique o nome do local.'); const duplicate = data.locations.find(existing => existing.name.toLowerCase() === values.name.toLowerCase() && existing.id !== location?.id); if (duplicate) return notify('Já existe um local com este nome.'); if (location && !values.active) { const units = sum(data.products, product => stockAt(product, location.id)); const assigned = data.users.some(user => user.locationId === location.id && user.active); if (units > 0 || assigned) return notify('Transfira o stock e atribua os operadores a outro local antes de desactivar.'); if (location.id === currentLocationId()) return notify('Seleccione outro local activo antes de desactivar este.'); } if (location) { Object.assign(location, normaliseLocation({ ...location, ...values })); } else data.locations.push(normaliseLocation({ id: uid('loc'), ...values })); audit(location ? 'Local actualizado' : 'Local criado', values.name); saveData(); closeModal(); applyRoleInterface(); renderAll(); notify('Local guardado.'); locationsModal(); });
+  const form = $('#locationForm');
+  $('.modal-form', form).insertAdjacentHTML('beforeend', `<label>Meta diária (Kz)<input name="dailyTarget" type="number" min="0" step="0.01" value="${Number(item.dailyTarget || 0)}" /></label><label>Meta mensal (Kz)<input name="monthlyTarget" type="number" min="0" step="0.01" value="${Number(item.monthlyTarget || 0)}" /></label>`);
+  const refreshFixedTotal = () => { $('#fixedCostPreview').textContent = money(sum(FIXED_COST_LABELS, label => form.elements[`fixedCost_${label}`].value)); }; FIXED_COST_LABELS.forEach(label => form.elements[`fixedCost_${label}`].addEventListener('input', refreshFixedTotal));
+  form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, Math.max(0, Number(values[`fixedCost_${label}`] || 0))])); FIXED_COST_LABELS.forEach(label => delete values[`fixedCost_${label}`]); values.dailyTarget = Math.max(0, Number(values.dailyTarget || 0)); values.monthlyTarget = Math.max(0, Number(values.monthlyTarget || 0)); values.name = values.name.trim(); values.address = values.address.trim(); values.active = values.active === 'true'; values.fixedCosts = fixedCosts; if (!values.name) return notify('Indique o nome do local.'); const duplicate = data.locations.find(existing => existing.name.toLowerCase() === values.name.toLowerCase() && existing.id !== location?.id); if (duplicate) return notify('Já existe um local com este nome.'); if (location && !values.active) { const units = sum(data.products, product => stockAt(product, location.id)); const assigned = data.users.some(user => user.locationId === location.id && user.active); if (units > 0 || assigned) return notify('Transfira o stock e atribua os operadores a outro local antes de desactivar.'); if (location.id === currentLocationId()) return notify('Seleccione outro local activo antes de desactivar este.'); } if (location) { Object.assign(location, normaliseLocation({ ...location, ...values })); } else data.locations.push(normaliseLocation({ id: uid('loc'), ...values })); audit(location ? 'Local actualizado' : 'Local criado', values.name); saveData(); closeModal(); applyRoleInterface(); renderAll(); notify('Local guardado.'); locationsModal(); });
 }
 function changeActiveLocation(locationId) {
   if (isSeller()) return notify('O vendedor trabalha apenas no local que lhe foi atribuído.');
@@ -882,6 +916,7 @@ function userModal(user = null) {
   if (!canManage()) return notify('Apenas a área de gestão pode criar ou alterar utilizadores.');
   const item = user || { name: '', initials: '', role: 'Vendedor', locationId: currentLocationId(), active: true, pin: '' };
   openModal(`${modalHeader(user ? 'Editar utilizador' : 'Novo utilizador', 'Escolha a área de trabalho e as autorizações deste utilizador. As opções são aplicadas ao iniciar sessão.')}<form id="userForm"><div class="modal-form"><label>Nome completo<input name="name" required value="${escapeHtml(item.name)}" /></label><label>Iniciais<input name="initials" maxlength="3" required value="${escapeHtml(item.initials || '')}" placeholder="Ex.: JM" /></label><label>Função<select name="role"><option ${item.role === 'Vendedor' ? 'selected' : ''}>Vendedor</option><option ${item.role === 'Gerente' ? 'selected' : ''}>Gerente</option><option ${item.role === 'Administrador' ? 'selected' : ''}>Administrador</option></select></label><label>Local atribuído<select name="locationId">${options(activeLocations(), item.locationId || currentLocationId(), location => `${location.name} · ${location.type}`)}</select></label><label>Estado<select name="active"><option value="true" ${item.active !== false ? 'selected' : ''}>Activo</option><option value="false" ${item.active === false ? 'selected' : ''}>Inactivo</option></select></label><label class="full">${user ? 'Novo PIN (deixe vazio para manter)' : 'PIN temporário'}<input class="pin-input" name="pin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" ${user ? '' : 'required'} placeholder="4 a 8 dígitos" /></label></div><p class="role-note"><b>Autorizações por perfil:</b> Administrador — controlo total, incluindo definições e utilizadores; Gerente — operação comercial e relatórios, sem definições; Vendedor — nova venda, caixa próprio e documentos das próprias vendas. Cada novo vendedor recebe uma loja exclusiva e fica limitado a ela.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${user ? 'Guardar alterações' : 'Criar utilizador'}</button></div></form>`);
+  if (window.VendaMaisCloud?.connected?.()) $('#userForm').insertAdjacentHTML('afterbegin', '<p class="modal-note">Para criar acesso num outro computador, o colaborador deve criar a própria conta online e usar “Pedir acesso à empresa”. Aprove-o em Dados online → Gerir acessos.</p>');
   $('#userForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.name = values.name.trim(); values.initials = values.initials.trim().toUpperCase(); values.active = values.active === 'true'; const pin = String(values.pin || '').trim(); delete values.pin; if (pin && !/^\d{4,8}$/.test(pin)) return notify('O PIN deve ter apenas 4 a 8 dígitos.'); if (!user && !pin) return notify('Defina um PIN temporário para o utilizador.'); const activeAdmins = data.users.filter(existing => existing.role === 'Administrador' && existing.active && existing.id !== user?.id); if (user?.id === currentUser.id && !values.active) return notify('Não pode desactivar o utilizador que está em sessão.'); if (user?.role === 'Administrador' && user.active && (values.role !== 'Administrador' || !values.active) && activeAdmins.length === 0) return notify('O sistema deve manter pelo menos um administrador activo.'); const userId = user?.id || uid('user');
     if (values.role === 'Vendedor' && (!user || user.role !== 'Vendedor')) {
       const storeId = uid('loc');
@@ -900,7 +935,9 @@ function usersModal() {
 function auditModal() {
   if (!canManage()) return notify('Apenas gerentes e administradores podem consultar a auditoria.');
   const entries = data.auditLog.slice(0, 100);
-  openModal(`${modalHeader('Registo de auditoria', 'Últimas 100 acções relevantes registadas localmente.')}<div class="audit-list">${entries.length ? entries.map(entry => `<div class="audit-row"><div><b>${escapeHtml(entry.action)}</b><span>${escapeHtml(entry.detail || '')}</span></div><small>${fullDate(entry.date)} · ${escapeHtml(entry.userName || userById(entry.userId)?.name || '—')}</small></div>`).join('') : '<div class="empty-state">Ainda não existem acções no registo.</div>'}</div><div class="modal-footer"><button class="btn primary" type="button" data-close-modal>Fechar</button></div>`);
+  const renderEntries = (items, online = false) => items.length ? items.map(entry => `<div class="audit-row"><div><b>${escapeHtml(entry.action)}</b><span>${escapeHtml(entry.detail || '')}</span></div><small>${fullDate(entry.created_at || entry.date)}${online ? ' · central' : ` · ${escapeHtml(entry.userName || userById(entry.userId)?.name || '—')}`}</small></div>`).join('') : '<div class="empty-state">Ainda não existem acções no registo.</div>';
+  openModal(`${modalHeader('Registo de auditoria', window.VendaMaisCloud?.connected?.() ? 'Histórico central imutável das últimas 100 acções.' : 'Últimas 100 acções relevantes deste equipamento.')}<div class="audit-list" id="auditEntries">${renderEntries(entries)}</div><div class="modal-footer"><button class="btn primary" type="button" data-close-modal>Fechar</button></div>`);
+  if (window.VendaMaisCloud?.connected?.()) window.VendaMaisCloud.auditEvents().then(events => { const target = $('#auditEntries'); if (target) target.innerHTML = renderEntries(events, true); }).catch(() => {});
 }
 function integrationsModal() {
   if (!canManage()) return notify('Apenas a área de gestão pode gerir integrações.');
@@ -914,8 +951,8 @@ function updateCloudUi(status = window.VendaMaisCloud?.status?.()) {
   if (!status) return;
   const indicator = $('#cloudStatus'); const text = $('#cloudStatusText'); const hint = $('#cloudSettingsHint');
   if (indicator) { indicator.className = `cloud-status ${status.kind}`; indicator.title = status.message; }
-  if (text) text.textContent = status.kind === 'online' ? 'Online' : status.kind === 'syncing' ? 'A sincronizar' : status.kind === 'error' ? 'Falha de sincronização' : status.kind === 'configured' ? 'Ligar base online' : 'Só neste dispositivo';
-  if (hint) hint.textContent = status.kind === 'online' ? 'A empresa está ligada: as vendas entram no livro central e os relatórios são partilhados pelas lojas.' : status.kind === 'syncing' ? 'A actualizar os dados partilhados…' : status.kind === 'error' ? `${status.message} Os dados locais foram mantidos; reveja a ligação antes de continuar a vender.` : 'Ligue uma base de dados segura para que todas as lojas trabalhem sobre os mesmos dados.';
+  if (text) text.textContent = status.kind === 'online' ? 'Online' : status.kind === 'syncing' ? 'A sincronizar' : status.kind === 'pending' ? 'Vendas pendentes' : status.kind === 'error' ? 'Falha de sincronização' : status.kind === 'configured' ? 'Ligar base online' : 'Só neste dispositivo';
+  if (hint) hint.textContent = status.kind === 'online' ? 'A empresa está ligada: as vendas entram no livro central e os relatórios são partilhados pelas lojas.' : status.kind === 'pending' ? `${status.message}. Não apague os dados deste navegador até a nuvem indicar Online.` : status.kind === 'syncing' ? 'A actualizar os dados partilhados…' : status.kind === 'error' ? `${status.message} Os dados locais foram mantidos; reveja a ligação antes de continuar a vender.` : 'Ligue uma base de dados segura para que todas as lojas trabalhem sobre os mesmos dados.';
 }
 function cloudUserForProfile(profile, authUser) {
   const cloudUserId = profile?.id || authUser?.id || currentUser?.cloudUserId;
@@ -932,6 +969,8 @@ function cloudUserForProfile(profile, authUser) {
 }
 function replaceDataFromCloud(remote, profile, authUser) {
   const cloudUserId = profile?.id || authUser?.id || currentUser?.cloudUserId;
+  const preferredLocationId = data?.settings?.activeLocationId;
+  if (preferredLocationId && remote?.settings && Array.isArray(remote.locations) && remote.locations.some(location => location.id === preferredLocationId && location.active)) remote.settings.activeLocationId = preferredLocationId;
   data = normaliseData(remote);
   currentUser = cloudUserForProfile(profile, authUser);
   if (!profile && cloudUserId) currentUser = data.users.find(user => user.cloudUserId === cloudUserId) || currentUser || getSessionUser();
@@ -955,21 +994,62 @@ function cloudBootstrapModal() {
     catch (error) { notify(error.message || 'Não foi possível criar a empresa online.'); }
   });
 }
+function cloudNoProfileModal() {
+  openModal(`${modalHeader('Conta online sem empresa', 'Escolha a opção certa para manter os dados da empresa protegidos.')}<p class="modal-note">Use a primeira opção apenas se é o proprietário que está a ligar o VendaMais pela primeira vez. Vendedores e gerentes devem pedir acesso; o administrador escolhe a loja e a função.</p><div class="modal-footer"><button class="btn secondary" id="requestCloudAccess" type="button">Pedir acesso à empresa</button><button class="btn primary" id="createCloudCompany" type="button">Criar a minha empresa</button></div>`);
+  $('#createCloudCompany').addEventListener('click', cloudBootstrapModal);
+  $('#requestCloudAccess').addEventListener('click', cloudAccessRequestModal);
+}
+function cloudAccessRequestModal() {
+  const defaultName = currentUser?.name && currentUser.name !== 'Administrador' ? currentUser.name : '';
+  openModal(`${modalHeader('Pedir acesso à empresa', 'Crie a conta com o seu e-mail, indique a empresa e aguarde a aprovação do administrador.')}<form id="cloudAccessRequestForm"><div class="modal-form"><label class="full">Nome completo<input name="fullName" required value="${escapeHtml(defaultName)}" /></label><label class="full">NIF da empresa<input name="companyNif" required placeholder="Ex.: 5000048151" /></label></div><p class="modal-note">O administrador recebe o pedido, escolhe a sua loja e define se será vendedor, gerente ou administrador.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Enviar pedido</button></div></form>`);
+  $('#cloudAccessRequestForm').addEventListener('submit', async event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    try { await window.VendaMaisCloud.requestAccess(values.companyNif, values.fullName); closeModal(); notify('Pedido enviado. Aguarde a aprovação do administrador.'); }
+    catch (error) { notify(error.message || 'Não foi possível enviar o pedido.'); }
+  });
+}
+async function cloudAccessManagementModal() {
+  if (!canManage()) return notify('Apenas administradores e gerentes podem aprovar acessos.');
+  try {
+    const requests = await window.VendaMaisCloud.accessRequests(); const locations = activeLocations();
+    const rows = requests.length ? requests.map(request => `<form class="access-request-row" data-request-id="${request.id}"><div><b>${escapeHtml(request.full_name)}</b><span>Pedido em ${fullDate(request.requested_at)}</span></div><select name="role"><option>Vendedor</option><option>Gerente</option><option>Administrador</option></select><select name="locationId">${options(locations, currentLocationId(), location => location.name)}</select><div class="access-request-actions"><button class="action-btn" type="submit" name="decision" value="reject">Recusar</button><button class="btn primary" type="submit" name="decision" value="approve">Aprovar</button></div></form>`).join('') : '<div class="empty-state">Não há pedidos de acesso pendentes.</div>';
+    openModal(`${modalHeader('Acessos online', 'Aprovar uma conta dá acesso apenas à função e loja que seleccionar.')}<div class="access-request-list">${rows}</div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Fechar</button></div>`);
+    $$('.access-request-row').forEach(form => form.addEventListener('submit', async event => {
+      event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const approve = event.submitter?.value === 'approve';
+      try { await window.VendaMaisCloud.reviewAccess(form.dataset.requestId, values.role, values.locationId, approve); notify(approve ? 'Acesso aprovado.' : 'Pedido recusado.'); cloudAccessManagementModal(); }
+      catch (error) { notify(error.message || 'Não foi possível actualizar o acesso.'); }
+    }));
+  } catch (error) { notify(error.message || 'Não foi possível carregar os pedidos de acesso.'); }
+}
+async function cloudBackupModal() {
+  try {
+    const backups = await window.VendaMaisCloud.backups();
+    openModal(`${modalHeader('Cópias automáticas online', 'A primeira alteração de cada dia cria uma cópia central para recuperação.')}<div class="audit-list">${backups.length ? backups.map(item => `<div class="audit-row"><div><b>Cópia central</b><span>Estado completo da empresa guardado automaticamente.</span></div><small>${fullDate(item.created_at)}</small></div>`).join('') : '<div class="empty-state">Ainda não há cópias online. A primeira venda ou alteração sincronizada cria uma.</div>'}</div><div class="modal-footer"><button class="btn primary" type="button" data-close-modal>Fechar</button></div>`);
+  } catch (error) { notify(error.message || 'Não foi possível carregar as cópias online.'); }
+}
 function cloudModal() {
   const cloud = window.VendaMaisCloud; const config = cloud.config?.(); const connected = cloud.connected?.();
   const setup = !config ? `<form id="cloudConfigForm"><div class="modal-form"><label class="full">Endereço do projecto Supabase<input name="url" type="url" required placeholder="https://seu-projecto.supabase.co" /></label><label class="full">Chave pública anon<input name="anonKey" required autocomplete="off" placeholder="sb_publishable_… ou eyJ…" /></label></div><p class="modal-note">Crie primeiro o projecto Supabase e execute o ficheiro <b>supabase/schema.sql</b>. A chave anon é pública por desenho; nunca cole aqui a chave service_role.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Guardar ligação</button></div></form>` : '';
   const login = config && !connected ? `<form id="cloudLoginForm"><div class="modal-form"><label class="full">E-mail<input name="email" type="email" required autocomplete="email" /></label><label class="full">Palavra-passe<input name="password" type="password" required autocomplete="current-password" minlength="8" /></label></div><p class="modal-note">A primeira pessoa deve usar <b>Criar conta de administrador</b>; as restantes contas são atribuídas pelo administrador conforme explicado no guia de produção.</p><div class="modal-footer"><button class="btn secondary" id="clearCloudConfig" type="button">Alterar ligação</button><button class="btn secondary" name="mode" value="signup" type="submit">Criar conta de administrador</button><button class="btn primary" name="mode" value="signin" type="submit">Entrar</button></div></form>` : '';
-  const online = connected ? `<p class="modal-note">${escapeHtml(cloud.status().message)}. Esta conta pode consultar os dados partilhados da empresa.</p><div class="modal-footer"><button class="btn secondary" id="cloudSignOut" type="button">Terminar sessão online</button><button class="btn primary" type="button" data-close-modal>Fechar</button></div>` : '';
+  const online = connected ? `<p class="modal-note">${escapeHtml(cloud.status().message)}. Esta conta pode consultar os dados partilhados da empresa.</p><div class="modal-footer">${canManage() ? '<button class="btn secondary" id="cloudBackups" type="button">Cópias online</button><button class="btn secondary" id="cloudAccessManagement" type="button">Gerir acessos</button>' : ''}<button class="btn secondary" id="cloudSignOut" type="button">Terminar sessão online</button><button class="btn primary" type="button" data-close-modal>Fechar</button></div>` : '';
   openModal(`${modalHeader('Dados online', connected ? 'Empresa ligada à base central.' : 'Ligue todas as lojas a uma única base de dados.')} ${setup || login || online}`);
   const configForm = $('#cloudConfigForm');
   if (configForm) configForm.addEventListener('submit', async event => { event.preventDefault(); const values = Object.fromEntries(new FormData(configForm).entries()); try { await cloud.configure(values.url, values.anonKey); cloudModal(); } catch (error) { notify(error.message || 'Não foi possível guardar a ligação.'); } });
   const loginForm = $('#cloudLoginForm');
-  if (loginForm) loginForm.addEventListener('submit', async event => { event.preventDefault(); const button = event.submitter; const values = Object.fromEntries(new FormData(loginForm).entries()); try { const result = await cloud.signIn(values.email, values.password, button?.value === 'signup'); if (result.emailConfirmationRequired) return notify('Confirme o e-mail e depois entre.'); if (result.needsBootstrap) return cloudBootstrapModal(); closeModal(); notify('Sessão online iniciada.'); } catch (error) { notify(error.message || 'Não foi possível iniciar sessão.'); } });
+  if (loginForm) {
+    loginForm.insertAdjacentHTML('beforeend', '<button class="text-btn" id="forgotCloudPassword" type="button">Esqueci a palavra-passe</button>');
+    loginForm.addEventListener('submit', async event => { event.preventDefault(); const button = event.submitter; const values = Object.fromEntries(new FormData(loginForm).entries()); try { const result = await cloud.signIn(values.email, values.password, button?.value === 'signup'); if (result.emailConfirmationRequired) return notify('Confirme o e-mail e depois entre.'); if (result.needsBootstrap) return cloudNoProfileModal(); closeModal(); notify('Sessão online iniciada.'); } catch (error) { notify(error.message || 'Não foi possível iniciar sessão.'); } });
+    $('#forgotCloudPassword').addEventListener('click', async () => { const email = loginForm.elements.email.value.trim(); if (!email) return notify('Indique primeiro o seu e-mail.'); try { await cloud.resetPassword(email); notify('Enviámos a ligação para redefinir a palavra-passe.'); } catch (error) { notify(error.message || 'Não foi possível iniciar a recuperação.'); } });
+  }
   $('#clearCloudConfig')?.addEventListener('click', () => { if (confirm('Remover a ligação deste navegador? A base online não será apagada.')) { cloud.clearConfig(); cloudModal(); } });
   $('#cloudSignOut')?.addEventListener('click', async () => { await cloud.signOut(); sessionLocked = true; cloudModal(); });
+  $('#cloudAccessManagement')?.addEventListener('click', cloudAccessManagementModal);
+  $('#cloudBackups')?.addEventListener('click', cloudBackupModal);
 }
 
 window.VendaMaisCloud?.setHooks({ getData: () => data, replaceData: replaceDataFromCloud, mergeSale: mergeCloudSale, onStatus: updateCloudUi });
+window.addEventListener('online', () => { window.VendaMaisCloud?.flushPendingSales?.(); notify('Ligação restaurada. A sincronização foi retomada.'); });
+window.addEventListener('offline', () => { if (window.VendaMaisCloud?.connected?.()) notify('Sem internet. As próximas vendas ficam pendentes neste equipamento até a ligação voltar.'); });
 
 document.addEventListener('click', event => {
   const reportTab=event.target.closest('[data-report-tab]'); if(reportTab){const key=reportTab.dataset.reportTab;$$('[data-report-tab]').forEach(button=>button.classList.toggle('active',button===reportTab));$$('[data-report-pane]').forEach(pane=>{const active=pane.dataset.reportPane===key;pane.hidden=!active;pane.classList.toggle('active',active);});return;}
@@ -1028,7 +1108,7 @@ function initialize() {
   $('#topDate').textContent = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
   $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderDashboard(); updateCloudUi();
   if (window.VendaMaisCloud?.configured?.()) {
-    window.VendaMaisCloud.prepare().then(result => { if (!result?.connected) cloudModal(); }).catch(() => cloudModal());
+    window.VendaMaisCloud.prepare().then(result => { if (result?.needsBootstrap) return cloudNoProfileModal(); if (!result?.connected) cloudModal(); }).catch(() => cloudModal());
   } else accountModal();
 }
 initialize();

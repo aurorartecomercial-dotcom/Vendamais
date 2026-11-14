@@ -2,6 +2,22 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.8.0] — 2026-11-14
+
+### Adicionado
+
+- Venda central atómica no Supabase: numeração sequencial no servidor, baixa de stock por loja, documento e auditoria numa única transacção.
+- Fila de vendas pendentes para indisponibilidade de internet, com sincronização automática ao recuperar a ligação.
+- Pedidos e aprovação de acessos online: o colaborador cria a própria conta e o administrador atribui função e loja no VendaMais.
+- Auditoria central e cópia automática diária da empresa na base de dados.
+- Painel operacional para gestores: caixas abertos, cobranças vencidas, alertas de stock, vendas pendentes e metas diária/mensal por loja.
+- Guia de instalação profissional e migração SQL de actualização da base.
+
+### Segurança
+
+- Vendedores online apenas podem consultar e registar vendas da loja atribuída.
+- O servidor substitui o operador e a numeração enviados pelo navegador pelos dados da conta autenticada.
+
 ## [1.7.0] — 2026-11-11
 
 ### Adicionado

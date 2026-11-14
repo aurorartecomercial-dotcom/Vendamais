@@ -118,6 +118,8 @@ O administrador define o local atribuído ao criar cada utilizador. O vendedor f
 
 Esta edição inclui a ligação opcional a Supabase para operação com lojas e computadores diferentes. Consulte o guia completo de [dados online, utilizadores e publicação no GitHub Pages](docs/ONLINE.md) antes de a activar.
 
+Para uma operação multi-loja em produção, execute também a [actualização profissional da base](docs/PROFESSIONAL.md). Ela torna o registo de venda/stock atómico, activa cópias e auditoria centrais, permite pedidos de acesso por vendedor e adiciona sincronização automática de vendas pendentes.
+
 Para uma operação comercial com vários utilizadores, caixas ou filiais:
 
 1. Crie o projecto Supabase e execute `supabase/schema.sql`.

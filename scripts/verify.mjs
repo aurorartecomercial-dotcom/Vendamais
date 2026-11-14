@@ -14,7 +14,9 @@ const requiredFiles = [
   'docs/ARQUITETURA.md',
   'docs/PRODUCAO.md',
   'docs/ONLINE.md',
-  'supabase/schema.sql'
+  'docs/PROFESSIONAL.md',
+  'supabase/schema.sql',
+  'supabase/2026-11-professional-upgrade.sql'
 ];
 const requiredInterfaceIds = [
   'dashboardView',
@@ -75,6 +77,7 @@ for (const id of requiredInterfaceIds) {
 
 const app = readFileSync(resolve(root, 'app.js'), 'utf8');
 const cloud = readFileSync(resolve(root, 'cloud.js'), 'utf8');
+const professionalSql = readFileSync(resolve(root, 'supabase/2026-11-professional-upgrade.sql'), 'utf8');
 for (const fn of requiredFunctions) {
   if (!app.includes(`function ${fn}`)) failures.push(`Função essencial em falta: ${fn}`);
 }
@@ -83,6 +86,8 @@ if (!app.includes('VendaMaisCloud')) failures.push('Integração com dados onlin
 if (!cloud.includes('sales_ledger')) failures.push('Livro central de vendas não encontrado.');
 if (!cloud.includes('recordSale')) failures.push('Registo remoto de vendas não encontrado.');
 if (!cloud.includes('save_vendamais_state')) failures.push('Sincronização do estado empresarial não encontrada.');
+if (!cloud.includes('flushPendingSales')) failures.push('Fila de vendas sem internet não encontrada.');
+if (!cloud.includes('requestAccess')) failures.push('Pedido de acesso online não encontrado.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
 if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
@@ -104,6 +109,12 @@ if (!html.includes('id="sellerReportFilter"')) failures.push('Filtro de vendedor
 if (!html.includes('id="sellerDailyTable"') || !html.includes('id="sellerMonthlyTable"')) failures.push('Tabelas diária e mensal de vendedores não encontradas.');
 if (!html.includes('id="storeTodayTable"')) failures.push('Resumo diário por loja não encontrado.');
 if (!html.includes('id="manageCloud"')) failures.push('Configuração de dados online não encontrada.');
+if (!app.includes('renderOperationalControl')) failures.push('Controlo operacional do administrador não encontrado.');
+if (!app.includes('cloudAccessManagementModal')) failures.push('Gestão de acessos online não encontrada.');
+if (!professionalSql.includes('record_vendamais_sale')) failures.push('Venda atómica central não encontrada.');
+if (!professionalSql.includes('business_backups')) failures.push('Cópias automáticas online não encontradas.');
+if (!professionalSql.includes('audit_events')) failures.push('Auditoria central não encontrada.');
+if (!professionalSql.includes('request_vendamais_access')) failures.push('Pedido de acesso central não encontrado.');
 if (!app.includes('data.transfers')) failures.push('Transferências de stock não encontradas.');
 if (!app.includes('fixedCosts')) failures.push('Custos fixos por loja não encontrados.');
 if (!app.includes('Vendas líquidas (sem IVA)')) failures.push('Cálculo de vendas sem IVA não encontrado.');
