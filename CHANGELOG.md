@@ -2,6 +2,12 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.8.1] — 2026-11-14
+
+### Corrigido
+
+- O ecrã de entrada online passa a mostrar **Criar conta** para não levar vendedores a pensar que devem criar uma empresa ou receber privilégios de administrador.
+
 ## [1.8.0] — 2026-11-14
 
 ### Adicionado
