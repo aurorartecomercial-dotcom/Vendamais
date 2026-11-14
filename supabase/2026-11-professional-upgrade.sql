@@ -39,11 +39,30 @@ create table if not exists public.access_requests (
   reviewed_by uuid references auth.users(id) on delete set null
 );
 
+-- Convites são criados pelo administrador antes de o colaborador abrir a
+-- aplicação. Assim, o vendedor não escolhe empresa, loja ou permissões.
+create table if not exists public.staff_invitations (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  email text not null,
+  full_name text not null,
+  role text not null check (role in ('Administrador', 'Gerente', 'Vendedor')),
+  location_id text not null,
+  status text not null default 'Pendente' check (status in ('Pendente', 'Aceite', 'Cancelado', 'Expirado')),
+  created_by uuid not null references auth.users(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '14 days'),
+  accepted_at timestamptz
+);
+
 create index if not exists audit_events_company_created_idx on public.audit_events(company_id, created_at desc);
 create index if not exists business_backups_company_created_idx on public.business_backups(company_id, created_at desc);
 create index if not exists access_requests_company_status_idx on public.access_requests(company_id, status, requested_at);
+create index if not exists staff_invitations_company_status_idx on public.staff_invitations(company_id, status, created_at desc);
+create unique index if not exists staff_invitations_pending_email_unique on public.staff_invitations(lower(email)) where status = 'Pendente';
 
 drop policy if exists sales_select_company on public.sales_ledger;
+drop policy if exists sales_select_assigned_store on public.sales_ledger;
 create policy sales_select_assigned_store on public.sales_ledger for select
   using (
     company_id = public.current_company_id()
@@ -53,6 +72,7 @@ create policy sales_select_assigned_store on public.sales_ledger for select
 alter table public.audit_events enable row level security;
 alter table public.business_backups enable row level security;
 alter table public.access_requests enable row level security;
+alter table public.staff_invitations enable row level security;
 
 drop policy if exists audit_events_select_company on public.audit_events;
 create policy audit_events_select_company on public.audit_events for select
@@ -65,6 +85,10 @@ create policy business_backups_select_company on public.business_backups for sel
 drop policy if exists access_requests_requester_or_manager on public.access_requests;
 create policy access_requests_requester_or_manager on public.access_requests for select
   using (user_id = auth.uid() or (company_id = public.current_company_id() and public.is_company_manager()));
+
+drop policy if exists staff_invitations_select_manager on public.staff_invitations;
+create policy staff_invitations_select_manager on public.staff_invitations for select
+  using (company_id = public.current_company_id() and public.is_company_manager());
 
 -- Venda central: reserva e baixa o stock do local, numera o documento,
 -- grava a venda, auditoria e uma cópia diária numa única transacção.
@@ -235,6 +259,9 @@ begin
   if not found or v_request.company_id is distinct from public.current_company_id() then raise exception 'Pedido de acesso não encontrado.'; end if;
   if p_approve then
     if p_role not in ('Administrador', 'Gerente', 'Vendedor') then raise exception 'Função inválida.'; end if;
+    if p_role = 'Administrador' and not exists (
+      select 1 from public.profiles where id = auth.uid() and role = 'Administrador' and active
+    ) then raise exception 'Apenas um administrador pode atribuir outro administrador.'; end if;
     insert into public.profiles(id, company_id, full_name, role, location_id)
     values (v_request.user_id, v_request.company_id, v_request.full_name, p_role, nullif(p_location_id, ''))
     on conflict (id) do update set company_id = excluded.company_id, full_name = excluded.full_name,
@@ -251,6 +278,107 @@ begin
 end;
 $$;
 
+-- O administrador prepara o vendedor e a loja antes de o vendedor criar a
+-- própria palavra-passe. O convite é preso ao e-mail indicado.
+create or replace function public.invite_vendamais_staff(
+  p_email text,
+  p_full_name text,
+  p_role text,
+  p_location_id text
+)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_company_id uuid := public.current_company_id();
+  v_email text := lower(nullif(trim(p_email), ''));
+  v_name text := nullif(trim(p_full_name), '');
+  v_location_id text := nullif(trim(p_location_id), '');
+  v_invitation_id uuid;
+begin
+  if not public.is_company_manager() then raise exception 'Apenas administrador ou gerente pode convidar colaboradores.'; end if;
+  if v_email is null or v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+    raise exception 'Indique um e-mail válido para o colaborador.';
+  end if;
+  if v_name is null then raise exception 'Indique o nome do colaborador.'; end if;
+  if p_role not in ('Administrador', 'Gerente', 'Vendedor') then raise exception 'Função inválida.'; end if;
+  if p_role = 'Administrador' and not exists (
+    select 1 from public.profiles where id = auth.uid() and role = 'Administrador' and active
+  ) then
+    raise exception 'Apenas um administrador pode convidar outro administrador.';
+  end if;
+  if v_location_id is null then raise exception 'Seleccione a loja do colaborador.'; end if;
+  if not exists (
+    select 1
+    from public.business_snapshots b,
+         jsonb_array_elements(coalesce(b.state -> 'locations', '[]'::jsonb)) location
+    where b.company_id = v_company_id
+      and location ->> 'id' = v_location_id
+      and coalesce((location ->> 'active')::boolean, true)
+  ) then raise exception 'A loja seleccionada não existe ou está inactiva.'; end if;
+  if exists (select 1 from public.profiles p join auth.users u on u.id = p.id where lower(u.email) = v_email) then
+    raise exception 'Este e-mail já possui uma conta de colaborador.';
+  end if;
+  if exists (select 1 from public.staff_invitations where lower(email) = v_email and status = 'Pendente') then
+    raise exception 'Já existe um convite pendente para este e-mail.';
+  end if;
+
+  insert into public.staff_invitations(company_id, email, full_name, role, location_id, created_by)
+  values (v_company_id, v_email, v_name, p_role, v_location_id, auth.uid())
+  returning id into v_invitation_id;
+  insert into public.audit_events(company_id, actor_id, action, detail)
+  values (v_company_id, auth.uid(), 'Convite de colaborador criado', v_name || ' · ' || p_role);
+  return jsonb_build_object('id', v_invitation_id, 'status', 'Pendente', 'email', v_email);
+end;
+$$;
+
+-- Executada automaticamente ao iniciar sessão. Só o titular do e-mail
+-- convidado consegue aceitar o convite, sendo associado à empresa e loja
+-- que o administrador escolheu.
+create or replace function public.claim_vendamais_invitation()
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_email text := lower(nullif(auth.jwt() ->> 'email', ''));
+  v_invitation public.staff_invitations%rowtype;
+begin
+  if auth.uid() is null then raise exception 'Inicie sessão antes de aceitar o convite.'; end if;
+  if exists (select 1 from public.profiles where id = auth.uid()) then
+    return (select jsonb_build_object(
+      'id', p.id, 'company_id', p.company_id, 'full_name', p.full_name,
+      'role', p.role, 'location_id', p.location_id, 'active', p.active
+    ) from public.profiles p where p.id = auth.uid());
+  end if;
+  if v_email is null then return null; end if;
+  select * into v_invitation
+  from public.staff_invitations
+  where lower(email) = v_email and status = 'Pendente' and expires_at > now()
+  order by created_at desc
+  limit 1
+  for update;
+  if not found then
+    update public.staff_invitations set status = 'Expirado'
+    where lower(email) = v_email and status = 'Pendente' and expires_at <= now();
+    return null;
+  end if;
+
+  insert into public.profiles(id, company_id, full_name, role, location_id, active)
+  values (auth.uid(), v_invitation.company_id, v_invitation.full_name, v_invitation.role, v_invitation.location_id, true);
+  update public.staff_invitations
+  set status = 'Aceite', accepted_at = now()
+  where id = v_invitation.id;
+  insert into public.audit_events(company_id, actor_id, action, detail)
+  values (v_invitation.company_id, auth.uid(), 'Convite aceite', v_invitation.full_name || ' · ' || v_invitation.role);
+  return jsonb_build_object(
+    'id', auth.uid(), 'company_id', v_invitation.company_id, 'full_name', v_invitation.full_name,
+    'role', v_invitation.role, 'location_id', v_invitation.location_id, 'active', true
+  );
+end;
+$$;
+
 grant execute on function public.record_vendamais_sale(jsonb, bigint) to authenticated;
 grant execute on function public.request_vendamais_access(text, text) to authenticated;
 grant execute on function public.review_vendamais_access(uuid, text, text, boolean) to authenticated;
+grant execute on function public.invite_vendamais_staff(text, text, text, text) to authenticated;
+grant execute on function public.claim_vendamais_invitation() to authenticated;

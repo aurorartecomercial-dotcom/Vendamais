@@ -19,8 +19,10 @@ window.VendaMaisCloud = (() => {
   function readConfig() {
     try {
       const value = JSON.parse(localStorage.getItem(CONFIG_KEY));
-      return value?.url && value?.anonKey ? value : null;
-    } catch { return null; }
+      if (value?.url && value?.anonKey) return value;
+    } catch { /* tenta a configuração publicada abaixo */ }
+    const published = window.VENDAMAIS_SUPABASE_CONFIG;
+    return published?.url && published?.anonKey ? { url: String(published.url).trim().replace(/\/$/, ''), anonKey: String(published.anonKey).trim() } : null;
   }
   function persistConfig() {
     if (config) localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
@@ -104,13 +106,30 @@ window.VendaMaisCloud = (() => {
     const { data: profile, error } = await client.from('profiles').select('id, company_id, full_name, role, location_id, active').eq('id', session.user.id).maybeSingle();
     if (error) { emitStatus('error', getErrorMessage(error)); throw error; }
     if (!profile) {
-      emitStatus('configured', 'Conta autenticada. Falta criar a empresa ou ser convidado por um administrador.');
+      const invitedProfile = await claimInvitation();
+      if (invitedProfile?.company_id) {
+        companyId = invitedProfile.company_id;
+        await refresh(invitedProfile, session.user);
+        return { connected: true, profile: invitedProfile, session, invitationAccepted: true };
+      }
+      emitStatus('configured', 'Conta autenticada. Aguarde um convite do administrador ou registe a sua própria empresa.');
       return { needsBootstrap: true, session };
     }
     if (!profile.active) throw new Error('A sua conta foi desactivada pelo administrador.');
     companyId = profile.company_id;
     await refresh(profile, session.user);
     return { connected: true, profile, session };
+  }
+  async function claimInvitation() {
+    if (!client) createClient();
+    const { data, error } = await client.rpc('claim_vendamais_invitation');
+    if (error) {
+      // Em instalações ainda sem a actualização v1.9, a conta continua a
+      // poder usar o fluxo antigo; a mensagem de interface explica a acção.
+      if (/claim_vendamais_invitation|function.*does not exist/i.test(getErrorMessage(error))) return null;
+      throw error;
+    }
+    return Array.isArray(data) ? data[0] : data;
   }
   async function bootstrap(companyName, nif) {
     if (!client) createClient();
@@ -248,6 +267,23 @@ window.VendaMaisCloud = (() => {
     if (error) throw error;
     return data;
   }
+  async function inviteStaff(email, fullName, role, locationId) {
+    if (!connected()) throw new Error('Inicie a sessão online como administrador.');
+    const { data, error } = await client.rpc('invite_vendamais_staff', {
+      p_email: String(email || '').trim(),
+      p_full_name: String(fullName || '').trim(),
+      p_role: String(role || 'Vendedor'),
+      p_location_id: String(locationId || '')
+    });
+    if (error) throw error;
+    return data;
+  }
+  async function invitations() {
+    if (!connected()) return [];
+    const { data, error } = await client.from('staff_invitations').select('id, email, full_name, role, location_id, status, created_at, expires_at, accepted_at').order('created_at', { ascending: false }).limit(100);
+    if (error) throw error;
+    return data || [];
+  }
   async function accessRequests() {
     if (!connected()) return [];
     const { data, error } = await client.from('access_requests').select('id, full_name, status, requested_at, user_id').eq('status', 'Pendente').order('requested_at', { ascending: true });
@@ -286,7 +322,7 @@ window.VendaMaisCloud = (() => {
   return {
     setHooks(nextHooks) { hooks = { ...hooks, ...nextHooks }; hooks.onStatus?.(currentStatus); },
     configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
-    resetPassword, requestAccess, accessRequests, reviewAccess, auditEvents, backups,
+    resetPassword, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, auditEvents, backups,
     configured, connected, pendingCount: () => pendingSales().length, status: () => currentStatus, config: () => config
   };
 })();

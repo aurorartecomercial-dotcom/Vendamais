@@ -21,39 +21,16 @@ Em **Authentication** → **URL Configuration**, adicione o endereço final da a
 1. Publique ou abra a aplicação num endereço web (veja a secção GitHub abaixo).
 2. Entre em **Definições** → **Ligar dados online**.
 3. Cole o URL e a chave pública do projecto.
-4. Escolha **Criar conta de administrador**, indique o e-mail e uma palavra-passe com pelo menos 8 caracteres.
+4. Escolha **Criar conta**, indique o e-mail e uma palavra-passe com pelo menos 8 caracteres.
 5. Depois de entrar, escolha **Criar e sincronizar**. O sistema envia as lojas, produtos, stock, clientes e vendas que já estavam no navegador.
 
 O indicador com a nuvem no topo passa a mostrar **Online**. Pode clicar nele para confirmar o estado da ligação ou terminar a sessão.
 
 ## 3. Criar acessos para cada loja
 
-> Se tiver executado `supabase/2026-11-professional-upgrade.sql`, siga o fluxo automático em [VendaMais Profissional](PROFESSIONAL.md): o colaborador pede acesso no próprio VendaMais e o administrador aprova, escolhe a função e associa a loja. Não precisa de criar UUIDs nem executar comandos manuais.
+> Depois de executar `supabase/2026-11-professional-upgrade.sql`, siga o fluxo de convites em [VendaMais Profissional](PROFESSIONAL.md): o administrador cria o convite, escolhe a loja e o vendedor entra directamente nela. Não precisa de criar UUIDs nem executar comandos manuais.
 
-Cada pessoa deve ter o seu próprio e-mail e palavra-passe. Não partilhe a conta do administrador.
-
-1. No VendaMais, crie a loja e o utilizador em **Definições** → **Lojas & armazéns** e **Utilizadores**. Aguarde o indicador mostrar **Online**.
-2. No Supabase, abra **Authentication** → **Users** e crie o utilizador (ou convide-o). Copie o respectivo UUID.
-3. No SQL Editor, descubra o identificador da loja:
-
-```sql
-select item->>'id' as loja_id, item->>'name' as loja
-from public.business_snapshots,
-     jsonb_array_elements(state->'locations') item;
-```
-
-4. Ainda autenticado como administrador na aplicação, execute no SQL Editor, trocando os valores entre aspas:
-
-```sql
-select public.provision_vendamais_user(
-  'UUID-DO-OPERADOR',
-  'Nome do operador',
-  'Vendedor',
-  'ID-DA-LOJA'
-);
-```
-
-Use `Gerente` ou `Administrador` quando necessário. Para esses perfis, o quarto valor pode ser `null`; vendedores devem receber a loja onde vão trabalhar. Depois disso, o operador entra no VendaMais com o próprio e-mail e palavra-passe e só pode gravar vendas na loja atribuída.
+Cada pessoa deve ter o seu próprio e-mail e palavra-passe. Não partilhe a conta do administrador. No modo profissional, use exclusivamente **Gerir acessos → Convidar colaborador**: o administrador escolhe a loja antes de o vendedor criar a conta, por isso não há UUIDs, NIFs nem escolhas de empresa do lado do vendedor.
 
 ## 4. Publicar no GitHub Pages
 

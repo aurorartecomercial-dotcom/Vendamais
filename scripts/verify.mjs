@@ -8,6 +8,7 @@ const requiredFiles = [
   'styles.css',
   'app.js',
   'cloud.js',
+  'supabase-config.js',
   'README.md',
   'LICENSE',
   'package.json',
@@ -88,6 +89,7 @@ if (!cloud.includes('recordSale')) failures.push('Registo remoto de vendas não 
 if (!cloud.includes('save_vendamais_state')) failures.push('Sincronização do estado empresarial não encontrada.');
 if (!cloud.includes('flushPendingSales')) failures.push('Fila de vendas sem internet não encontrada.');
 if (!cloud.includes('requestAccess')) failures.push('Pedido de acesso online não encontrado.');
+if (!cloud.includes('inviteStaff') || !cloud.includes('claimInvitation')) failures.push('Convites preparados pelo administrador não encontrados.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
 if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
@@ -115,6 +117,9 @@ if (!professionalSql.includes('record_vendamais_sale')) failures.push('Venda at�
 if (!professionalSql.includes('business_backups')) failures.push('Cópias automáticas online não encontradas.');
 if (!professionalSql.includes('audit_events')) failures.push('Auditoria central não encontrada.');
 if (!professionalSql.includes('request_vendamais_access')) failures.push('Pedido de acesso central não encontrado.');
+if (!professionalSql.includes('staff_invitations') || !professionalSql.includes('invite_vendamais_staff') || !professionalSql.includes('claim_vendamais_invitation')) failures.push('Convites e associação automática à loja não encontrados.');
+if (!app.includes('cloudInviteStaffModal')) failures.push('Ecrã de convite de colaborador não encontrado.');
+if (!html.includes('supabase-config.js')) failures.push('Configuração publicada do Supabase não encontrada.');
 if (!app.includes('data.transfers')) failures.push('Transferências de stock não encontradas.');
 if (!app.includes('fixedCosts')) failures.push('Custos fixos por loja não encontrados.');
 if (!app.includes('Vendas líquidas (sem IVA)')) failures.push('Cálculo de vendas sem IVA não encontrado.');

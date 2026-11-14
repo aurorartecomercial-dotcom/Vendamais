@@ -1,6 +1,6 @@
 {
   "name": "vendamais",
-  "version": "1.8.1",
+  "version": "1.9.1",
   "private": true,
   "description": "Sistema local de ponto de venda, inventário e gestão comercial.",
   "type": "module",

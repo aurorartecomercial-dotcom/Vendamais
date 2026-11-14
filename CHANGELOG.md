@@ -2,6 +2,21 @@
 
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
+## [1.9.1] — 2026-11-14
+
+### Corrigido
+
+- A actualização SQL pode agora ser executada novamente numa base que já tenha a política de vendas por loja criada.
+
+## [1.9.0] — 2026-11-14
+
+### Corrigido e melhorado
+
+- O administrador cria a loja e atribui o vendedor a uma loja já existente; criar vendedor deixou de gerar uma loja com o nome do colaborador.
+- Novo fluxo de convite online: o administrador informa e-mail, função e loja; o vendedor cria apenas a própria palavra-passe e entra directamente na loja preparada.
+- As contas sem convite passam a explicar que vendedores não devem registar empresas. Empresas diferentes continuam separadas no Supabase por regras de acesso e identificador próprio.
+- Adicionado `supabase-config.js` para publicar a URL e a chave pública uma vez, sem pedir esses dados em cada telemóvel.
+
 ## [1.8.1] — 2026-11-14
 
 ### Corrigido

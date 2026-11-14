@@ -1,6 +1,6 @@
 # VendaMais Profissional — instalação e controlo
 
-Esta versão reforça a operação multi-loja: cada venda online baixa o stock e grava o documento na mesma transacção central; existe uma fila local para vendas quando a internet cai; o administrador aprova novos acessos directamente no sistema; e a base guarda auditoria e cópias automáticas diárias.
+Esta versão reforça a operação multi-loja: cada venda online baixa o stock e grava o documento na mesma transacção central; existe uma fila local para vendas quando a internet cai; cada empresa fica isolada; o administrador cria convites já associados à loja certa; e a base guarda auditoria e cópias automáticas diárias.
 
 ## Actualização obrigatória da base online
 
@@ -21,16 +21,27 @@ Depois carregue em **Run**. A mensagem deve indicar sucesso. Este script não re
 3. Se a empresa ainda não foi criada, escolha **Criar a minha empresa** e confirme os dados.
 4. A nuvem no topo deve mostrar **Online**.
 
-## Criar acesso para um vendedor ou gerente
+## Fluxo correcto: administrador prepara, vendedor entra
 
-O administrador já não precisa de criar o utilizador manualmente dentro do painel Supabase.
+O administrador cria primeiro as lojas e os produtos da sua empresa. Depois prepara cada colaborador. O vendedor nunca cria loja e nunca informa NIF da empresa.
 
-1. O colaborador abre o VendaMais, introduz a URL/chave pública da empresa e cria a sua própria conta por e-mail.
-2. Depois de confirmar o e-mail, escolhe **Pedir acesso à empresa**, informa o nome e o NIF da empresa.
-3. O administrador entra em **Definições → Ligar dados online → Gerir acessos**.
-4. Escolhe a função e a loja do pedido, depois carrega em **Aprovar**.
+1. Como administrador, crie a loja em **Definições → Lojas & armazéns** e registe os produtos/stock dessa loja.
+2. Abra **Definições → Ligar dados online → Gerir acessos → Convidar colaborador**.
+3. Indique o nome, o e-mail do vendedor, a função **Vendedor** e a loja onde irá trabalhar.
+4. O vendedor abre o mesmo VendaMais, cria a própria conta com **exactamente o e-mail convidado**, confirma o e-mail e entra.
+5. A associação é automática: a aplicação mostra a loja que o administrador escolheu e os produtos/stock já criados.
 
-Um vendedor só consegue vender na loja atribuída. Gerente e administrador podem consultar a empresa inteira.
+Um vendedor só consegue vender na loja atribuída. Gerente e administrador podem consultar a empresa inteira. A opção de registar empresa é exclusiva para quem é realmente proprietário de um negócio novo.
+
+## Configurar URL e chave uma única vez
+
+Para os vendedores não receberem os campos **URL** e **chave** no telemóvel, antes de publicar edite `supabase-config.js` e cole a chave pública **Publishable** (ou **anon**) do projecto no campo `anonKey`. O URL deste projecto já está preenchido.
+
+Essa chave é pública por desenho e pode estar no GitHub Pages. Nunca coloque a chave `service_role`. Depois de publicar, todos os aparelhos abrem directamente o ecrã de e-mail e palavra-passe.
+
+## Empresas e dados separados
+
+Cada empresa recebe um identificador interno próprio. Todas as tabelas importantes — catálogo/stock, lojas, vendas, cópias, auditoria e convites — têm esse identificador, e as regras de segurança do Supabase só deixam uma conta ler ou escrever a empresa presente no seu perfil. Portanto, uma loja de roupa e uma mercearia podem usar o mesmo projecto Supabase sem se misturarem: não partilham produtos, vendas, vendedores nem stock.
 
 ## Vendas sem internet
 
