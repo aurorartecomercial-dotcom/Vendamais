@@ -46,3 +46,9 @@
 .seller-filter p{font-size:11px;color:var(--muted);line-height:1.45;margin:0 0 2px;max-width:470px}
 .seller-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:720px){#calculationGuide,.seller-report-grid{grid-template-columns:1fr}.seller-filter{align-items:stretch;flex-direction:column;gap:9px}.seller-filter label{width:100%}.report-panel{padding:16px}.report-period{margin-top:-3px}}
+
+/* Estado da base central e resumo diário para administração multi-loja. */
+.cloud-status{display:inline-flex;align-items:center;gap:5px;border:1px solid #d8e4df;border-radius:999px;background:#f7faf8;color:#64736d;padding:6px 9px;font:inherit;font-size:10px;font-weight:750;cursor:pointer;white-space:nowrap}
+.cloud-status span:first-child{font-size:13px;line-height:1}.cloud-status.online{border-color:#b9decf;background:#e8f6ef;color:#126951}.cloud-status.syncing{border-color:#d8c890;background:#fff8df;color:#8b6712}.cloud-status.error{border-color:#ecc0c0;background:#fff0f0;color:#b23434}.cloud-status.configured{border-color:#c7d9ef;background:#eef6ff;color:#315f94}
+.store-today-panel{margin-top:18px;padding:19px 20px}.store-today-panel .table-wrap table{min-width:520px}
+@media(max-width:720px){.cloud-status{padding:6px 7px}.cloud-status span:last-child{display:none}.store-today-panel{padding:16px}.top-actions .cloud-status{display:inline-flex}}

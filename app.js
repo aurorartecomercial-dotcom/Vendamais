@@ -190,7 +190,7 @@ let sessionLocked = true;
 let pinChangeRequired = false;
 function saveData() {
   data.meta = { ...data.meta, schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() };
-  try { localStorage.setItem(STORE, JSON.stringify(data)); return true; }
+  try { localStorage.setItem(STORE, JSON.stringify(data)); window.VendaMaisCloud?.scheduleSave(data); return true; }
   catch { notify('Não foi possível guardar os dados neste navegador.'); return false; }
 }
 function notify(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(notify.timer); notify.timer = setTimeout(() => toast.classList.remove('show'), 2800); }
@@ -327,6 +327,19 @@ function renderDashboard() {
   const costs = sum(monthly, saleCost); const tax = sum(monthly, sale => sale.tax);
   const receivable = sum(monthly, saleBalanceDue);
   $('#financialSummary').innerHTML = summaryRows([['Faturação (com IVA)', money(income)], ['Vendas sem IVA', money(income - tax)], ['Valores por receber', money(receivable)], ['Custo dos produtos vendidos', `− ${money(costs)}`], ['Margem bruta', money(income - tax - costs), true]]);
+  const todayPanel = $('#storeTodayPanel'); const todayTable = $('#storeTodayTable');
+  if (todayPanel && todayTable) {
+    const canSeeAllStores = canManage();
+    todayPanel.hidden = !canSeeAllStores;
+    if (canSeeAllStores) {
+      const rows = data.locations.filter(location => location.type === 'Loja' && location.active).map(location => {
+        const storeSales = salesBetween(today, today).filter(sale => sale.locationId === location.id);
+        const last = [...storeSales].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+        return { location, sales: storeSales, total: sum(storeSales, sale => sale.total), last };
+      }).sort((a, b) => b.total - a.total || a.location.name.localeCompare(b.location.name));
+      todayTable.innerHTML = rows.length ? rows.map(row => `<tr><td><b>${escapeHtml(row.location.name)}</b><br><small class="muted">${escapeHtml(row.location.address || 'Sem morada registada')}</small></td><td>${row.sales.length}</td><td class="money"><b>${money(row.total)}</b></td><td>${row.last ? `${escapeHtml(row.last.reference)}<br><small class="muted">${fullDate(row.last.date)}</small>` : '<span class="muted">Sem vendas hoje</span>'}</td></tr>`).join('') : emptyRow(4, 'Não existem lojas activas para apresentar.');
+    }
+  }
 }
 function summaryRows(rows) { return rows.map(([label, value, total]) => `<div class="summary-row ${total ? 'total' : ''}"><span>${label}</span><strong>${value}</strong></div>`).join(''); }
 
@@ -468,7 +481,7 @@ function returnSaleModal(sale) {
   if (!sale || sale.status === 'Devolvida') return notify('Este documento já foi devolvido.');
   const refundable = Math.max(0, Number(sale.amountPaid || 0));
   openModal(`${modalHeader('Processar devolução', `Documento ${sale.reference} · ${money(sale.total)}`)}<p class="modal-note">A devolução cria uma nota de crédito interna, repõe todo o stock e anula o saldo pendente. Valor já pago a devolver: <b>${money(refundable)}</b>.</p><form id="returnForm"><div class="modal-form">${refundable ? `<label>Meio de reembolso<select name="refundPayment"><option ${sale.payment === 'Dinheiro' ? 'selected' : ''}>Dinheiro</option><option ${sale.payment === 'Transferência' ? 'selected' : ''}>Transferência</option><option ${sale.payment === 'Multicaixa' ? 'selected' : ''}>Multicaixa</option><option>Crédito em conta</option></select></label><label>Valor a reembolsar (Kz)<input name="refundAmount" type="number" min="0" max="${refundable}" step="0.01" required value="${refundable.toFixed(2)}" /></label>` : '<div class="full payment-feedback">Não existe valor pago a reembolsar; será anulada apenas a dívida do documento.</div>'}<label class="full">Motivo da devolução<textarea name="reason" required rows="3" placeholder="Ex.: artigo danificado, troca autorizada"></textarea></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Confirmar devolução</button></div></form>`);
-  $('#returnForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const reason = values.reason.trim(); const refundAmount = refundable ? Number(values.refundAmount) : 0; if (refundAmount < 0 || refundAmount > refundable) return notify('O reembolso não pode ultrapassar o valor já pago.'); const saleLocationId = sale.locationId || currentLocationId(); const session = values.refundPayment === 'Dinheiro' && refundAmount > 0 ? currentCashSession() : null; if (values.refundPayment === 'Dinheiro' && refundAmount > 0 && !session) return notify('Abra o caixa do local actual antes de efectuar um reembolso em dinheiro.'); sale.status = 'Devolvida'; sale.paymentStatus = 'Anulada'; sale.balanceDue = 0; sale.items.forEach(item => { const product = productById(item.productId); if (product) { changeStock(product, saleLocationId, Number(item.quantity)); data.movements.push({ id: uid('mov'), date: new Date().toISOString(), locationId: saleLocationId, productId: product.id, productName: product.name, type: 'Entrada', quantity: Number(item.quantity), note: `Devolução ${sale.reference}` }); } }); if (session) data.cashMovements.push({ id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: 'Saída', amount: refundAmount, note: `Reembolso ${sale.reference}` }); const creditReference = nextReference('NC', data.returns); data.returns.push({ id: uid('return'), saleId: sale.id, reference: creditReference, date: new Date().toISOString(), reason, amount: sale.total, refundAmount, refundPayment: values.refundPayment || '', userId: currentUser.id }); audit('Devolução / nota de crédito', `${sale.reference} · ${creditReference} · ${locationName(saleLocationId)} · reembolso ${money(refundAmount)} · ${reason}`); saveData(); closeModal(); notify('Devolução registada e stock reposto.'); renderAll(); });
+  $('#returnForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const reason = values.reason.trim(); const refundAmount = refundable ? Number(values.refundAmount) : 0; if (refundAmount < 0 || refundAmount > refundable) return notify('O reembolso não pode ultrapassar o valor já pago.'); const saleLocationId = sale.locationId || currentLocationId(); const session = values.refundPayment === 'Dinheiro' && refundAmount > 0 ? currentCashSession() : null; if (values.refundPayment === 'Dinheiro' && refundAmount > 0 && !session) return notify('Abra o caixa do local actual antes de efectuar um reembolso em dinheiro.'); sale.status = 'Devolvida'; sale.paymentStatus = 'Anulada'; sale.balanceDue = 0; sale.items.forEach(item => { const product = productById(item.productId); if (product) { changeStock(product, saleLocationId, Number(item.quantity)); data.movements.push({ id: uid('mov'), date: new Date().toISOString(), locationId: saleLocationId, productId: product.id, productName: product.name, type: 'Entrada', quantity: Number(item.quantity), note: `Devolução ${sale.reference}` }); } }); if (session) data.cashMovements.push({ id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: 'Saída', amount: refundAmount, note: `Reembolso ${sale.reference}` }); const creditReference = nextReference('NC', data.returns); data.returns.push({ id: uid('return'), saleId: sale.id, reference: creditReference, date: new Date().toISOString(), reason, amount: sale.total, refundAmount, refundPayment: values.refundPayment || '', userId: currentUser.id }); audit('Devolução / nota de crédito', `${sale.reference} · ${creditReference} · ${locationName(saleLocationId)} · reembolso ${money(refundAmount)} · ${reason}`); window.VendaMaisCloud?.updateSale(sale); saveData(); closeModal(); notify('Devolução registada e stock reposto.'); renderAll(); });
 }
 
 function expenseModal() {
@@ -696,7 +709,7 @@ function saleModal() {
   const form = $('#saleForm'); updateCheckoutFields(form, totals.total);
   form.addEventListener('input', () => updateCheckoutFields(form, totals.total));
   form.addEventListener('change', () => updateCheckoutFields(form, totals.total));
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const credit = values.settlement === 'credit'; const payment = credit ? 'Crédito' : values.payment; const received = Number(values.amountReceived || 0);
     if (isSeller() && credit) return notify('Vendas a crédito requerem autorização de gerente ou administrador.');
     if (credit && !customer) return notify('Seleccione ou cadastre um cliente para fazer uma venda a crédito.');
@@ -707,6 +720,11 @@ function saleModal() {
     for (const item of cart) { const product = productById(item.productId); if (!product || stockAt(product, locationId) < item.quantity) return notify(`${item.name} já não tem stock suficiente neste local.`); }
     const balanceDue = credit ? totals.total : 0;
     const sale = { id: uid('sale'), reference: nextReference('VD', data.sales), date: new Date().toISOString(), locationId, customerId: customer?.id || '', customer: customerSnapshot(customer), operatorId: currentUser.id, operatorName: currentUser.name, cashSessionId: cashSession?.id || '', documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída' };
+    if (window.VendaMaisCloud?.configured?.() && !window.VendaMaisCloud.connected()) return notify('Inicie a sessão em Dados online antes de confirmar vendas desta empresa.');
+    if (window.VendaMaisCloud?.connected?.()) {
+      const recorded = await window.VendaMaisCloud.recordSale(sale);
+      if (!recorded) return notify('A venda não foi concluída porque não foi possível registá-la na base central.');
+    }
     // A venda e os movimentos de stock devem ser persistidos como uma única operação local.
     // Se o armazenamento falhar, repomos o estado anterior e não anunciamos sucesso.
     const previousData = JSON.stringify(data);
@@ -729,7 +747,7 @@ function receivePaymentModal(customer) {
   openModal(`${modalHeader('Registar recebimento', `Cliente: ${escapeHtml(customer.name)}`)}<form id="receiptForm"><div class="modal-form"><label class="full">Documento em dívida<select name="saleId">${dueSales.map(sale => `<option value="${sale.id}">${sale.reference} · vence ${shortDate(sale.dueDate || sale.date)} · saldo ${money(saleBalanceDue(sale))}</option>`).join('')}</select></label><label>Valor recebido (Kz)<input name="amount" type="number" min="0.01" step="0.01" required value="${saleBalanceDue(dueSales[0]).toFixed(2)}" /></label><label>Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label class="full">Data do recebimento<input name="date" type="date" required value="${dateISO()}" /></label><label class="full">Observação<input name="note" placeholder="Ex.: pagamento parcial, referência bancária" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Registar recebimento</button></div></form>`);
   const form = $('#receiptForm');
   form.elements.saleId.addEventListener('change', () => { const sale = data.sales.find(item => item.id === form.elements.saleId.value); form.elements.amount.value = saleBalanceDue(sale).toFixed(2); });
-  form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const sale = data.sales.find(item => item.id === values.saleId); const amount = Number(values.amount); if (!sale || amount <= 0) return notify('Introduza um valor válido.'); if (amount > saleBalanceDue(sale)) return notify('O valor é superior ao saldo deste documento.'); const cashSession = values.payment === 'Dinheiro' ? currentCashSession() : null; if (values.payment === 'Dinheiro' && !cashSession) return notify('Abra o caixa antes de receber em dinheiro.'); sale.amountPaid = Number(sale.amountPaid || 0) + amount; sale.balanceDue = Math.max(0, saleBalanceDue(sale) - amount); sale.paymentStatus = sale.balanceDue === 0 ? 'Pago' : 'Parcial'; data.receipts.push({ id: uid('receipt'), saleId: sale.id, customerId: customer.id, userId: currentUser.id, cashSessionId: cashSession?.id || '', date: `${values.date}T12:00:00`, amount, payment: values.payment, note: values.note.trim() }); audit('Recebimento registado', `${sale.reference} · ${money(amount)} · ${values.payment}`); saveData(); closeModal(); notify(`Recebimento de ${money(amount)} registado.`); renderAll(); });
+  form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const sale = data.sales.find(item => item.id === values.saleId); const amount = Number(values.amount); if (!sale || amount <= 0) return notify('Introduza um valor válido.'); if (amount > saleBalanceDue(sale)) return notify('O valor é superior ao saldo deste documento.'); const cashSession = values.payment === 'Dinheiro' ? currentCashSession() : null; if (values.payment === 'Dinheiro' && !cashSession) return notify('Abra o caixa antes de receber em dinheiro.'); sale.amountPaid = Number(sale.amountPaid || 0) + amount; sale.balanceDue = Math.max(0, saleBalanceDue(sale) - amount); sale.paymentStatus = sale.balanceDue === 0 ? 'Pago' : 'Parcial'; data.receipts.push({ id: uid('receipt'), saleId: sale.id, customerId: customer.id, userId: currentUser.id, cashSessionId: cashSession?.id || '', date: `${values.date}T12:00:00`, amount, payment: values.payment, note: values.note.trim() }); audit('Recebimento registado', `${sale.reference} · ${money(amount)} · ${values.payment}`); window.VendaMaisCloud?.updateSale(sale); saveData(); closeModal(); notify(`Recebimento de ${money(amount)} registado.`); renderAll(); });
 }
 function printReceipt(sale) {
   const customer = saleCustomer(sale); const clientDetails = `${escapeHtml(customer.name)}${customer.type && customer.type !== 'Consumidor final' ? `<br><small>${escapeHtml(customer.type)}${customer.nif ? ` · NIF: ${escapeHtml(customer.nif)}` : ''}</small>` : ''}${customer.address ? `<br><small>${escapeHtml(customer.address)}</small>` : ''}`; const win = window.open('', '_blank', 'width=420,height=700'); if (!win) return; win.document.write(`<!doctype html><html><head><title>${escapeHtml(sale.documentType || 'Recibo')} ${sale.reference}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#222;font-size:13px}.head{text-align:center;border-bottom:1px dashed #999;padding-bottom:13px}.head h2{margin:0 0 6px}table{width:100%;border-collapse:collapse;margin:17px 0}td{padding:6px 0;border-bottom:1px solid #eee}.right{text-align:right}.total{font-size:17px;font-weight:bold;border-top:2px solid #222;padding-top:9px;margin-top:8px}.foot{text-align:center;color:#666;margin-top:26px;font-size:11px}@media print{button{display:none}}</style></head><body><div class="head"><h2>${escapeHtml(data.settings.company)}</h2><div>NIF: ${escapeHtml(data.settings.nif || '—')}</div><div>${escapeHtml(data.settings.address || '')}</div></div><p><b>${escapeHtml(sale.documentType || 'Recibo')}:</b> ${escapeHtml(sale.reference)}<br><b>Data:</b> ${fullDate(sale.date)}<br><b>Cliente:</b><br>${clientDetails}</p><table>${sale.items.map(item => `<tr><td>${escapeHtml(item.name)}<br><small>${number(item.quantity)} × ${money(item.price)}</small></td><td class="right">${money(item.quantity * item.price)}</td></tr>`).join('')}</table><div>Subtotal <span style="float:right">${money(sale.subtotal)}</span></div>${sale.discountValue ? `<div>Desconto <span style="float:right">− ${money(sale.discountValue)}</span></div>` : ''}<div>IVA <span style="float:right">${money(sale.tax)}</span></div><div class="total">TOTAL <span style="float:right">${money(sale.total)}</span></div><p>Pagamento: <b>${escapeHtml(sale.payment)}</b><br>Estado: <b>${escapeHtml(sale.paymentStatus || 'Pago')}</b>${saleBalanceDue(sale) ? `<br>Saldo por pagar: <b>${money(saleBalanceDue(sale))}</b>${sale.dueDate ? `<br>Vencimento: ${shortDate(sale.dueDate)}` : ''}` : ''}${sale.change ? `<br>Troco: <b>${money(sale.change)}</b>` : ''}</p><div class="foot">Documento gerado pelo VendaMais. Confirme os requisitos fiscais aplicáveis antes da emissão oficial.<br>Obrigado pela sua preferência.</div><button onclick="window.print()">Imprimir documento</button></body></html>`); win.document.close(); }
@@ -824,13 +842,16 @@ function clearBusinessDataModal() {
 }
 function renderAccountButton() { const button = $('#accountButton'); if (!button || !currentUser) return; button.textContent = currentUser.initials || currentUser.name.split(' ').map(name => name[0]).join('').slice(0, 2).toUpperCase(); button.title = `${currentUser.name} · ${currentUser.role}`; }
 function accountModal() {
+  if (window.VendaMaisCloud?.configured?.()) return cloudModal();
   const locked = sessionLocked;
   openModal(`${modalHeader(locked ? 'Aceder ao VendaMais' : 'Trocar utilizador', locked ? 'Seleccione o seu utilizador e introduza o PIN pessoal.' : 'Confirme o PIN do utilizador antes de trocar de área.', !locked)}<form id="accountForm"><div class="modal-form"><label class="full">Utilizador<select name="userId">${data.users.filter(user => user.active).map(user => `<option value="${user.id}" ${user.id === currentUser?.id ? 'selected' : ''}>${escapeHtml(user.name)} · ${escapeHtml(user.role)}</option>`).join('')}</select></label><label class="full">PIN pessoal<input class="pin-input" name="pin" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="8" pattern="[0-9]{4,8}" required placeholder="••••" /></label></div><p class="modal-note">Cada vendedor deve usar o seu próprio PIN. Nunca partilhe este código.</p><div class="modal-footer">${locked ? '' : '<button class="btn secondary" id="changeOwnPin" type="button">Alterar o meu PIN</button><button class="btn secondary" type="button" data-close-modal>Cancelar</button>'}<button class="btn primary" type="submit">${locked ? 'Entrar' : 'Confirmar utilizador'}</button></div></form>`);
   $('#accountForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const next = userById(values.userId); if (!next || !next.active || next.pin !== values.pin) return notify('Utilizador ou PIN inválido.'); const mustChangePin = next.pinMustChange; currentUser = next; sessionLocked = false; pinChangeRequired = false; localStorage.setItem(USER_SESSION, next.id); audit('Sessão iniciada', `${next.name} · ${next.role}`); saveData(); if (!mustChangePin) closeModal(); renderAccountButton(); applyRoleInterface(); const activeView = $('.view.active')?.id.replace('View', ''); showView(canAccessView(activeView) ? activeView : (canAccessView('dashboard') ? 'dashboard' : 'pos')); if (mustChangePin) return changePinModal(next, true); notify(`Sessão activa: ${next.name}.`); });
 }
 function lockSession() {
   if (cart.length && !confirm('A venda actual será limpa ao bloquear a sessão. Continuar?')) return;
-  cart = []; sessionLocked = true; $('#sidebar').classList.remove('open'); notify('Sessão bloqueada.'); accountModal();
+  cart = []; sessionLocked = true; $('#sidebar').classList.remove('open'); notify('Sessão bloqueada.');
+  if (window.VendaMaisCloud?.connected?.()) { window.VendaMaisCloud.signOut().finally(() => cloudModal()); return; }
+  accountModal();
 }
 function changePinModal(user = currentUser, mandatory = false) {
   if (!user || (user.id !== currentUser?.id && !isAdministrator())) return notify('Não tem permissão para alterar este PIN.');
@@ -888,12 +909,75 @@ function integrationsModal() {
   $('#integrationsForm').addEventListener('submit', event => { event.preventDefault(); const values = new FormData(event.currentTarget); Object.keys(data.integrations).forEach(key => { data.integrations[key] = values.has(key); }); audit('Integrações actualizadas', 'Preferências operacionais alteradas'); saveData(); closeModal(); notify('Preferências de integração guardadas.'); });
 }
 
+function cloudInitials(name = '') { return String(name).split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 3).toUpperCase() || 'VM'; }
+function updateCloudUi(status = window.VendaMaisCloud?.status?.()) {
+  if (!status) return;
+  const indicator = $('#cloudStatus'); const text = $('#cloudStatusText'); const hint = $('#cloudSettingsHint');
+  if (indicator) { indicator.className = `cloud-status ${status.kind}`; indicator.title = status.message; }
+  if (text) text.textContent = status.kind === 'online' ? 'Online' : status.kind === 'syncing' ? 'A sincronizar' : status.kind === 'error' ? 'Falha de sincronização' : status.kind === 'configured' ? 'Ligar base online' : 'Só neste dispositivo';
+  if (hint) hint.textContent = status.kind === 'online' ? 'A empresa está ligada: as vendas entram no livro central e os relatórios são partilhados pelas lojas.' : status.kind === 'syncing' ? 'A actualizar os dados partilhados…' : status.kind === 'error' ? `${status.message} Os dados locais foram mantidos; reveja a ligação antes de continuar a vender.` : 'Ligue uma base de dados segura para que todas as lojas trabalhem sobre os mesmos dados.';
+}
+function cloudUserForProfile(profile, authUser) {
+  const cloudUserId = profile?.id || authUser?.id || currentUser?.cloudUserId;
+  if (!cloudUserId) return currentUser;
+  let user = data.users.find(item => item.cloudUserId === cloudUserId);
+  if (!user && profile) user = data.users.find(item => item.name === profile.full_name && item.role === profile.role && (!profile.location_id || item.locationId === profile.location_id));
+  if (!user && profile) user = data.users.find(item => item.role === profile.role && (!profile.location_id || item.locationId === profile.location_id));
+  if (!user && profile) {
+    user = normaliseUser({ id: `cloud_${cloudUserId}`, name: profile.full_name, initials: cloudInitials(profile.full_name), role: profile.role, locationId: profile.location_id || currentLocationId(), active: true, pin: '0000', pinMustChange: false }, currentLocationId());
+    data.users.push(user);
+  }
+  if (user && profile) Object.assign(user, { cloudUserId, name: profile.full_name || user.name, initials: user.initials || cloudInitials(profile.full_name), role: normaliseRole(profile.role), locationId: profile.location_id || user.locationId, active: profile.active !== false, pinMustChange: false });
+  return user || currentUser;
+}
+function replaceDataFromCloud(remote, profile, authUser) {
+  const cloudUserId = profile?.id || authUser?.id || currentUser?.cloudUserId;
+  data = normaliseData(remote);
+  currentUser = cloudUserForProfile(profile, authUser);
+  if (!profile && cloudUserId) currentUser = data.users.find(user => user.cloudUserId === cloudUserId) || currentUser || getSessionUser();
+  if (currentUser) { localStorage.setItem(USER_SESSION, currentUser.id); sessionLocked = false; pinChangeRequired = false; }
+  localStorage.setItem(STORE, JSON.stringify(data));
+  $('#companyName').textContent = data.settings.company;
+  renderAccountButton(); applyRoleInterface(); renderAll();
+}
+function mergeCloudSale(sale) {
+  if (!sale?.id) return;
+  const index = data.sales.findIndex(item => item.id === sale.id);
+  if (index >= 0) data.sales[index] = normaliseSale(sale, data.customers); else data.sales.push(normaliseSale(sale, data.customers));
+  localStorage.setItem(STORE, JSON.stringify(data));
+  renderAll();
+}
+function cloudBootstrapModal() {
+  openModal(`${modalHeader('Criar empresa online', 'Esta primeira sincronização envia o catálogo, lojas, stock e vendas actuais para a base central.')}<form id="cloudBootstrapForm"><div class="modal-form"><label class="full">Nome da empresa<input name="company" required value="${escapeHtml(data.settings.company || '')}" /></label><label class="full">NIF<input name="nif" value="${escapeHtml(data.settings.nif || '')}" /></label></div><p class="modal-note">Depois desta etapa, cada venda confirmada será registada no livro central. Os PINs locais não são enviados: o acesso online usa a conta de e-mail e palavra-passe.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar e sincronizar</button></div></form>`);
+  $('#cloudBootstrapForm').addEventListener('submit', async event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    try { await window.VendaMaisCloud.bootstrap(values.company, values.nif); closeModal(); notify('Empresa criada e dados sincronizados.'); }
+    catch (error) { notify(error.message || 'Não foi possível criar a empresa online.'); }
+  });
+}
+function cloudModal() {
+  const cloud = window.VendaMaisCloud; const config = cloud.config?.(); const connected = cloud.connected?.();
+  const setup = !config ? `<form id="cloudConfigForm"><div class="modal-form"><label class="full">Endereço do projecto Supabase<input name="url" type="url" required placeholder="https://seu-projecto.supabase.co" /></label><label class="full">Chave pública anon<input name="anonKey" required autocomplete="off" placeholder="sb_publishable_… ou eyJ…" /></label></div><p class="modal-note">Crie primeiro o projecto Supabase e execute o ficheiro <b>supabase/schema.sql</b>. A chave anon é pública por desenho; nunca cole aqui a chave service_role.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Guardar ligação</button></div></form>` : '';
+  const login = config && !connected ? `<form id="cloudLoginForm"><div class="modal-form"><label class="full">E-mail<input name="email" type="email" required autocomplete="email" /></label><label class="full">Palavra-passe<input name="password" type="password" required autocomplete="current-password" minlength="8" /></label></div><p class="modal-note">A primeira pessoa deve usar <b>Criar conta de administrador</b>; as restantes contas são atribuídas pelo administrador conforme explicado no guia de produção.</p><div class="modal-footer"><button class="btn secondary" id="clearCloudConfig" type="button">Alterar ligação</button><button class="btn secondary" name="mode" value="signup" type="submit">Criar conta de administrador</button><button class="btn primary" name="mode" value="signin" type="submit">Entrar</button></div></form>` : '';
+  const online = connected ? `<p class="modal-note">${escapeHtml(cloud.status().message)}. Esta conta pode consultar os dados partilhados da empresa.</p><div class="modal-footer"><button class="btn secondary" id="cloudSignOut" type="button">Terminar sessão online</button><button class="btn primary" type="button" data-close-modal>Fechar</button></div>` : '';
+  openModal(`${modalHeader('Dados online', connected ? 'Empresa ligada à base central.' : 'Ligue todas as lojas a uma única base de dados.')} ${setup || login || online}`);
+  const configForm = $('#cloudConfigForm');
+  if (configForm) configForm.addEventListener('submit', async event => { event.preventDefault(); const values = Object.fromEntries(new FormData(configForm).entries()); try { await cloud.configure(values.url, values.anonKey); cloudModal(); } catch (error) { notify(error.message || 'Não foi possível guardar a ligação.'); } });
+  const loginForm = $('#cloudLoginForm');
+  if (loginForm) loginForm.addEventListener('submit', async event => { event.preventDefault(); const button = event.submitter; const values = Object.fromEntries(new FormData(loginForm).entries()); try { const result = await cloud.signIn(values.email, values.password, button?.value === 'signup'); if (result.emailConfirmationRequired) return notify('Confirme o e-mail e depois entre.'); if (result.needsBootstrap) return cloudBootstrapModal(); closeModal(); notify('Sessão online iniciada.'); } catch (error) { notify(error.message || 'Não foi possível iniciar sessão.'); } });
+  $('#clearCloudConfig')?.addEventListener('click', () => { if (confirm('Remover a ligação deste navegador? A base online não será apagada.')) { cloud.clearConfig(); cloudModal(); } });
+  $('#cloudSignOut')?.addEventListener('click', async () => { await cloud.signOut(); sessionLocked = true; cloudModal(); });
+}
+
+window.VendaMaisCloud?.setHooks({ getData: () => data, replaceData: replaceDataFromCloud, mergeSale: mergeCloudSale, onStatus: updateCloudUi });
+
 document.addEventListener('click', event => {
   const reportTab=event.target.closest('[data-report-tab]'); if(reportTab){const key=reportTab.dataset.reportTab;$$('[data-report-tab]').forEach(button=>button.classList.toggle('active',button===reportTab));$$('[data-report-pane]').forEach(pane=>{const active=pane.dataset.reportPane===key;pane.hidden=!active;pane.classList.toggle('active',active);});return;}
   const nav = event.target.closest('.nav-link'); if (nav) return showView(nav.dataset.view);
   const go = event.target.closest('[data-go]'); if (go) return showView(go.dataset.go);
   if (event.target.closest('#menuToggle')) return $('#sidebar').classList.toggle('open');
   if (event.target.closest('#quickSale')) return showView('pos');
+  if (event.target.closest('#cloudStatus')) return cloudModal();
   if (event.target.closest('#accountButton')) return accountModal();
   if (event.target.closest('#lockSession')) return lockSession();
   if (event.target.closest('[data-close-modal]') || event.target === $('#modalBackdrop')) return closeModal();
@@ -922,6 +1006,7 @@ document.addEventListener('click', event => {
   const editLocation = event.target.closest('[data-edit-location]'); if (editLocation) return locationModal(locationById(editLocation.dataset.editLocation));
   if (event.target.closest('#manageUsers')) return usersModal();
   if (event.target.closest('#viewAudit')) return auditModal();
+  if (event.target.closest('#manageCloud')) return cloudModal();
   if (event.target.closest('#manageIntegrations')) return integrationsModal();
   if (event.target.closest('#newUser')) return userModal();
   if (event.target.closest('#changeOwnPin')) return changePinModal(currentUser);
@@ -939,5 +1024,11 @@ document.addEventListener('change', event => { if (event.target.id === 'posCateg
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && $('#modalBackdrop').classList.contains('open')) closeModal(); });
 $('#settingsForm').addEventListener('submit', event => { event.preventDefault(); if (!isAdministrator()) return notify('Apenas administradores podem alterar definições.'); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.taxRate = Number(values.taxRate); values.stockLimit = Number(values.stockLimit); data.settings = { ...data.settings, ...values }; saveData(); $('#companyName').textContent = data.settings.company; notify('Definições guardadas.'); renderAll(); });
 
-function initialize() { $('#topDate').textContent = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderDashboard(); accountModal(); }
+function initialize() {
+  $('#topDate').textContent = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+  $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderDashboard(); updateCloudUi();
+  if (window.VendaMaisCloud?.configured?.()) {
+    window.VendaMaisCloud.prepare().then(result => { if (!result?.connected) cloudModal(); }).catch(() => cloudModal());
+  } else accountModal();
+}
 initialize();

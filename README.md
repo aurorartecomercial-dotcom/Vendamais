@@ -1,6 +1,6 @@
 # VendaMais
 
-> Sistema local de ponto de venda, inventário e gestão comercial para pequenos e médios negócios.
+> Sistema de ponto de venda, inventário e gestão comercial para pequenos e médios negócios, com modo local e sincronização online multi-loja.
 
 VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço num único painel simples de usar. É uma aplicação web estática: funciona num navegador moderno sem servidor, instalação ou dependências externas.
 
@@ -22,6 +22,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
 | Gestão financeira por loja | Comparar faturação com e sem IVA, custos fixos e variáveis, custo histórico dos produtos e resultado estimado de cada loja ou de todas em conjunto. |
+| Dados online multi-loja | Liga a empresa a uma base Supabase segura: a venda é registada no livro central antes da confirmação e o administrador recebe o fecho diário de cada loja. |
 | Despesas recorrentes | Registar despesas únicas ou mensais (renda, salários, internet, energia), classificadas por tipo de custo e loja. |
 | Vendas semanais | Consultar a faturação por Semana 1 a Semana 5 de cada mês. |
 | Relatório por vendedor | Consultar as vendas de cada vendedor por dia e por mês, com quantidade de vendas, faturação, média e valor por receber. |
@@ -79,17 +80,20 @@ vendamais/
 ├── index.html              # estrutura e ecrãs da aplicação
 ├── styles.css              # design responsivo
 ├── app.js                  # lógica de vendas, stock, relatórios e backups
+├── cloud.js                # login e sincronização com a base online
 ├── package.json            # comandos de desenvolvimento e validação
 ├── scripts/
 │   ├── serve.mjs           # servidor local sem dependências
 │   └── verify.mjs          # verificações automatizadas
 ├── docs/ARQUITETURA.md     # modelo de dados e fluxos principais
+├── supabase/schema.sql     # estrutura segura da base central
 └── .github/workflows/ci.yml # validação automática no GitHub Actions
 ```
 
 ## Dados, cópias e privacidade
 
-- Os dados são guardados em `localStorage` do navegador; não são enviados para nenhum serviço.
+- Sem ligação online, os dados são guardados em `localStorage` do navegador.
+- Com **Definições → Ligar dados online**, a empresa passa a usar Supabase: as vendas são gravadas num livro central e catálogo/stock/configurações são sincronizados entre lojas. A cópia local passa a ser apenas uma cópia de trabalho.
 - Crie uma cópia periódica em **Definições → Guardar cópia**.
 - Para mudar de computador, use **Restaurar cópia** no novo navegador.
 - Limpar os dados do navegador sem criar uma cópia apaga os registos locais.
@@ -108,20 +112,22 @@ vendamais/
 
 O administrador define o local atribuído ao criar cada utilizador. O vendedor fica automaticamente limitado a esse local; administradores e gerentes podem seleccionar o local de operação no topo da aplicação. Para mover mercadoria, use **Inventário → Transferir stock**, nunca ajuste manualmente ambos os lados.
 
-> Esta separação protege a operação normal no navegador. Para segurança real entre computadores ou contra alguém com acesso técnico ao dispositivo, utilize a versão com servidor, contas autenticadas e base de dados centralizada.
+> No modo local, esta separação protege apenas a operação no navegador. Para segurança real entre computadores, ligue a base online e use uma conta individual para cada operador.
 
 ## Preparação para produção
 
-Esta edição é uma base sólida para uso numa máquina, demonstrações e pequenos negócios. Para uma operação comercial com vários utilizadores, caixas ou filiais, a evolução recomendada é:
+Esta edição inclui a ligação opcional a Supabase para operação com lojas e computadores diferentes. Consulte o guia completo de [dados online, utilizadores e publicação no GitHub Pages](docs/ONLINE.md) antes de a activar.
 
-1. Criar uma API protegida e uma base de dados centralizada.
-2. Implementar autenticação, perfis de acesso e registo de auditoria.
-3. Ligar facturação à solução certificada/regras fiscais aplicáveis em Angola.
-4. Disponibilizar cópias automáticas, sincronização e relatórios contabilísticos avançados.
+Para uma operação comercial com vários utilizadores, caixas ou filiais:
+
+1. Crie o projecto Supabase e execute `supabase/schema.sql`.
+2. Crie contas individuais e atribua-as à loja certa.
+3. Publique o código no GitHub Pages ou noutra hospedagem HTTPS.
+4. Lembre-se de ligar facturação à solução certificada/regras fiscais aplicáveis em Angola.
 
 > O projecto não substitui software de facturação certificado nem valida obrigações fiscais. Confirme as regras aplicáveis antes de o usar para emissão oficial de documentos.
 
-Consulte também [Produção e segurança](docs/PRODUCAO.md): o projecto inclui um esquema PostgreSQL/Supabase inicial, mas a conta da base de dados, autenticação, credenciais bancárias e certificação devem ser configuradas pela empresa antes da operação online.
+Consulte também [Produção e segurança](docs/PRODUCAO.md): as credenciais bancárias e a certificação devem ser configuradas pela empresa antes da operação comercial.
 
 ## Contribuir
 

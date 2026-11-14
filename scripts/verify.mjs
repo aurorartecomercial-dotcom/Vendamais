@@ -7,11 +7,13 @@ const requiredFiles = [
   'index.html',
   'styles.css',
   'app.js',
+  'cloud.js',
   'README.md',
   'LICENSE',
   'package.json',
   'docs/ARQUITETURA.md',
   'docs/PRODUCAO.md',
+  'docs/ONLINE.md',
   'supabase/schema.sql'
 ];
 const requiredInterfaceIds = [
@@ -72,10 +74,15 @@ for (const id of requiredInterfaceIds) {
 }
 
 const app = readFileSync(resolve(root, 'app.js'), 'utf8');
+const cloud = readFileSync(resolve(root, 'cloud.js'), 'utf8');
 for (const fn of requiredFunctions) {
   if (!app.includes(`function ${fn}`)) failures.push(`Função essencial em falta: ${fn}`);
 }
-if (!app.includes('localStorage')) failures.push('Persistência local não encontrada.');
+if (!app.includes('localStorage')) failures.push('Cópia de trabalho local não encontrada.');
+if (!app.includes('VendaMaisCloud')) failures.push('Integração com dados online não encontrada.');
+if (!cloud.includes('sales_ledger')) failures.push('Livro central de vendas não encontrado.');
+if (!cloud.includes('recordSale')) failures.push('Registo remoto de vendas não encontrado.');
+if (!cloud.includes('save_vendamais_state')) failures.push('Sincronização do estado empresarial não encontrada.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
 if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
@@ -95,6 +102,8 @@ if (!html.includes('id="weeklySalesTable"')) failures.push('Tabela de vendas sem
 if (!html.includes('id="reportLocationFilter"')) failures.push('Filtro de loja nos relatórios não encontrado.');
 if (!html.includes('id="sellerReportFilter"')) failures.push('Filtro de vendedores no relatório não encontrado.');
 if (!html.includes('id="sellerDailyTable"') || !html.includes('id="sellerMonthlyTable"')) failures.push('Tabelas diária e mensal de vendedores não encontradas.');
+if (!html.includes('id="storeTodayTable"')) failures.push('Resumo diário por loja não encontrado.');
+if (!html.includes('id="manageCloud"')) failures.push('Configuração de dados online não encontrada.');
 if (!app.includes('data.transfers')) failures.push('Transferências de stock não encontradas.');
 if (!app.includes('fixedCosts')) failures.push('Custos fixos por loja não encontrados.');
 if (!app.includes('Vendas líquidas (sem IVA)')) failures.push('Cálculo de vendas sem IVA não encontrado.');

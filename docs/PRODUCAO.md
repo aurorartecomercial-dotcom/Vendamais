@@ -14,15 +14,15 @@ Uma aplicação local não pode, por si só, permitir vários computadores em si
 
 1. Crie um projecto PostgreSQL/Supabase da empresa.
 2. Execute [schema.sql](../supabase/schema.sql) no editor SQL.
-3. Crie a autenticação dos utilizadores e associe cada um à empresa na tabela `profiles`.
-4. Guarde as chaves públicas apenas num ambiente de servidor; nunca publique chaves privadas ou `.env`.
-5. Faça a interface usar a API/Supabase em vez do armazenamento local antes de disponibilizar a vários operadores.
+3. Siga o guia de [dados online](ONLINE.md) para criar a primeira conta, sincronizar os dados e atribuir cada operador à sua loja.
+4. Use apenas a chave pública anon/publishable no navegador; nunca publique chaves privadas, `service_role` ou um `.env` real.
+5. Publique a interface numa origem HTTPS (por exemplo, GitHub Pages) e registe essa origem em Authentication → URL Configuration no Supabase.
 6. Contrate um fornecedor autorizado antes de activar pagamentos Multicaixa ou uma impressora fiscal.
 7. Valide com contabilista e AGT a numeração, assinatura, certificação e obrigação fiscal de cada documento.
 
 ## Segurança essencial
 
-- Não use a selecção local de operador como autenticação em produção: implemente palavra-passe, MFA quando aplicável, recuperação de acesso e expiração de sessão.
+- Não use a selecção local de operador como autenticação em produção. A edição online usa palavra-passe por conta Supabase; active confirmação de e-mail, MFA e políticas de palavra-passe conforme a sua operação.
 - Registe auditoria no servidor, sem permitir que o operador a edite.
 - Faça cópias automáticas da base de dados e teste periodicamente a restauração.
 - Use HTTPS, permissões por empresa e transacções de base de dados para reduzir stock e registar vendas numa única operação atómica.

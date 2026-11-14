@@ -1,21 +1,13 @@
--- VendaMais Pro — base de dados PostgreSQL/Supabase
--- Execute no SQL Editor de um projecto Supabase novo.
--- Esta migração prepara a persistência multiutilizador; não inclui chaves privadas.
+-- VendaMais Online — execute este ficheiro uma única vez no SQL Editor
+-- de um projecto novo do Supabase. Não use a service_role key no navegador.
 
 create extension if not exists pgcrypto;
 
-create type public.user_role as enum ('Administrador', 'Gerente', 'Caixa');
-create type public.payment_status as enum ('Pago', 'Parcial', 'Pendente', 'Anulada');
-create type public.document_status as enum ('Concluída', 'Devolvida', 'Anulada');
-
 create table public.companies (
   id uuid primary key default gen_random_uuid(),
-  name text not null,
-  nif text not null unique,
-  phone text,
-  email text,
-  address text,
-  tax_rate numeric(5,2) not null default 14 check (tax_rate between 0 and 100),
+  name text not null check (length(trim(name)) > 0),
+  nif text,
+  owner_id uuid not null references auth.users(id) on delete restrict,
   created_at timestamptz not null default now()
 );
 
@@ -23,210 +15,177 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   company_id uuid not null references public.companies(id) on delete cascade,
   full_name text not null,
-  initials text not null,
-  role public.user_role not null default 'Caixa',
+  role text not null check (role in ('Administrador', 'Gerente', 'Vendedor')),
+  location_id text,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
 
--- Evita políticas recursivas: devolve a empresa associada ao utilizador autenticado.
+-- Guarda catálogo, stock, clientes, caixas, despesas e configurações.
+-- Vendas ficam separadas no livro abaixo para que uma venda nunca seja perdida
+-- quando duas lojas gravam em simultâneo.
+create table public.business_snapshots (
+  company_id uuid primary key references public.companies(id) on delete cascade,
+  state jsonb not null default '{}'::jsonb,
+  revision bigint not null default 0,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+create table public.sales_ledger (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  sale_id text not null,
+  location_id text not null,
+  occurred_at timestamptz not null,
+  total numeric(14,2) not null check (total >= 0),
+  status text not null default 'Concluída',
+  sale_data jsonb not null,
+  created_by uuid not null default auth.uid() references auth.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (company_id, sale_id)
+);
+
+create index sales_ledger_company_day_idx on public.sales_ledger (company_id, occurred_at desc);
+create index sales_ledger_company_location_day_idx on public.sales_ledger (company_id, location_id, occurred_at desc);
+
 create or replace function public.current_company_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = public
+returns uuid language sql stable security definer set search_path = public
 as $$ select company_id from public.profiles where id = auth.uid() $$;
 
-create table public.customers (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete cascade,
-  customer_type text not null check (customer_type in ('Particular', 'Empresa')),
-  name text not null,
-  nif text,
-  phone text,
-  email text,
-  billing_address text,
-  credit_limit numeric(14,2) not null default 0 check (credit_limit >= 0),
-  created_at timestamptz not null default now(),
-  unique(company_id, nif)
-);
+create or replace function public.is_company_manager()
+returns boolean language sql stable security definer set search_path = public
+as $$ select exists (select 1 from public.profiles where id = auth.uid() and active and role in ('Administrador', 'Gerente')) $$;
 
-create table public.suppliers (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete cascade,
-  name text not null,
-  nif text,
-  phone text,
-  email text,
-  address text,
-  created_at timestamptz not null default now()
-);
+create or replace function public.current_location_id()
+returns text language sql stable security definer set search_path = public
+as $$ select location_id from public.profiles where id = auth.uid() $$;
 
-create table public.products (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete cascade,
-  code text not null,
-  barcode text,
-  name text not null,
-  category text,
-  unit text not null default 'un.',
-  warehouse text not null default 'Armazém principal',
-  cost numeric(14,2) not null default 0 check (cost >= 0),
-  price numeric(14,2) not null default 0 check (price >= 0),
-  stock numeric(14,3) not null default 0 check (stock >= 0),
-  min_stock numeric(14,3) not null default 0 check (min_stock >= 0),
-  lot text,
-  expiry_date date,
-  created_at timestamptz not null default now(),
-  unique(company_id, code),
-  unique(company_id, barcode)
-);
+-- Cria a primeira empresa depois de o administrador criar a conta no ecrã
+-- de dados online. A função só pode criar uma empresa para o próprio utilizador.
+create or replace function public.bootstrap_vendamais_company(
+  p_company_name text,
+  p_nif text,
+  p_initial_state jsonb,
+  p_initial_sales jsonb
+)
+returns table (id uuid, company_id uuid, full_name text, role text, location_id text, active boolean)
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_company_id uuid;
+  v_name text;
+  v_location_id text;
+begin
+  if auth.uid() is null then raise exception 'É necessário iniciar sessão.'; end if;
 
-create table public.purchases (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete restrict,
-  supplier_id uuid not null references public.suppliers(id),
-  reference text not null,
-  payment_method text not null,
-  payment_status public.payment_status not null default 'Pago',
-  total numeric(14,2) not null,
-  amount_paid numeric(14,2) not null default 0,
-  balance_due numeric(14,2) not null default 0,
-  created_at timestamptz not null default now(),
-  unique(company_id, reference)
-);
+  select p.id, p.company_id, p.full_name, p.role, p.location_id, p.active
+    into id, company_id, full_name, role, location_id, active
+  from public.profiles p where p.id = auth.uid();
+  if found then return next; return; end if;
 
-create table public.purchase_items (
-  id uuid primary key default gen_random_uuid(),
-  purchase_id uuid not null references public.purchases(id) on delete restrict,
-  product_id uuid references public.products(id) on delete set null,
-  quantity numeric(14,3) not null check (quantity > 0),
-  unit_cost numeric(14,2) not null check (unit_cost >= 0)
-);
+  v_name := nullif(trim(p_company_name), '');
+  if v_name is null then raise exception 'Indique o nome da empresa.'; end if;
+  v_location_id := coalesce(nullif(p_initial_state #>> '{settings,activeLocationId}', ''), 'loc_main');
 
-create table public.supplier_payments (
-  id uuid primary key default gen_random_uuid(),
-  purchase_id uuid not null references public.purchases(id) on delete restrict,
-  user_id uuid not null references public.profiles(id),
-  payment_method text not null,
-  amount numeric(14,2) not null check (amount > 0),
-  note text,
-  created_at timestamptz not null default now()
-);
+  insert into public.companies (name, nif, owner_id)
+  values (v_name, nullif(trim(p_nif), ''), auth.uid())
+  returning companies.id into v_company_id;
 
-create table public.cash_sessions (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete cascade,
-  user_id uuid not null references public.profiles(id),
-  opened_at timestamptz not null default now(),
-  closed_at timestamptz,
-  opening_amount numeric(14,2) not null default 0 check (opening_amount >= 0),
-  expected_amount numeric(14,2),
-  counted_amount numeric(14,2),
-  difference numeric(14,2),
-  status text not null default 'Aberto' check (status in ('Aberto', 'Fechado')),
-  note text,
-  closing_note text
-);
+  insert into public.profiles (id, company_id, full_name, role, location_id)
+  values (auth.uid(), v_company_id, coalesce(nullif(auth.jwt() ->> 'email', ''), 'Administrador'), 'Administrador', v_location_id);
 
-create table public.sales (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete restrict,
-  customer_id uuid references public.customers(id) on delete set null,
-  operator_id uuid not null references public.profiles(id),
-  cash_session_id uuid references public.cash_sessions(id),
-  reference text not null,
-  document_type text not null,
-  document_status public.document_status not null default 'Concluída',
-  payment_method text not null,
-  payment_status public.payment_status not null default 'Pago',
-  due_date date,
-  customer_snapshot jsonb not null default '{}'::jsonb,
-  subtotal numeric(14,2) not null,
-  discount_value numeric(14,2) not null default 0,
-  tax numeric(14,2) not null default 0,
-  total numeric(14,2) not null,
-  amount_paid numeric(14,2) not null default 0,
-  balance_due numeric(14,2) not null default 0,
-  created_at timestamptz not null default now(),
-  unique(company_id, reference)
-);
+  insert into public.business_snapshots (company_id, state, revision, updated_by)
+  values (v_company_id, coalesce(p_initial_state, '{}'::jsonb), 0, auth.uid());
 
-create table public.sale_items (
-  id uuid primary key default gen_random_uuid(),
-  sale_id uuid not null references public.sales(id) on delete restrict,
-  product_id uuid references public.products(id) on delete set null,
-  product_snapshot jsonb not null,
-  quantity numeric(14,3) not null check (quantity > 0),
-  unit_price numeric(14,2) not null,
-  unit_cost numeric(14,2) not null,
-  line_total numeric(14,2) not null
-);
+  insert into public.sales_ledger (company_id, sale_id, location_id, occurred_at, total, status, sale_data, created_by)
+  select
+    v_company_id,
+    sale ->> 'id',
+    coalesce(nullif(sale ->> 'locationId', ''), v_location_id),
+    coalesce(nullif(sale ->> 'date', '')::timestamptz, now()),
+    coalesce(nullif(sale ->> 'total', '')::numeric, 0),
+    coalesce(nullif(sale ->> 'status', ''), 'Concluída'),
+    sale,
+    auth.uid()
+  from jsonb_array_elements(coalesce(p_initial_sales, '[]'::jsonb)) sale
+  where coalesce(sale ->> 'id', '') <> ''
+  on conflict (company_id, sale_id) do nothing;
 
-create table public.stock_movements (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete cascade,
-  product_id uuid not null references public.products(id),
-  user_id uuid references public.profiles(id),
-  movement_type text not null check (movement_type in ('Entrada', 'Saída', 'Ajuste', 'Devolução')),
-  quantity numeric(14,3) not null,
-  note text,
-  reference text,
-  created_at timestamptz not null default now()
-);
+  return query select p.id, p.company_id, p.full_name, p.role, p.location_id, p.active
+  from public.profiles p where p.id = auth.uid();
+end;
+$$;
 
-create table public.cash_movements (
-  id uuid primary key default gen_random_uuid(),
-  cash_session_id uuid not null references public.cash_sessions(id) on delete restrict,
-  user_id uuid not null references public.profiles(id),
-  movement_type text not null check (movement_type in ('Entrada', 'Saída')),
-  amount numeric(14,2) not null check (amount > 0),
-  note text not null,
-  created_at timestamptz not null default now()
-);
+-- Atualização optimista do estado que não é venda. Se outra loja tiver gravado
+-- antes, não actualiza nada; o navegador descarrega a versão mais recente.
+create or replace function public.save_vendamais_state(p_state jsonb, p_expected_revision bigint)
+returns table (revision bigint)
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if public.current_company_id() is null then raise exception 'Utilizador sem empresa atribuída.'; end if;
+  update public.business_snapshots
+     set state = coalesce(p_state, '{}'::jsonb), revision = business_snapshots.revision + 1,
+         updated_at = now(), updated_by = auth.uid()
+   where company_id = public.current_company_id() and revision = p_expected_revision
+  returning business_snapshots.revision into revision;
+  if found then return next; end if;
+end;
+$$;
 
-create table public.audit_logs (
-  id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies(id) on delete cascade,
-  user_id uuid references public.profiles(id),
-  action text not null,
-  detail text,
-  created_at timestamptz not null default now()
-);
+-- Usada pelo administrador depois de criar a conta do operador em
+-- Authentication > Users. Exemplo:
+-- select public.provision_vendamais_user('UUID-DO-OPERADOR', 'Maria Silva', 'Vendedor', 'loc_loja_baia');
+create or replace function public.provision_vendamais_user(
+  p_user_id uuid, p_full_name text, p_role text, p_location_id text default null
+)
+returns void language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_company_manager() then raise exception 'Apenas administrador ou gerente pode atribuir operadores.'; end if;
+  if p_role not in ('Administrador', 'Gerente', 'Vendedor') then raise exception 'Função inválida.'; end if;
+  insert into public.profiles (id, company_id, full_name, role, location_id)
+  values (p_user_id, public.current_company_id(), nullif(trim(p_full_name), ''), p_role, nullif(trim(p_location_id), ''))
+  on conflict (id) do update set company_id = excluded.company_id, full_name = excluded.full_name,
+    role = excluded.role, location_id = excluded.location_id, active = true;
+end;
+$$;
 
-create index sales_company_created_at_idx on public.sales(company_id, created_at desc);
-create index products_company_stock_idx on public.products(company_id, stock);
-create index stock_movements_product_created_at_idx on public.stock_movements(product_id, created_at desc);
-create index purchases_company_created_at_idx on public.purchases(company_id, created_at desc);
-
--- A aplicação deve definir app.company_id após autenticar.
 alter table public.companies enable row level security;
 alter table public.profiles enable row level security;
-alter table public.customers enable row level security;
-alter table public.suppliers enable row level security;
-alter table public.products enable row level security;
-alter table public.purchases enable row level security;
-alter table public.purchase_items enable row level security;
-alter table public.supplier_payments enable row level security;
-alter table public.cash_sessions enable row level security;
-alter table public.sales enable row level security;
-alter table public.sale_items enable row level security;
-alter table public.stock_movements enable row level security;
-alter table public.cash_movements enable row level security;
-alter table public.audit_logs enable row level security;
+alter table public.business_snapshots enable row level security;
+alter table public.sales_ledger enable row level security;
 
-create policy "companies_same_company" on public.companies for select using (id = public.current_company_id());
-create policy "profiles_same_company" on public.profiles for select using (company_id = public.current_company_id());
-create policy "customers_same_company" on public.customers for all using (company_id = public.current_company_id()) with check (company_id = public.current_company_id());
-create policy "suppliers_same_company" on public.suppliers for all using (company_id = public.current_company_id()) with check (company_id = public.current_company_id());
-create policy "products_same_company" on public.products for all using (company_id = public.current_company_id()) with check (company_id = public.current_company_id());
-create policy "purchases_same_company" on public.purchases for all using (company_id = public.current_company_id()) with check (company_id = public.current_company_id());
-create policy "sales_same_company" on public.sales for all using (company_id = public.current_company_id()) with check (company_id = public.current_company_id());
-create policy "cash_sessions_same_company" on public.cash_sessions for all using (company_id = public.current_company_id()) with check (company_id = public.current_company_id());
-create policy "stock_same_company" on public.stock_movements for all using (company_id = public.current_company_id()) with check (company_id = public.current_company_id());
-create policy "audit_same_company" on public.audit_logs for select using (company_id = public.current_company_id());
-create policy "sale_items_same_company" on public.sale_items for all using (exists (select 1 from public.sales where sales.id = sale_id and sales.company_id = public.current_company_id())) with check (exists (select 1 from public.sales where sales.id = sale_id and sales.company_id = public.current_company_id()));
-create policy "cash_movements_same_company" on public.cash_movements for all using (exists (select 1 from public.cash_sessions where cash_sessions.id = cash_session_id and cash_sessions.company_id = public.current_company_id())) with check (exists (select 1 from public.cash_sessions where cash_sessions.id = cash_session_id and cash_sessions.company_id = public.current_company_id()));
-create policy "purchase_items_same_company" on public.purchase_items for all using (exists (select 1 from public.purchases where purchases.id = purchase_id and purchases.company_id = public.current_company_id())) with check (exists (select 1 from public.purchases where purchases.id = purchase_id and purchases.company_id = public.current_company_id()));
-create policy "supplier_payments_same_company" on public.supplier_payments for all using (exists (select 1 from public.purchases where purchases.id = purchase_id and purchases.company_id = public.current_company_id())) with check (exists (select 1 from public.purchases where purchases.id = purchase_id and purchases.company_id = public.current_company_id()));
+create policy companies_select_own on public.companies for select using (id = public.current_company_id());
+create policy profiles_select_company on public.profiles for select using (company_id = public.current_company_id());
+create policy snapshot_select_company on public.business_snapshots for select using (company_id = public.current_company_id());
+create policy sales_select_company on public.sales_ledger for select using (company_id = public.current_company_id());
+create policy sales_insert_assigned_store on public.sales_ledger for insert with check (
+  company_id = public.current_company_id() and created_by = auth.uid()
+  and (public.is_company_manager() or location_id = public.current_location_id())
+);
+create policy sales_update_own_or_manager on public.sales_ledger for update
+  using (company_id = public.current_company_id() and (created_by = auth.uid() or public.is_company_manager()))
+  with check (company_id = public.current_company_id());
+
+grant execute on function public.bootstrap_vendamais_company(text, text, jsonb, jsonb) to authenticated;
+grant execute on function public.save_vendamais_state(jsonb, bigint) to authenticated;
+grant execute on function public.provision_vendamais_user(uuid, text, text, text) to authenticated;
+
+-- Realtime permite que o administrador veja novas vendas sem actualizar a página.
+alter table public.business_snapshots replica identity full;
+alter table public.sales_ledger replica identity full;
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'business_snapshots') then
+      execute 'alter publication supabase_realtime add table public.business_snapshots';
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'sales_ledger') then
+      execute 'alter publication supabase_realtime add table public.sales_ledger';
+    end if;
+  end if;
+end;
+$$;
