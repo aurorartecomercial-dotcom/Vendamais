@@ -70,20 +70,23 @@ create or replace function public.bootstrap_vendamais_company(
   p_initial_state jsonb,
   p_initial_sales jsonb
 )
-returns table (id uuid, company_id uuid, full_name text, role text, location_id text, active boolean)
+returns jsonb
 language plpgsql security definer set search_path = public
 as $$
 declare
   v_company_id uuid;
   v_name text;
   v_location_id text;
+  v_profile jsonb;
 begin
   if auth.uid() is null then raise exception 'É necessário iniciar sessão.'; end if;
 
-  select p.id, p.company_id, p.full_name, p.role, p.location_id, p.active
-    into id, company_id, full_name, role, location_id, active
+  select jsonb_build_object(
+    'id', p.id, 'company_id', p.company_id, 'full_name', p.full_name,
+    'role', p.role, 'location_id', p.location_id, 'active', p.active
+  ) into v_profile
   from public.profiles p where p.id = auth.uid();
-  if found then return next; return; end if;
+  if v_profile is not null then return v_profile; end if;
 
   v_name := nullif(trim(p_company_name), '');
   if v_name is null then raise exception 'Indique o nome da empresa.'; end if;
@@ -113,25 +116,31 @@ begin
   where coalesce(sale ->> 'id', '') <> ''
   on conflict (company_id, sale_id) do nothing;
 
-  return query select p.id, p.company_id, p.full_name, p.role, p.location_id, p.active
-  from public.profiles p where p.id = auth.uid();
+  return jsonb_build_object(
+    'id', auth.uid(), 'company_id', v_company_id,
+    'full_name', coalesce(nullif(auth.jwt() ->> 'email', ''), 'Administrador'),
+    'role', 'Administrador', 'location_id', v_location_id, 'active', true
+  );
 end;
 $$;
 
 -- Atualização optimista do estado que não é venda. Se outra loja tiver gravado
 -- antes, não actualiza nada; o navegador descarrega a versão mais recente.
 create or replace function public.save_vendamais_state(p_state jsonb, p_expected_revision bigint)
-returns table (revision bigint)
+returns jsonb
 language plpgsql security definer set search_path = public
 as $$
+declare
+  v_next_revision bigint;
 begin
   if public.current_company_id() is null then raise exception 'Utilizador sem empresa atribuída.'; end if;
   update public.business_snapshots
      set state = coalesce(p_state, '{}'::jsonb), revision = business_snapshots.revision + 1,
          updated_at = now(), updated_by = auth.uid()
    where company_id = public.current_company_id() and revision = p_expected_revision
-  returning business_snapshots.revision into revision;
-  if found then return next; end if;
+  returning business_snapshots.revision into v_next_revision;
+  if found then return jsonb_build_object('revision', v_next_revision); end if;
+  return null;
 end;
 $$;
 
