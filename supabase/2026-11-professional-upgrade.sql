@@ -168,7 +168,7 @@ begin
   v_sale := jsonb_set(v_sale, '{reference}', to_jsonb('VD-' || lpad(v_sequence::text, 6, '0')), true);
   v_sale := jsonb_set(v_sale, '{operatorId}', to_jsonb(auth.uid()::text), true);
   v_sale := jsonb_set(v_sale, '{operatorName}', to_jsonb(coalesce(v_operator_name, 'Operador')), true);
-  v_sale := jsonb_set(v_sale, '{syncStatus}', to_jsonb('Sincronizada'), true);
+  v_sale := jsonb_set(v_sale, '{syncStatus}', to_jsonb('Sincronizada'::text), true);
 
   update public.business_snapshots
   set state = v_state,

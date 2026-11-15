@@ -17,7 +17,8 @@ const requiredFiles = [
   'docs/ONLINE.md',
   'docs/PROFESSIONAL.md',
   'supabase/schema.sql',
-  'supabase/2026-11-professional-upgrade.sql'
+  'supabase/2026-11-professional-upgrade.sql',
+  'supabase/fix-record-vendamais-sale.sql'
 ];
 const requiredInterfaceIds = [
   'dashboardView',
@@ -117,6 +118,9 @@ if (!app.includes('BRAND_THEMES') || !app.includes('applyBrandTheme')) failures.
 if (!app.includes('colorId') || !app.includes('themePickerHtml')) failures.push('Cores individuais por loja não encontradas.');
 if (!html.includes('companyThemePicker')) failures.push('Escolha de cores da empresa não encontrada.');
 if (!professionalSql.includes('record_vendamais_sale')) failures.push('Venda atómica central não encontrada.');
+if (!professionalSql.includes("to_jsonb('Sincronizada'::text)")) failures.push('Texto syncStatus sem conversão explícita para text.');
+const saleFixSql = readFileSync(resolve(root, 'supabase/fix-record-vendamais-sale.sql'), 'utf8');
+if (!saleFixSql.includes("to_jsonb('Sincronizada'::text)")) failures.push('Migração de correção da venda sem cast explícito para text.');
 if (!professionalSql.includes('business_backups')) failures.push('Cópias automáticas online não encontradas.');
 if (!professionalSql.includes('audit_events')) failures.push('Auditoria central não encontrada.');
 if (!professionalSql.includes('request_vendamais_access')) failures.push('Pedido de acesso central não encontrado.');
