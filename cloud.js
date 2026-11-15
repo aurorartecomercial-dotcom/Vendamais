@@ -54,6 +54,15 @@ window.VendaMaisCloud = (() => {
     return state;
   }
   function initialSales(data) { return clone(data?.sales || []); }
+  function blankCompanyState(source = {}) {
+    const state = clone(source || {});
+    const zeroCosts = { Renda: 0, Energia: 0, Água: 0, Internet: 0, Salários: 0, Segurança: 0, Outros: 0 };
+    for (const key of ['products','customers','suppliers','sales','purchases','movements','receipts','supplierPayments','transfers','cashSessions','cashMovements','expenses','returns','auditLog']) state[key] = [];
+    state.locations = (state.locations || []).map(location => ({ ...location, fixedCosts: { ...zeroCosts } }));
+    if (!state.locations.length) state.locations = [{ id: 'loc_main', name: 'Loja principal', type: 'Loja', active: true, fixedCosts: { ...zeroCosts } }];
+    state.settings = { ...(state.settings || {}), activeLocationId: state.locations[0].id };
+    return state;
+  }
   function library() {
     if (!window.supabase?.createClient) throw new Error('Não foi possível carregar a biblioteca de dados online. Verifique a ligação à internet.');
     return window.supabase;
@@ -141,8 +150,8 @@ window.VendaMaisCloud = (() => {
     const { data: result, error } = await client.rpc('bootstrap_vendamais_company', {
       p_company_name: String(companyName || '').trim(),
       p_nif: String(nif || '').trim(),
-      p_initial_state: serialisableState(source),
-      p_initial_sales: initialSales(source)
+      p_initial_state: serialisableState(blankCompanyState(source)),
+      p_initial_sales: []
     });
     if (error) { emitStatus('error', getErrorMessage(error)); throw error; }
     const profile = Array.isArray(result) ? result[0] : result;
@@ -255,6 +264,19 @@ window.VendaMaisCloud = (() => {
     if (error) { emitStatus('error', getErrorMessage(error)); return false; }
     return true;
   }
+  async function clearBusinessData() {
+    if (!connected()) throw new Error('Inicie a sessão online como administrador para limpar os dados centrais.');
+    if (saving) throw new Error('Aguarde a sincronização em curso antes de limpar os dados.');
+    clearTimeout(saveTimer); saveTimer = null;
+    emitStatus('syncing', 'A eliminar os dados comerciais da empresa…');
+    const { data, error } = await client.rpc('reset_vendamais_business_data');
+    if (error) { emitStatus('error', getErrorMessage(error)); throw error; }
+    if (!data?.ok) throw new Error('O servidor não confirmou a limpeza dos dados.');
+    savePendingSales([]);
+    await refresh();
+    emitStatus('online', 'Dados comerciais eliminados e sincronizados');
+    return true;
+  }
   async function resetPassword(email) {
     if (!client) createClient();
     const { error } = await client.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: window.location.href });
@@ -322,7 +344,7 @@ window.VendaMaisCloud = (() => {
   return {
     setHooks(nextHooks) { hooks = { ...hooks, ...nextHooks }; hooks.onStatus?.(currentStatus); },
     configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
-    resetPassword, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, auditEvents, backups,
+    resetPassword, clearBusinessData, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, auditEvents, backups,
     configured, connected, pendingCount: () => pendingSales().length, status: () => currentStatus, config: () => config
   };
 })();

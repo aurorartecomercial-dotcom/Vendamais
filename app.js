@@ -145,16 +145,15 @@ function demoData() {
 }
 
 function emptyBusinessData(previous = {}) {
-  const base = demoData();
-  return normaliseData({
-    meta: { schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() },
-    settings: { ...base.settings, ...(previous.settings || {}) },
-    locations: Array.isArray(previous.locations) && previous.locations.length ? previous.locations : base.locations,
-    products: [], customers: [], suppliers: [], sales: [], purchases: [], movements: [], receipts: [], supplierPayments: [], transfers: [],
-    cashSessions: [], cashMovements: [], expenses: [], returns: [], auditLog: [],
-    users: Array.isArray(previous.users) && previous.users.length ? previous.users : base.users,
-    integrations: { ...base.integrations, ...(previous.integrations || {}) }
-  });
+  const base = blankData(previous);
+  base.settings = { ...base.settings, ...(previous.settings || {}) };
+  base.locations = (Array.isArray(previous.locations) && previous.locations.length ? previous.locations : base.locations)
+    .map(location => normaliseLocation({ ...location, fixedCosts: Object.fromEntries(FIXED_COST_LABELS.map(label => [label, 0])) }));
+  base.settings.activeLocationId = base.locations.find(location => location.active)?.id || base.locations[0].id;
+  base.users = (Array.isArray(previous.users) && previous.users.length ? previous.users : base.users)
+    .filter(user => user.active).map(user => normaliseUser(user, base.settings.activeLocationId));
+  if (!base.users.some(user => user.role === 'Administrador')) base.users.unshift(normaliseUser({ id: uid('usr'), name: 'Administrador', initials: 'AD', role: 'Administrador', active: true, pin: '0000', pinMustChange: true }, base.settings.activeLocationId));
+  return normaliseData(base);
 }
 
 function customerSnapshot(customer) {
@@ -196,12 +195,24 @@ function normalisePurchase(purchase = {}) {
   const total = Number(purchase.total || 0); const credit = purchase.payment === 'Crédito' || purchase.paymentStatus === 'Pendente' || Number(purchase.balanceDue || 0) > 0; const balanceDue = Math.min(total, Math.max(0, Number(purchase.balanceDue ?? (credit ? total : 0))));
   return { ...purchase, paymentStatus: balanceDue <= 0 ? 'Pago' : (balanceDue < total ? 'Parcial' : 'Pendente'), amountPaid: Math.max(0, Number(purchase.amountPaid ?? (total - balanceDue))), balanceDue };
 }
+
+function blankData(previous = {}) {
+  const settings = { company: '', nif: '', phone: '', email: '', address: '', taxRate: 0, stockLimit: 5, defaultWarehouse: 'Armazém principal', activeLocationId: 'loc_main', themeId: 'esmeralda', ...(previous.settings || {}) };
+  const zeroCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, 0]));
+  const locations = Array.isArray(previous.locations) && previous.locations.length
+    ? previous.locations.map(location => ({ ...location, fixedCosts: { ...zeroCosts } }))
+    : [{ id: 'loc_main', name: 'Loja principal', type: 'Loja', address: '', active: true, colorId: 'esmeralda', fixedCosts: { ...zeroCosts } }];
+  const admin = (Array.isArray(previous.users) ? previous.users : []).find(user => user.role === 'Administrador' && user.active);
+  const users = admin ? [{ ...admin, locationId: locations[0].id, pinMustChange: true }] : [{ id: 'u_admin', name: 'Administrador', initials: 'AD', role: 'Administrador', active: true, pin: '0000', pinMustChange: true, locationId: locations[0].id }];
+  return { meta: { schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() }, settings, locations, products: [], customers: [], suppliers: [], sales: [], purchases: [], movements: [], receipts: [], supplierPayments: [], transfers: [], cashSessions: [], cashMovements: [], expenses: [], returns: [], auditLog: [], users, integrations: { thermalPrinter: false, barcodeScanner: true, multicaixa: false, accountingExport: false } };
+}
+
 function normaliseData(candidate) {
-  const base = demoData();
+  const base = blankData();
   const source = candidate && typeof candidate === 'object' && candidate.settings ? candidate : base;
   const collections = ['suppliers', 'movements', 'receipts', 'supplierPayments', 'cashSessions', 'cashMovements', 'returns', 'auditLog', 'transfers', 'expenses'];
   const restored = { ...base, ...source, settings: { ...base.settings, ...source.settings }, meta: { ...base.meta, ...source.meta, schemaVersion: STORAGE_VERSION } };
-  collections.forEach(key => { restored[key] = Array.isArray(source[key]) ? source[key] : (Array.isArray(base[key]) ? base[key] : []); });
+  collections.forEach(key => { restored[key] = Array.isArray(source[key]) ? source[key] : []; });
   restored.locations = (Array.isArray(source.locations) && source.locations.length ? source.locations : base.locations).map(normaliseLocation);
   const fallbackLocationId = restored.locations.find(location => location.id === restored.settings.activeLocationId && location.active)?.id || restored.locations.find(location => location.active)?.id || restored.locations[0].id;
   restored.settings.activeLocationId = fallbackLocationId;
@@ -953,7 +964,32 @@ function restore(file) { if (!isAdministrator()) return notify('Apenas administr
 function clearBusinessDataModal() {
   if (!isAdministrator()) return notify('Apenas administradores podem limpar os dados comerciais.');
   openModal(`${modalHeader('Começar com dados próprios', 'Esta operação remove os dados comerciais actuais, incluindo os de demonstração.')}<p class="modal-note">Antes de continuar, guarde uma cópia de segurança. Serão removidos produtos, clientes, fornecedores, vendas, compras, stock, caixa e movimentos. Os dados da empresa e os utilizadores serão mantidos.</p><form id="clearBusinessDataForm"><div class="modal-form"><label class="full">Escreva <b>LIMPAR</b> para confirmar<input name="confirmation" required autocomplete="off" placeholder="LIMPAR" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Começar sem dados</button></div></form>`);
-  $('#clearBusinessDataForm').addEventListener('submit', event => { event.preventDefault(); const confirmation = new FormData(event.currentTarget).get('confirmation').trim().toUpperCase(); if (confirmation !== 'LIMPAR') return notify('Escreva LIMPAR para confirmar esta operação.'); data = emptyBusinessData(data); currentUser = getSessionUser(); cart = []; audit('Dados comerciais limpos', 'Sistema preparado para introdução de dados próprios.'); saveData(); closeModal(); $('#companyName').textContent = data.settings.company; renderAccountButton(); renderAll(); notify('Sistema limpo. Pode agora criar os seus produtos, fornecedores e clientes.'); });
+  $('#clearBusinessDataForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const confirmation = String(new FormData(event.currentTarget).get('confirmation') || '').trim().toUpperCase();
+    if (confirmation !== 'LIMPAR') return notify('Escreva LIMPAR para confirmar esta operação.');
+    const cleaned = emptyBusinessData(data);
+    const submit = event.currentTarget.querySelector('[type="submit"]');
+    submit.disabled = true; submit.textContent = 'A limpar…';
+    try {
+      if (window.VendaMaisCloud?.configured?.() && !window.VendaMaisCloud?.connected?.()) {
+        throw new Error('A base online está configurada mas não está ligada. Inicie sessão e tente novamente para limpar também o Supabase.');
+      } else if (window.VendaMaisCloud?.connected?.()) {
+        await window.VendaMaisCloud.clearBusinessData();
+      } else {
+        data = cleaned; currentUser = getSessionUser(); cart = [];
+        saveData({ skipCloudSync: true });
+      }
+      currentUser = getSessionUser(); cart = [];
+      localStorage.removeItem('vendamais_pending_sales_v1');
+      closeModal(); $('#companyName').textContent = data.settings.company;
+      renderAccountButton(); renderAll();
+      notify('Dados comerciais eliminados. A limpeza foi guardada e não será revertida ao atualizar.');
+    } catch (error) {
+      submit.disabled = false; submit.textContent = 'Começar sem dados';
+      notify(error.message || 'Não foi possível limpar os dados online.');
+    }
+  });
 }
 function renderAccountButton() { const button = $('#accountButton'); if (!button || !currentUser) return; button.textContent = currentUser.initials || currentUser.name.split(' ').map(name => name[0]).join('').slice(0, 2).toUpperCase(); button.title = `${currentUser.name} · ${currentUser.role}`; }
 function accountModal() {
@@ -1068,11 +1104,21 @@ function cloudBootstrapModal() {
   openModal(`${modalHeader('Criar empresa online', 'Defina o nome e a identidade visual antes de ligar lojas, produtos e vendas à base central.')}<form id="cloudBootstrapForm"><div class="modal-form"><label class="full">Nome da empresa<input name="company" required value="${escapeHtml(data.settings.company || '')}" /></label><label class="full">NIF<input name="nif" value="${escapeHtml(data.settings.nif || '')}" /></label><div class="full">${themePickerHtml('themeId', data.settings.themeId, 'Cores da sua empresa', 'Escolha uma combinação profissional. Poderá alterá-la mais tarde nas Definições.')}</div></div><p class="modal-note">Depois desta etapa, cada venda confirmada será registada no livro central. Os PINs locais não são enviados: o acesso online usa a conta de e-mail e palavra-passe.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar e sincronizar</button></div></form>`);
   $('#cloudBootstrapForm').addEventListener('submit', async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-    const previousSettings = { ...data.settings };
-    data.settings = { ...data.settings, company: String(values.company || '').trim(), nif: String(values.nif || '').trim(), themeId: brandTheme(values.themeId).id };
+    const previousData = data;
+    const clean = blankData();
+    clean.settings.company = String(values.company || '').trim();
+    clean.settings.nif = String(values.nif || '').trim();
+    clean.settings.themeId = brandTheme(values.themeId).id;
+    data = normaliseData(clean); currentUser = getSessionUser(); cart = [];
     applyBrandTheme();
-    try { await window.VendaMaisCloud.bootstrap(values.company, values.nif); saveData({ skipCloudSync: true }); $('#companyName').textContent = data.settings.company; closeModal(); renderAll(); notify('Empresa criada, cores aplicadas e dados sincronizados.'); }
-    catch (error) { data.settings = previousSettings; applyBrandTheme(); notify(error.message || 'Não foi possível criar a empresa online.'); }
+    try {
+      await window.VendaMaisCloud.bootstrap(values.company, values.nif);
+      saveData({ skipCloudSync: true }); $('#companyName').textContent = data.settings.company;
+      closeModal(); renderAll(); notify('Empresa criada vazia. Introduza os seus próprios dados para começar.');
+    } catch (error) {
+      data = previousData; currentUser = getSessionUser(); applyBrandTheme();
+      notify(error.message || 'Não foi possível criar a empresa online.');
+    }
   });
 }
 function cloudNoProfileModal() {
