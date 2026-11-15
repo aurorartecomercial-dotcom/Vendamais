@@ -8,7 +8,6 @@ Esta edição usa **Supabase** como base de dados central com login individual. 
 
 1. Crie um projecto em [Supabase](https://supabase.com/dashboard).
 2. Abra **SQL Editor** → **New query**, cole todo o conteúdo de `supabase/schema.sql` e carregue em **Run**.
-3. Execute também `supabase/2026-11-professional-upgrade.sql` e, depois, `supabase/2026-11-empty-company-start.sql`.
 3. Em **Project Settings** → **API**, copie:
    - **Project URL**;
    - a chave pública **anon** ou **publishable**.
@@ -23,7 +22,7 @@ Em **Authentication** → **URL Configuration**, adicione o endereço final da a
 2. Entre em **Definições** → **Ligar dados online**.
 3. Cole o URL e a chave pública do projecto.
 4. Escolha **Criar conta**, indique o e-mail e uma palavra-passe com pelo menos 8 caracteres.
-5. Depois de entrar, escolha **Criar e sincronizar**. A nova empresa é criada vazia: não importa produtos, vendas, stock, clientes, compras, despesas nem custos de demonstração que estejam no navegador.
+5. Depois de entrar, escolha **Criar e sincronizar**. O sistema envia as lojas, produtos, stock, clientes e vendas que já estavam no navegador.
 
 O indicador com a nuvem no topo passa a mostrar **Online**. Pode clicar nele para confirmar o estado da ligação ou terminar a sessão.
 
@@ -53,7 +52,7 @@ O ficheiro `.env.example` é apenas um exemplo para desenvolvimento. Não é pre
 ## Funcionamento e cuidados
 
 - **Vendas:** são gravadas no `sales_ledger` central antes de o recibo ser confirmado. É isso que alimenta o quadro “Fecho de hoje por loja” e os relatórios.
-- **Outros dados:** catálogo, stock, clientes, fornecedores, despesas e caixas são sincronizados como estado da empresa. A opção **Definições → Começar com dados próprios** limpa o estado comercial e o livro central de vendas; exige a actualização `2026-11-empty-company-start.sql` e confirmação do administrador. Se outra loja alterar esses mesmos dados, o sistema descarrega a versão mais recente em vez de sobrescrever silenciosamente.
+- **Outros dados:** catálogo, stock, clientes, fornecedores, despesas e caixas são sincronizados como estado da empresa. Se outra loja alterar esses mesmos dados, o sistema descarrega a versão mais recente em vez de sobrescrever silenciosamente.
 - **PIN antigo:** o PIN local nunca é enviado para a nuvem. Depois da ligação, a conta Supabase é a credencial de acesso entre computadores.
 - **Ligação à internet:** não confirme vendas online se o indicador mostrar falha. A aplicação mantém a cópia local, mas a confirmação é bloqueada até a venda poder ser enviada à base central.
 - **Fiscalidade:** este projecto não substitui software de facturação certificado. Confirme com contabilista/AGT os requisitos de numeração, assinatura e documentos fiscais em Angola.

@@ -53,33 +53,7 @@ window.VendaMaisCloud = (() => {
     state.users = (state.users || []).map(({ pin, ...user }) => user);
     return state;
   }
-  function initialCompanyState(source, companyName, nif) {
-    const state = clone(source || {});
-    const sourceLocation = (state.locations || []).find(item => item.type === 'Loja') || (state.locations || [])[0] || {};
-    const locationId = String(sourceLocation.id || 'loc_main');
-    const fixedCosts = { Renda: 0, Energia: 0, Água: 0, Internet: 0, Salários: 0, Segurança: 0, Outros: 0 };
-    state.meta = { schemaVersion: state.meta?.schemaVersion || 7, lastUpdated: new Date().toISOString() };
-    state.settings = {
-      company: String(companyName || '').trim(), nif: String(nif || '').trim(), phone: '', email: '', address: '',
-      taxRate: Number(state.settings?.taxRate ?? 14), stockLimit: 0, defaultWarehouse: 'Armazém principal',
-      activeLocationId: locationId, themeId: state.settings?.themeId || 'esmeralda'
-    };
-    state.locations = [{ id: locationId, name: 'Loja principal', type: 'Loja', address: '', active: true, colorId: sourceLocation.colorId || 'esmeralda', dailyTarget: 0, monthlyTarget: 0, fixedCosts }];
-    for (const key of ['products','customers','suppliers','sales','purchases','movements','receipts','supplierPayments','transfers','cashSessions','cashMovements','expenses','returns','auditLog']) state[key] = [];
-    state.users = [];
-    state.integrations = { thermalPrinter: false, barcodeScanner: false, multicaixa: false, accountingExport: false };
-    return state;
-  }
-  function initialSales() { return []; }
-  async function clearBusinessData(state) {
-    if (!connected()) throw new Error('Ligue a empresa à base online antes de limpar os dados.');
-    const { data, error } = await client.rpc('clear_vendamais_business_data', { p_state: serialisableState(state) });
-    if (error) throw new Error(/clear_vendamais_business_data|function.*does not exist/i.test(getErrorMessage(error)) ? 'Aplique primeiro o ficheiro supabase/2026-11-empty-company-start.sql no Supabase.' : getErrorMessage(error));
-    if (data?.revision !== undefined) revision = Number(data.revision);
-    savePendingSales([]);
-    await refresh();
-    return true;
-  }
+  function initialSales(data) { return clone(data?.sales || []); }
   function library() {
     if (!window.supabase?.createClient) throw new Error('Não foi possível carregar a biblioteca de dados online. Verifique a ligação à internet.');
     return window.supabase;
@@ -163,13 +137,12 @@ window.VendaMaisCloud = (() => {
     if (!session) throw new Error('Inicie sessão antes de criar a empresa.');
     const source = hooks.getData?.();
     if (!source) throw new Error('Os dados locais ainda não estão disponíveis.');
-    const cleanState = initialCompanyState(source, companyName, nif);
-    emitStatus('syncing', 'A criar empresa vazia e a preparar os dados…');
+    emitStatus('syncing', 'A criar empresa e a enviar os dados…');
     const { data: result, error } = await client.rpc('bootstrap_vendamais_company', {
       p_company_name: String(companyName || '').trim(),
       p_nif: String(nif || '').trim(),
-      p_initial_state: serialisableState(cleanState),
-      p_initial_sales: initialSales()
+      p_initial_state: serialisableState(source),
+      p_initial_sales: initialSales(source)
     });
     if (error) { emitStatus('error', getErrorMessage(error)); throw error; }
     const profile = Array.isArray(result) ? result[0] : result;
@@ -348,7 +321,7 @@ window.VendaMaisCloud = (() => {
   }
   return {
     setHooks(nextHooks) { hooks = { ...hooks, ...nextHooks }; hooks.onStatus?.(currentStatus); },
-    configure, prepare, signIn, bootstrap, clearBusinessData, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
+    configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
     resetPassword, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, auditEvents, backups,
     configured, connected, pendingCount: () => pendingSales().length, status: () => currentStatus, config: () => config
   };

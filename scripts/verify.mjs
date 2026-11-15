@@ -17,8 +17,7 @@ const requiredFiles = [
   'docs/ONLINE.md',
   'docs/PROFESSIONAL.md',
   'supabase/schema.sql',
-  'supabase/2026-11-professional-upgrade.sql',
-  'supabase/2026-11-empty-company-start.sql'
+  'supabase/2026-11-professional-upgrade.sql'
 ];
 const requiredInterfaceIds = [
   'dashboardView',
@@ -64,7 +63,9 @@ const requiredFunctions = [
   'calculateReport',
   'allocatedMonthlyCost',
   'sellerRollup',
-  'productPerformance'
+  'productPerformance',
+  'previousPeriod',
+  'reportTrendHtml'
 ];
 
 const failures = [];
@@ -89,12 +90,6 @@ if (!cloud.includes('sales_ledger')) failures.push('Livro central de vendas não
 if (!cloud.includes('recordSale')) failures.push('Registo remoto de vendas não encontrado.');
 if (!cloud.includes('save_vendamais_state')) failures.push('Sincronização do estado empresarial não encontrada.');
 if (!cloud.includes('flushPendingSales')) failures.push('Fila de vendas sem internet não encontrada.');
-if (!cloud.includes('function initialCompanyState') || !cloud.includes('p_initial_sales: initialSales()')) failures.push('Criação de empresa sem dados iniciais não encontrada.');
-if (!cloud.includes('clear_vendamais_business_data')) failures.push('Limpeza online do livro de vendas não encontrada.');
-if (!app.includes('fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, 0]))')) failures.push('Limpeza dos custos fixos de demonstração não encontrada.');
-if (!professionalSql.includes('record_vendamais_sale')) failures.push('Registo central de vendas não encontrado.');
-const emptyCompanySql = readFileSync(resolve(root, 'supabase/2026-11-empty-company-start.sql'), 'utf8');
-if (!emptyCompanySql.includes('delete from public.sales_ledger')) failures.push('Limpeza do livro central de vendas não encontrada.');
 if (!cloud.includes('requestAccess')) failures.push('Pedido de acesso online não encontrado.');
 if (!cloud.includes('inviteStaff') || !cloud.includes('claimInvitation')) failures.push('Convites preparados pelo administrador não encontrados.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
@@ -115,6 +110,8 @@ if (!html.includes('id="storePerformanceTable"')) failures.push('Tabela financei
 if (!html.includes('id="weeklySalesTable"')) failures.push('Tabela de vendas semanais não encontrada.');
 if (!html.includes('id="reportLocationFilter"')) failures.push('Filtro de loja nos relatórios não encontrado.');
 if (!html.includes('id="sellerReportFilter"')) failures.push('Filtro de vendedores no relatório não encontrado.');
+if (!html.includes('id="reportQuality"') || !html.includes('id="reportTrend"') || !html.includes('id="reportComparison"')) failures.push('Painel de qualidade, tendência ou comparação financeira em falta.');
+if (!app.includes('costIssues') || !app.includes('Por apurar')) failures.push('Protecção contra lucro apresentado sem custos válidos em falta.');
 if (!html.includes('id="sellerDailyTable"') || !html.includes('id="sellerMonthlyTable"')) failures.push('Tabelas diária e mensal de vendedores não encontradas.');
 if (!html.includes('id="storeTodayTable"')) failures.push('Resumo diário por loja não encontrado.');
 if (!html.includes('id="manageCloud"')) failures.push('Configuração de dados online não encontrada.');
