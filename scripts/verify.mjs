@@ -17,7 +17,8 @@ const requiredFiles = [
   'docs/ONLINE.md',
   'docs/PROFESSIONAL.md',
   'supabase/schema.sql',
-  'supabase/2026-11-professional-upgrade.sql'
+  'supabase/2026-11-professional-upgrade.sql',
+  'supabase/2026-11-empty-company-start.sql'
 ];
 const requiredInterfaceIds = [
   'dashboardView',
@@ -88,12 +89,15 @@ if (!cloud.includes('sales_ledger')) failures.push('Livro central de vendas não
 if (!cloud.includes('recordSale')) failures.push('Registo remoto de vendas não encontrado.');
 if (!cloud.includes('save_vendamais_state')) failures.push('Sincronização do estado empresarial não encontrada.');
 if (!cloud.includes('flushPendingSales')) failures.push('Fila de vendas sem internet não encontrada.');
+if (!cloud.includes('function initialCompanyState') || !cloud.includes('p_initial_sales: initialSales()')) failures.push('Criação de empresa sem dados iniciais não encontrada.');
+if (!cloud.includes('clear_vendamais_business_data')) failures.push('Limpeza online do livro de vendas não encontrada.');
+if (!app.includes('fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, 0]))')) failures.push('Limpeza dos custos fixos de demonstração não encontrada.');
+if (!professionalSql.includes('record_vendamais_sale')) failures.push('Registo central de vendas não encontrado.');
+const emptyCompanySql = readFileSync(resolve(root, 'supabase/2026-11-empty-company-start.sql'), 'utf8');
+if (!emptyCompanySql.includes('delete from public.sales_ledger')) failures.push('Limpeza do livro central de vendas não encontrada.');
 if (!cloud.includes('requestAccess')) failures.push('Pedido de acesso online não encontrado.');
 if (!cloud.includes('inviteStaff') || !cloud.includes('claimInvitation')) failures.push('Convites preparados pelo administrador não encontrados.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
-if (!app.includes('function blankBusinessTemplate()')) failures.push('Modelo de empresa nova sem dados não encontrado.');
-if (!app.includes('function newCompanyData(company, nif, themeId)')) failures.push('Criação isolada de empresa nova não encontrada.');
-if (!app.includes('data = newCompanyData(values.company, values.nif, values.themeId)')) failures.push('A criação online não inicia a empresa com dados zerados.');
 if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
 if (!app.includes('cashSessions')) failures.push('Controlo de caixa não encontrado.');

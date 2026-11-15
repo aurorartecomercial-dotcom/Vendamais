@@ -38,7 +38,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 
 ### Utilização directa
 
-Abra o ficheiro `index.html` no navegador. A aplicação inicia com dados de demonstração e guarda as alterações apenas no navegador desse computador.
+Abra o ficheiro `index.html` no navegador. No modo local de demonstração, a aplicação pode iniciar com dados de exemplo. Ao registar uma nova empresa online, o VendaMais cria a empresa vazia: sem vendas, produtos, clientes, fornecedores, compras, despesas, stock ou custos fixos fictícios. Os dados de demonstração só podem ser repostos pela opção explícita de demonstração.
 
 No primeiro acesso, seleccione o utilizador e use o PIN temporário `0000`. O sistema obriga a criar um PIN pessoal antes de continuar. Crie os restantes utilizadores em **Definições → Gestão de lojas e vendedores → Utilizadores**.
 
@@ -120,14 +120,16 @@ O administrador define o local atribuído ao criar cada utilizador. O vendedor f
 
 Esta edição inclui a ligação opcional a Supabase para operação com lojas e computadores diferentes. Consulte o guia completo de [dados online, utilizadores e publicação no GitHub Pages](docs/ONLINE.md) antes de a activar.
 
-Para uma operação multi-loja em produção, execute também a [actualização profissional da base](docs/PROFESSIONAL.md). Ela torna o registo de venda/stock atómico, activa cópias e auditoria centrais, permite pedidos de acesso por vendedor e adiciona sincronização automática de vendas pendentes.
+Para uma operação multi-loja em produção, execute também a [actualização profissional da base](docs/PROFESSIONAL.md). Ela torna o registo de venda/stock atómico, activa cópias e auditoria centrais, permite pedidos de acesso por vendedor e adiciona sincronização automática de vendas pendentes. Execute ainda `supabase/2026-11-empty-company-start.sql` para activar a criação de empresas sem dados fictícios e a limpeza sincronizada do livro central.
 
 Para uma operação comercial com vários utilizadores, caixas ou filiais:
 
 1. Crie o projecto Supabase e execute `supabase/schema.sql`.
-2. Crie contas individuais e atribua-as à loja certa.
-3. Publique o código no GitHub Pages ou noutra hospedagem HTTPS.
-4. Lembre-se de ligar facturação à solução certificada/regras fiscais aplicáveis em Angola.
+2. Execute as actualizações `supabase/2026-11-professional-upgrade.sql` e `supabase/2026-11-empty-company-start.sql`.
+3. Crie a primeira empresa online: começa sem vendas, produtos, clientes, fornecedores, compras, despesas, stock ou custos fixos de exemplo.
+4. Crie contas individuais e atribua-as à loja certa.
+5. Publique o código no GitHub Pages ou noutra hospedagem HTTPS.
+6. Lembre-se de ligar facturação à solução certificada/regras fiscais aplicáveis em Angola.
 
 > O projecto não substitui software de facturação certificado nem valida obrigações fiscais. Confirme as regras aplicáveis antes de o usar para emissão oficial de documentos.
 
