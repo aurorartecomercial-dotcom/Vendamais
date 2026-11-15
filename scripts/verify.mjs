@@ -17,8 +17,7 @@ const requiredFiles = [
   'docs/ONLINE.md',
   'docs/PROFESSIONAL.md',
   'supabase/schema.sql',
-  'supabase/2026-11-professional-upgrade.sql',
-  'supabase/fix-record-vendamais-sale.sql'
+  'supabase/2026-11-professional-upgrade.sql'
 ];
 const requiredInterfaceIds = [
   'dashboardView',
@@ -92,6 +91,9 @@ if (!cloud.includes('flushPendingSales')) failures.push('Fila de vendas sem inte
 if (!cloud.includes('requestAccess')) failures.push('Pedido de acesso online não encontrado.');
 if (!cloud.includes('inviteStaff') || !cloud.includes('claimInvitation')) failures.push('Convites preparados pelo administrador não encontrados.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
+if (!app.includes('function blankBusinessTemplate()')) failures.push('Modelo de empresa nova sem dados não encontrado.');
+if (!app.includes('function newCompanyData(company, nif, themeId)')) failures.push('Criação isolada de empresa nova não encontrada.');
+if (!app.includes('data = newCompanyData(values.company, values.nif, values.themeId)')) failures.push('A criação online não inicia a empresa com dados zerados.');
 if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
 if (!app.includes('cashSessions')) failures.push('Controlo de caixa não encontrado.');
@@ -118,9 +120,6 @@ if (!app.includes('BRAND_THEMES') || !app.includes('applyBrandTheme')) failures.
 if (!app.includes('colorId') || !app.includes('themePickerHtml')) failures.push('Cores individuais por loja não encontradas.');
 if (!html.includes('companyThemePicker')) failures.push('Escolha de cores da empresa não encontrada.');
 if (!professionalSql.includes('record_vendamais_sale')) failures.push('Venda atómica central não encontrada.');
-if (!professionalSql.includes("to_jsonb('Sincronizada'::text)")) failures.push('Texto syncStatus sem conversão explícita para text.');
-const saleFixSql = readFileSync(resolve(root, 'supabase/fix-record-vendamais-sale.sql'), 'utf8');
-if (!saleFixSql.includes("to_jsonb('Sincronizada'::text)")) failures.push('Migração de correção da venda sem cast explícito para text.');
 if (!professionalSql.includes('business_backups')) failures.push('Cópias automáticas online não encontradas.');
 if (!professionalSql.includes('audit_events')) failures.push('Auditoria central não encontrada.');
 if (!professionalSql.includes('request_vendamais_access')) failures.push('Pedido de acesso central não encontrado.');

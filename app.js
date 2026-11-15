@@ -144,14 +144,31 @@ function demoData() {
   };
 }
 
+function blankBusinessTemplate() {
+  return {
+    meta: { schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() },
+    settings: { company: 'Minha Empresa', nif: '', phone: '', email: '', address: '', taxRate: 14, stockLimit: 5, defaultWarehouse: 'Armazém principal', activeLocationId: 'loc_main', themeId: 'esmeralda' },
+    locations: [{ id: 'loc_main', name: 'Loja principal', type: 'Loja', address: '', active: true, colorId: 'esmeralda', fixedCosts: {} }],
+    products: [], customers: [], suppliers: [], sales: [], purchases: [], movements: [], receipts: [], supplierPayments: [], transfers: [],
+    cashSessions: [], cashMovements: [], expenses: [], returns: [], auditLog: [],
+    users: [{ id: 'u_admin', name: 'Administrador', initials: 'AD', role: 'Administrador', locationId: 'loc_main', active: true, pin: '0000', pinMustChange: true }],
+    integrations: { thermalPrinter: false, barcodeScanner: true, multicaixa: false, accountingExport: false }
+  };
+}
+function newCompanyData(company, nif, themeId) {
+  const fresh = blankBusinessTemplate();
+  fresh.settings.company = String(company || '').trim() || 'Minha Empresa';
+  fresh.settings.nif = String(nif || '').trim();
+  fresh.settings.themeId = brandTheme(themeId).id;
+  return normaliseData(fresh);
+}
 function emptyBusinessData(previous = {}) {
-  const base = demoData();
+  const base = blankBusinessTemplate();
   return normaliseData({
+    ...base,
     meta: { schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() },
     settings: { ...base.settings, ...(previous.settings || {}) },
     locations: Array.isArray(previous.locations) && previous.locations.length ? previous.locations : base.locations,
-    products: [], customers: [], suppliers: [], sales: [], purchases: [], movements: [], receipts: [], supplierPayments: [], transfers: [],
-    cashSessions: [], cashMovements: [], expenses: [], returns: [], auditLog: [],
     users: Array.isArray(previous.users) && previous.users.length ? previous.users : base.users,
     integrations: { ...base.integrations, ...(previous.integrations || {}) }
   });
@@ -197,7 +214,7 @@ function normalisePurchase(purchase = {}) {
   return { ...purchase, paymentStatus: balanceDue <= 0 ? 'Pago' : (balanceDue < total ? 'Parcial' : 'Pendente'), amountPaid: Math.max(0, Number(purchase.amountPaid ?? (total - balanceDue))), balanceDue };
 }
 function normaliseData(candidate) {
-  const base = demoData();
+  const base = blankBusinessTemplate();
   const source = candidate && typeof candidate === 'object' && candidate.settings ? candidate : base;
   const collections = ['suppliers', 'movements', 'receipts', 'supplierPayments', 'cashSessions', 'cashMovements', 'returns', 'auditLog', 'transfers', 'expenses'];
   const restored = { ...base, ...source, settings: { ...base.settings, ...source.settings }, meta: { ...base.meta, ...source.meta, schemaVersion: STORAGE_VERSION } };
@@ -1028,14 +1045,17 @@ function mergeCloudSale(sale) {
   renderAll();
 }
 function cloudBootstrapModal() {
-  openModal(`${modalHeader('Criar empresa online', 'Defina o nome e a identidade visual antes de ligar lojas, produtos e vendas à base central.')}<form id="cloudBootstrapForm"><div class="modal-form"><label class="full">Nome da empresa<input name="company" required value="${escapeHtml(data.settings.company || '')}" /></label><label class="full">NIF<input name="nif" value="${escapeHtml(data.settings.nif || '')}" /></label><div class="full">${themePickerHtml('themeId', data.settings.themeId, 'Cores da sua empresa', 'Escolha uma combinação profissional. Poderá alterá-la mais tarde nas Definições.')}</div></div><p class="modal-note">Depois desta etapa, cada venda confirmada será registada no livro central. Os PINs locais não são enviados: o acesso online usa a conta de e-mail e palavra-passe.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar e sincronizar</button></div></form>`);
+  openModal(`${modalHeader('Criar empresa online', 'Defina o nome e a identidade visual antes de ligar lojas, produtos e vendas à base central.')}<form id="cloudBootstrapForm"><div class="modal-form"><label class="full">Nome da empresa<input name="company" required value="" /></label><label class="full">NIF<input name="nif" value="" /></label><div class="full">${themePickerHtml('themeId', data.settings.themeId, 'Cores da sua empresa', 'Escolha uma combinação profissional. Poderá alterá-la mais tarde nas Definições.')}</div></div><p class="modal-note">Depois desta etapa, cada venda confirmada será registada no livro central. Os PINs locais não são enviados: o acesso online usa a conta de e-mail e palavra-passe.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar e sincronizar</button></div></form>`);
   $('#cloudBootstrapForm').addEventListener('submit', async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-    const previousSettings = { ...data.settings };
-    data.settings = { ...data.settings, company: String(values.company || '').trim(), nif: String(values.nif || '').trim(), themeId: brandTheme(values.themeId).id };
+    const previousData = data;
+    const previousUser = currentUser;
+    data = newCompanyData(values.company, values.nif, values.themeId);
+    currentUser = getSessionUser();
+    cart = [];
     applyBrandTheme();
-    try { await window.VendaMaisCloud.bootstrap(values.company, values.nif); saveData({ skipCloudSync: true }); $('#companyName').textContent = data.settings.company; closeModal(); renderAll(); notify('Empresa criada, cores aplicadas e dados sincronizados.'); }
-    catch (error) { data.settings = previousSettings; applyBrandTheme(); notify(error.message || 'Não foi possível criar a empresa online.'); }
+    try { await window.VendaMaisCloud.bootstrap(values.company, values.nif); saveData({ skipCloudSync: true }); $('#companyName').textContent = data.settings.company; closeModal(); renderAll(); notify('Empresa criada com os registos comerciais a zero. Pode começar a cadastrar os seus próprios dados.'); }
+    catch (error) { data = previousData; currentUser = previousUser; applyBrandTheme(); renderAll(); notify(error.message || 'Não foi possível criar a empresa online.'); }
   });
 }
 function cloudNoProfileModal() {
