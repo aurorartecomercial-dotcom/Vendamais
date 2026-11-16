@@ -343,7 +343,7 @@ function applyRoleInterface() {
     locationSelect.disabled = isSeller();
     locationSelect.title = isSeller() ? `O vendedor trabalha no local atribuído: ${locationName(currentLocationId())}.` : 'Seleccione o local de operação.';
   }
-  const quickSale = $('#quickSale'); if (quickSale) quickSale.hidden = !canAccessView('pos');
+  const quickSale = $('#quickSale'); if (quickSale) quickSale.hidden = !canAccessView('pos'); const discountInbox = $('#discountInboxButton'); if (discountInbox) discountInbox.hidden = !isAdministrator();
   const cashMovement = $('#cashMovement'); if (cashMovement) cashMovement.hidden = !canManage();
   const exportDocumentsButton = $('#exportDocuments'); if (exportDocumentsButton) exportDocumentsButton.hidden = !canManage();
 }
@@ -477,15 +477,15 @@ function renderPosProducts() {
   $('#posProducts').innerHTML = products.length ? products.map((product, index) => { const available = stockAt(product, locationId); return `<button class="product-card ${available <= 0 ? 'sold-out' : ''}" data-add-product="${product.id}" ${available <= 0 ? 'disabled' : ''}><span class="product-image">${icons[index % icons.length]}</span><b>${escapeHtml(product.name)}</b><span class="code">${escapeHtml(product.code)}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</span><footer><strong>${money(product.price)}</strong><small>${number(available)} ${escapeHtml(product.unit || 'un.')}</small></footer></button>`; }).join('') : '<div class="empty-state">Nenhum produto encontrado.</div>';
 }
 function cartNumbers() {
-  const subtotal = roundMoney(sum(cart, item => Number(item.price) * Number(item.quantity))); const discount = isSeller() ? 0 : Math.min(100, Math.max(0, Number($('#saleDiscount')?.value || 0))); const totals = window.VendaMaisFinance.calculateSaleTotals(subtotal, discount, Number(data.settings.taxRate)); return totals;
+  return window.VendaMaisFinance.calculateCartTotals(cart, isSeller() ? 0 : Number($('#saleDiscount')?.value || 0), Number(data.settings.taxRate || 0));
 }
 function renderCart() {
   const count = sum(cart, item => item.quantity); $('#cartCount').textContent = `${count} artigo${count === 1 ? '' : 's'}`;
-  $('#cartItems').innerHTML = cart.length ? cart.map(item => `<div class="cart-item"><div><b>${escapeHtml(item.name)}</b><small>${money(item.price)} cada</small></div><div class="cart-item-right"><strong>${money(item.price * item.quantity)}</strong><div class="quantity"><button data-cart-change="${item.productId}" data-change="-1">−</button><span>${number(item.quantity)}</span><button data-cart-change="${item.productId}" data-change="1">+</button></div></div></div>`).join('') : '<div class="empty-cart">O carrinho está vazio.<br><small>Escolha produtos ao lado.</small></div>';
-  const totals = cartNumbers(); $('#cartSubtotal').textContent = money(totals.subtotal); $('#cartTax').textContent = money(totals.tax); $('#cartTotal').textContent = money(totals.total); $('#taxRateLabel').textContent = `${number(data.settings.taxRate)}%`; const discountInput = $('#saleDiscount'); if (discountInput) { if (isSeller()) discountInput.value = '0'; discountInput.disabled = isSeller(); discountInput.title = isSeller() ? 'Descontos requerem autorização de gerente ou administrador.' : ''; }
+  $('#cartItems').innerHTML = cart.length ? cart.map(item => `<div class="cart-item"><div><b>${escapeHtml(item.name)}</b><small>${money(item.price)} cada${Number(item.discountPct || 0) ? ` · desconto aprovado ${number(item.discountPct)}%` : ''}${item.discountRequestStatus === 'Pendente' ? ' · pedido pendente' : ''}</small></div><div class="cart-item-right"><strong>${money(Number(item.price) * Number(item.quantity) - Number(item.price) * Number(item.quantity) * Number(item.discountPct || 0) / 100)}</strong><div class="quantity"><button data-cart-change="${item.productId}" data-change="-1">−</button><span>${number(item.quantity)}</span><button data-cart-change="${item.productId}" data-change="1">+</button></div></div></div>`).join('') : '<div class="empty-cart">O carrinho está vazio.<br><small>Escolha produtos ao lado.</small></div>';
+  const totals = cartNumbers(); $('#cartSubtotal').textContent = money(totals.subtotal); $('#cartTax').textContent = money(totals.tax); $('#cartTotal').textContent = money(totals.total); $('#taxRateLabel').textContent = `${number(data.settings.taxRate)}%`; const discountInput = $('#saleDiscount'); if (discountInput) { if (isSeller()) discountInput.value = '0'; discountInput.disabled = isSeller(); discountInput.title = isSeller() ? 'Descontos requerem autorização de gerente ou administrador.' : ''; } const requestButton = $('#requestProductDiscount'); if (requestButton) requestButton.hidden = !isSeller() || !cart.length || !window.VendaMaisCloud?.connected?.();
 }
 function addToCart(id) { const product = productById(id); const available = stockAt(product); if (!product || available <= 0) return notify('Este produto não tem stock disponível neste local.'); const entry = cart.find(item => item.productId === id); if (entry) { if (entry.quantity >= available) return notify('A quantidade máxima disponível já está no carrinho.'); entry.quantity += 1; } else { cart.push({ productId: product.id, name: product.name, code: product.code, price: product.price, cost: product.cost, quantity: 1 }); } renderCart(); }
-function changeCart(id, change) { const entry = cart.find(item => item.productId === id); if (!entry) return; const product = productById(id); const next = entry.quantity + change; if (next <= 0) cart = cart.filter(item => item.productId !== id); else if (next > stockAt(product)) return notify('Não há mais unidades em stock neste local.'); else entry.quantity = next; renderCart(); }
+function changeCart(id, change) { const entry = cart.find(item => item.productId === id); if (!entry) return; if (entry.discountRequestStatus === 'Pendente') return notify('Aguarde a decisão do administrador antes de alterar a quantidade deste produto.'); const product = productById(id); const next = entry.quantity + change; if (next <= 0) cart = cart.filter(item => item.productId !== id); else if (next > stockAt(product)) return notify('Não há mais unidades em stock neste local.'); else { if (entry.discountApprovalId && next !== entry.quantity) { entry.discountPct = 0; entry.discountValue = 0; entry.discountApprovalId = ''; entry.discountRequestId = ''; entry.discountRequestStatus = ''; notify('A quantidade mudou. Solicite nova aprovação para manter o desconto.'); } entry.quantity = next; } renderCart(); }
 
 function renderProducts() {
   const categoryFilter = $('#productCategoryFilter'); const previous = categoryFilter.value;
@@ -732,9 +732,9 @@ function statementHtml(report) {
 function productPerformance(sales) {
   const products = {};
   sales.forEach(sale => sale.items.forEach(item => {
-    const key = item.productId || item.code || item.name; const gross = Number(item.quantity || 0) * Number(item.price || 0); const discountFactor = Number(sale.subtotal || 0) > 0 ? Math.max(0, (Number(sale.subtotal) - Number(sale.discountValue || 0)) / Number(sale.subtotal)) : 1;
+    const key = item.productId || item.code || item.name; const gross = Number(item.quantity || 0) * Number(item.price || 0); const saleGlobalDiscount = Number(sale.subtotal || 0) > 0 ? Number(sale.discountValue || 0) - sum(sale.items || [], line => Number(line.discountValue || 0)) : 0; const discountFactor = Number(sale.subtotal || 0) > 0 ? Math.max(0, (Number(sale.subtotal) - sum(sale.items || [], line => Number(line.discountValue || 0)) - saleGlobalDiscount) / Math.max(0.01, Number(sale.subtotal) - sum(sale.items || [], line => Number(line.discountValue || 0)))) : 1;
     if (!products[key]) products[key] = { code: item.code || '—', name: item.name || 'Produto sem nome', quantity: 0, gross: 0, net: 0, cost: 0 };
-    products[key].quantity += Number(item.quantity || 0); products[key].gross += gross; products[key].net += gross * discountFactor; products[key].cost += Number(item.cost || 0) * Number(item.quantity || 0);
+    products[key].quantity += Number(item.quantity || 0); products[key].gross += gross; products[key].net += Math.max(0, gross - Number(item.discountValue || 0)) * discountFactor; products[key].cost += Number(item.cost || 0) * Number(item.quantity || 0);
   }));
   return Object.values(products).map(product => ({ ...product, margin: product.net - product.cost })).sort((a, b) => b.net - a.net);
 }
@@ -940,24 +940,71 @@ function updateCheckoutFields(form, total) {
     feedback.textContent = received < total ? `Faltam ${money(total - received)} para concluir.` : `Troco: ${money(change)}`;
   } else feedback.textContent = 'Pagamento integral a confirmar.';
 }
+async function requestProductDiscountModal() {
+  if (!isSeller()) return notify('Apenas vendedores precisam de solicitar autorização.');
+  if (!window.VendaMaisCloud?.connected?.()) return notify('A aprovação remota exige ligação online activa.');
+  if (!cart.length) return notify('Adicione primeiro o produto à venda.');
+  const options = cart.map(item => `<option value="${escapeHtml(item.productId)}">${escapeHtml(item.name)} · ${money(item.price)} · qtd. ${number(item.quantity)}</option>`).join('');
+  openModal(`${modalHeader('Solicitar desconto de produto', 'O administrador receberá o pedido no seu próprio computador. O seu caixa e esta venda permanecem abertos.')}<form id="discountRequestForm"><div class="modal-form"><label class="full">Produto<select name="productId" required>${options}</select></label><label>Desconto solicitado (%)<input name="discountPercent" type="number" min="0.01" max="100" step="0.01" required placeholder="Ex.: 10" /></label><label class="full">Motivo<textarea name="reason" rows="3" maxlength="240" required placeholder="Ex.: desconto negociado com o cliente"></textarea></label></div><p class="modal-note">O desconto só será aplicado depois da aprovação. O administrador não precisa abrir caixa nem registar uma venda.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Enviar pedido</button></div></form>`);
+  $('#discountRequestForm').addEventListener('submit', async event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const item = cart.find(row => row.productId === values.productId); const pct = Number(values.discountPercent);
+    if (!item || !Number.isFinite(pct) || pct <= 0 || pct > 100) return notify('Indique um desconto válido para o produto seleccionado.');
+    if (item.discountRequestStatus === 'Pendente' || Number(item.discountPct || 0) > 0) return notify('Este produto já tem um pedido pendente ou um desconto aprovado.');
+    try {
+      const result = await window.VendaMaisCloud.requestDiscount({ product_id: item.productId, product_name: item.name, quantity: item.quantity, unit_price: item.price, discount_percent: pct, reason: String(values.reason || '').trim(), location_id: currentLocationId(), cash_session_id: currentCashSession()?.id || '' });
+      item.discountRequestId = result.id; item.discountRequestStatus = 'Pendente'; renderCart(); closeModal(); notify('Pedido enviado. Aguarde a aprovação do administrador.');
+    } catch (error) { notify(error.message || 'Não foi possível enviar o pedido de desconto.'); }
+  });
+}
+function renderDiscountRequestCards(requests) {
+  return requests.length ? requests.map(request => `<article class="discount-request-card"><div class="panel-head"><div><b>${escapeHtml(request.product_name)}</b><p>${escapeHtml(request.requester_name || 'Vendedor')} · ${fullDate(request.created_at)}</p></div><span class="badge">Pendente</span></div><div class="discount-request-values"><span>Preço: <b>${money(request.unit_price)}</b></span><span>Desconto: <b>${number(request.discount_percent)}%</b></span><span>Quantidade: <b>${number(request.quantity)}</b></span><span>Redução: <b>${money(request.discount_value)}</b></span></div><p class="muted">${escapeHtml(request.reason)}</p><p class="muted">Local: ${escapeHtml(locationName(request.location_id))} · ${request.cash_session_id ? 'Turno do vendedor vinculado' : 'Sem turno de caixa associado'}</p><div class="inline-actions"><button class="btn primary" data-discount-review="approve" data-id="${request.id}">Aprovar</button><button class="btn secondary" data-discount-review="reject" data-id="${request.id}">Rejeitar</button></div></article>`).join('') : '<div class="empty-state">Não existem pedidos de desconto pendentes.</div>';
+}
+async function discountApprovalModal() {
+  if (!isAdministrator()) return notify('Apenas o administrador pode aprovar descontos.');
+  if (!window.VendaMaisCloud?.connected?.()) return notify('Inicie sessão online para receber pedidos de desconto.');
+  let requests = [];
+  const draw = () => {
+    const host = $('#discountRequestsList'); if (!host) return;
+    host.innerHTML = renderDiscountRequestCards(requests);
+    $('#discountInboxCount').textContent = String(requests.length);
+  };
+  openModal(`${modalHeader('Central de aprovação de descontos', 'Aprove sem abrir caixa. A venda e o turno continuam pertencendo ao vendedor.')}<div id="discountRequestsList"><div class="empty-state">A carregar pedidos…</div></div>`);
+  const load = async () => { try { requests = await window.VendaMaisCloud.discountRequests(); draw(); } catch (error) { const host = $('#discountRequestsList'); if (host) host.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`; } };
+  await load();
+}
+function handleDiscountRequestUpdate(request) {
+  if (!request?.id) return;
+  if (isAdministrator()) { if (request.status === 'Pendente') notify(`Novo pedido de desconto: ${request.product_name || 'produto'}.`); window.VendaMaisCloud.discountRequests().then(rows => { const badge = $('#discountInboxCount'); if (badge) badge.textContent = String(rows.length); }).catch(() => {}); }
+  if (isSeller() && request.requester_id === (currentUser?.cloudUserId || currentUser?.id)) {
+    const item = cart.find(row => row.productId === request.product_id && row.discountRequestId === request.id);
+    if (item && (request.status === 'Aprovado' || request.status === 'Rejeitado')) {
+      item.discountRequestStatus = request.status;
+      if (request.status === 'Aprovado') { item.discountPct = Number(request.discount_percent); item.discountValue = roundMoney(Number(item.price) * Number(item.quantity) * item.discountPct / 100); item.discountApprovalId = request.id; item.discountApprovedBy = request.decided_by; item.discountApprovedAt = request.decided_at; notify(`Desconto aprovado: ${item.name}. Pode continuar a venda.`); }
+      else { item.discountRequestId = ''; notify(`Pedido de desconto rejeitado: ${item.name}. O preço original foi mantido.`); }
+      renderCart();
+    }
+  }
+  if (isAdministrator() && $('#discountRequestsList')) window.VendaMaisCloud.discountRequests().then(rows => { const host = $('#discountRequestsList'); if (host) host.innerHTML = renderDiscountRequestCards(rows); const count = $('#discountInboxCount'); if (count) count.textContent = String(rows.length); }).catch(() => {});
+}
 function saleModal() {
   if (sessionLocked) return accountModal();
   if (!cart.length) return notify('Adicione pelo menos um produto à venda.'); const locationId = currentLocationId(); const totals = cartNumbers(); const customer = customerById($('#saleCustomer').value); const customerText = customer ? `${customer.name}${customer.nif ? ` · NIF ${customer.nif}` : ''}` : 'Consumidor final'; const seller = isSeller();
-  openModal(`${modalHeader('Finalizar venda', seller ? 'Venda imediata. Descontos e crédito requerem autorização de gerente ou administrador.' : 'Confirme os dados comerciais e o pagamento antes de concluir.')}<div class="sale-summary"><div><span>Local</span><strong>${escapeHtml(locationName(locationId))}</strong></div><div><span>Cliente</span><strong>${escapeHtml(customerText)}</strong></div><div><span>Artigos</span><strong>${sum(cart, item => item.quantity)}</strong></div><div><span>Subtotal</span><strong>${money(totals.subtotal)}</strong></div><div><span>IVA (${number(data.settings.taxRate)}%)</span><strong>${money(totals.tax)}</strong></div><div><span>Total a pagar</span><strong>${money(totals.total)}</strong></div></div><form id="saleForm"><div class="modal-form"><label class="full">Documento<select name="documentType"><option value="Factura-Recibo">Factura-recibo</option><option value="Factura">Factura</option><option value="Venda a dinheiro">Venda a dinheiro</option></select></label><label class="full" ${seller ? 'hidden' : ''}>Condição de pagamento<select name="settlement" id="saleSettlement"><option value="paid">Pagamento imediato</option><option value="credit">Venda a crédito</option></select></label><input name="settlement" type="hidden" value="paid" ${seller ? '' : 'disabled'} /><label id="salePaymentMethodField">Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label id="saleCashReceivedField">Valor recebido (Kz)<input name="amountReceived" type="number" min="0" step="0.01" value="${totals.total.toFixed(2)}" /></label><label id="saleDueDateField" class="full" hidden>Data de vencimento<input name="dueDate" type="date" value="${dateISO(30)}" /></label><div id="salePaymentFeedback" class="payment-feedback full"></div></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Voltar</button><button class="btn primary" type="submit">Confirmar venda</button></div></form>`);
+  openModal(`${modalHeader('Finalizar venda', seller ? 'Venda imediata. Descontos e crédito requerem autorização de gerente ou administrador.' : 'Confirme os dados comerciais e o pagamento antes de concluir.')}<div class="sale-summary"><div><span>Local</span><strong>${escapeHtml(locationName(locationId))}</strong></div><div><span>Cliente</span><strong>${escapeHtml(customerText)}</strong></div><div><span>Artigos</span><strong>${sum(cart, item => item.quantity)}</strong></div><div><span>Subtotal</span><strong>${money(totals.subtotal)}</strong></div>${totals.discountValue ? `<div><span>Desconto total</span><strong>− ${money(totals.discountValue)}</strong></div>` : ''}<div><span>IVA (${number(data.settings.taxRate)}%)</span><strong>${money(totals.tax)}</strong></div><div><span>Total a pagar</span><strong>${money(totals.total)}</strong></div></div><form id="saleForm"><div class="modal-form"><label class="full">Documento<select name="documentType"><option value="Factura-Recibo">Factura-recibo</option><option value="Factura">Factura</option><option value="Venda a dinheiro">Venda a dinheiro</option></select></label><label class="full" ${seller ? 'hidden' : ''}>Condição de pagamento<select name="settlement" id="saleSettlement"><option value="paid">Pagamento imediato</option><option value="credit">Venda a crédito</option></select></label><input name="settlement" type="hidden" value="paid" ${seller ? '' : 'disabled'} /><label id="salePaymentMethodField">Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label id="saleCashReceivedField">Valor recebido (Kz)<input name="amountReceived" type="number" min="0" step="0.01" value="${totals.total.toFixed(2)}" /></label><label id="saleDueDateField" class="full" hidden>Data de vencimento<input name="dueDate" type="date" value="${dateISO(30)}" /></label><div id="salePaymentFeedback" class="payment-feedback full"></div></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Voltar</button><button class="btn primary" type="submit">Confirmar venda</button></div></form>`);
   const form = $('#saleForm'); updateCheckoutFields(form, totals.total);
   form.addEventListener('input', () => updateCheckoutFields(form, totals.total));
   form.addEventListener('change', () => updateCheckoutFields(form, totals.total));
   form.addEventListener('submit', async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const credit = values.settlement === 'credit'; const payment = credit ? 'Crédito' : values.payment; const received = Number(values.amountReceived || 0);
     if (isSeller() && credit) return notify('Vendas a crédito requerem autorização de gerente ou administrador.');
+    if (cart.some(item => item.discountRequestStatus === 'Pendente')) return notify('Existe um pedido de desconto pendente. Aguarde a decisão do administrador antes de finalizar a venda.');
     if (credit && !customer) return notify('Seleccione ou cadastre um cliente para fazer uma venda a crédito.');
     if (credit && customer.creditLimit > 0 && customerStats(customer.id).balance + totals.total > customer.creditLimit) return notify('Esta venda ultrapassa o limite de crédito definido para o cliente.');
     if (!credit && payment === 'Dinheiro' && received < totals.total) return notify('O valor recebido é inferior ao total da venda.');
-    const cashSession = payment === 'Dinheiro' ? currentCashSession() : null;
+    const operatorCashSession = currentCashSession(); const cashSession = payment === 'Dinheiro' ? operatorCashSession : null;
     if (payment === 'Dinheiro' && !cashSession) return notify('Abra o caixa antes de concluir uma venda em dinheiro.');
     for (const item of cart) { const product = productById(item.productId); if (!product || stockAt(product, locationId) < item.quantity) return notify(`${item.name} já não tem stock suficiente neste local.`); }
     const balanceDue = credit ? totals.total : 0;
-    let sale = { id: uid('sale'), reference: nextReference('VD', data.sales), date: new Date().toISOString(), locationId, customerId: customer?.id || '', customer: customerSnapshot(customer), operatorId: currentUser.id, operatorName: currentUser.name, cashSessionId: cashSession?.id || '', documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, taxRate: Number(data.settings.taxRate), change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída', syncStatus: 'Local' };
+    let sale = { id: uid('sale'), reference: nextReference('VD', data.sales), date: new Date().toISOString(), locationId, customerId: customer?.id || '', customer: customerSnapshot(customer), operatorId: currentUser.id, operatorName: currentUser.name, cashSessionId: operatorCashSession?.id || '', documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, taxRate: Number(data.settings.taxRate), change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item, discountValue: roundMoney(Number(item.price) * Number(item.quantity) * Number(item.discountPct || 0) / 100) })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída', syncStatus: 'Local' };
     if (window.VendaMaisCloud?.configured?.() && !window.VendaMaisCloud.connected()) return notify('Inicie a sessão em Dados online antes de confirmar vendas desta empresa.');
     if (window.VendaMaisCloud?.connected?.()) {
       const recorded = await window.VendaMaisCloud.recordSale(sale);
@@ -1207,6 +1254,7 @@ function replaceDataFromCloud(remote, profile, authUser) {
   applyBrandTheme();
   $('#companyName').textContent = data.settings.company;
   renderAccountButton(); applyRoleInterface(); renderAll();
+  if (isAdministrator() && window.VendaMaisCloud?.connected?.()) window.VendaMaisCloud.discountRequests().then(rows => { const badge = $('#discountInboxCount'); if (badge) badge.textContent = String(rows.length); }).catch(() => {});
 }
 function mergeCloudSale(sale) {
   if (!sale?.id) return;
@@ -1301,11 +1349,14 @@ function cloudModal() {
   $('#cloudBackups')?.addEventListener('click', cloudBackupModal);
 }
 
-window.VendaMaisCloud?.setHooks({ getData: () => data, replaceData: replaceDataFromCloud, mergeSale: mergeCloudSale, onStatus: updateCloudUi });
+window.VendaMaisCloud?.setHooks({ getData: () => data, replaceData: replaceDataFromCloud, mergeSale: mergeCloudSale, onDiscountRequest: handleDiscountRequestUpdate, onStatus: updateCloudUi });
 window.addEventListener('online', () => { window.VendaMaisCloud?.flushPendingSales?.(); notify('Ligação restaurada. A sincronização foi retomada.'); });
 window.addEventListener('offline', () => { if (window.VendaMaisCloud?.connected?.()) notify('Sem internet. As próximas vendas ficam pendentes neste equipamento até a ligação voltar.'); });
 
 document.addEventListener('click', event => {
+  if (event.target.closest('#requestProductDiscount')) return requestProductDiscountModal();
+  if (event.target.closest('#discountInboxButton')) return discountApprovalModal();
+  const discountReview = event.target.closest('[data-discount-review]'); if (discountReview) { const id = discountReview.dataset.id; const approve = discountReview.dataset.discountReview === 'approve'; const rejectionNote = approve ? '' : prompt('Indique o motivo da rejeição:'); if (!approve && rejectionNote === null) return; const note = approve ? '' : (rejectionNote.trim() || 'Pedido rejeitado pelo administrador'); window.VendaMaisCloud.reviewDiscountRequest(id, approve, note).then(() => { notify(approve ? 'Desconto aprovado. O vendedor foi notificado.' : 'Pedido rejeitado. O vendedor foi notificado.'); return window.VendaMaisCloud.discountRequests(); }).then(rows => { const host = $('#discountRequestsList'); if (host) { host.innerHTML = rows.length ? rows.map(request => `<article class="discount-request-card"><b>${escapeHtml(request.product_name)}</b><p>${escapeHtml(request.requester_name || 'Vendedor')} · ${number(request.discount_percent)}% · ${money(request.discount_value)}</p><p>${escapeHtml(request.reason)}</p><div class="inline-actions"><button class="btn primary" data-discount-review="approve" data-id="${request.id}">Aprovar</button><button class="btn secondary" data-discount-review="reject" data-id="${request.id}">Rejeitar</button></div></article>`).join('') : '<div class="empty-state">Não existem pedidos de desconto pendentes.</div>'; } const count = $('#discountInboxCount'); if (count) count.textContent = String(rows.length); }).catch(error => notify(error.message || 'Não foi possível processar o pedido.')); return; }
   const reportTab=event.target.closest('[data-report-tab]'); if(reportTab){const key=reportTab.dataset.reportTab;$$('[data-report-tab]').forEach(button=>button.classList.toggle('active',button===reportTab));$$('[data-report-pane]').forEach(pane=>{const active=pane.dataset.reportPane===key;pane.hidden=!active;pane.classList.toggle('active',active);});return;}
   const nav = event.target.closest('.nav-link'); if (nav) return showView(nav.dataset.view);
   const go = event.target.closest('[data-go]'); if (go) return showView(go.dataset.go);

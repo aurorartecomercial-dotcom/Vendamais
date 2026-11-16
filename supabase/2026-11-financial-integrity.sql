@@ -27,7 +27,10 @@ declare
   v_total_stock numeric;
   v_subtotal numeric := 0;
   v_discount_pct numeric;
-  v_discount numeric;
+  v_discount numeric := 0;
+  v_item_discount_pct numeric;
+  v_item_discount_value numeric;
+  v_item_gross numeric;
   v_tax_rate numeric;
   v_taxable numeric;
   v_tax numeric;
@@ -98,6 +101,15 @@ begin
       if v_product ->> 'id' = v_item ->> 'productId' then
         v_matched := true;
         v_price := coalesce(nullif(v_product ->> 'price', '')::numeric, -1);
+        v_item_discount_pct := coalesce(nullif(v_item ->> 'discountPct', '')::numeric, 0);
+        if v_item_discount_pct < 0 or v_item_discount_pct > 100 then raise exception 'Desconto inválido para o produto %.', coalesce(v_product ->> 'name', ''); end if;
+        v_item_gross := round(v_price * v_quantity, 2);
+        v_item_discount_value := round(v_item_gross * v_item_discount_pct / 100, 2);
+        if v_role = 'Vendedor' and v_item_discount_pct > 0 then
+          if nullif(v_item ->> 'discountApprovalId', '') is null or not exists (select 1 from public.discount_requests dr where dr.id::text = v_item ->> 'discountApprovalId' and dr.company_id = v_company_id and dr.requester_id = auth.uid() and dr.product_id = v_item ->> 'productId' and dr.quantity = v_quantity and abs(dr.unit_price - v_price) < 0.01 and dr.status = 'Aprovado' and abs(dr.discount_percent - v_item_discount_pct) < 0.001 and (dr.cash_session_id = '' or dr.cash_session_id = coalesce(v_sale ->> 'cashSessionId',''))) then
+            raise exception 'O desconto do produto não possui aprovação válida do administrador.';
+          end if;
+        end if;
         v_cost := coalesce(nullif(v_product ->> 'cost', '')::numeric, -1);
         if v_price < 0 or v_cost < 0 then raise exception 'Preço ou custo inválido no cadastro do produto %.', coalesce(v_product ->> 'name', ''); end if;
         v_stock := coalesce(nullif(v_product #>> array['stockByLocation', v_location_id], '')::numeric, 0);
@@ -107,14 +119,17 @@ begin
         from jsonb_each_text(coalesce(v_product -> 'stockByLocation', '{}'::jsonb));
         v_product := jsonb_set(v_product, '{stock}', to_jsonb(v_total_stock), true);
         v_state := jsonb_set(v_state, array['products', v_product_index::text], v_product, false);
-        v_subtotal := v_subtotal + (v_price * v_quantity);
+        v_subtotal := v_subtotal + v_item_gross;
+        v_discount := v_discount + v_item_discount_value;
         v_validated_items := v_validated_items || jsonb_build_array(
           v_item || jsonb_build_object(
             'name', coalesce(v_product ->> 'name', v_item ->> 'name', 'Produto'),
             'code', coalesce(v_product ->> 'code', v_item ->> 'code', ''),
             'price', v_price,
             'cost', v_cost,
-            'quantity', v_quantity
+            'quantity', v_quantity,
+            'discountPct', v_item_discount_pct,
+            'discountValue', v_item_discount_value
           )
         );
         exit;
@@ -124,7 +139,7 @@ begin
   end loop;
 
   v_subtotal := round(v_subtotal, 2);
-  v_discount := round(v_subtotal * v_discount_pct / 100, 2);
+  v_discount := round(v_discount + (v_subtotal - v_discount) * v_discount_pct / 100, 2);
   v_taxable := round(v_subtotal - v_discount, 2);
   v_tax := round(v_taxable * v_tax_rate / 100, 2);
   v_total := round(v_taxable + v_tax, 2);
@@ -173,6 +188,11 @@ begin
   set state = v_state, revision = revision + 1, updated_at = now(), updated_by = auth.uid()
   where company_id = v_company_id
   returning revision into v_next_revision;
+
+  update public.discount_requests dr set status = 'Utilizado', sale_id = v_sale ->> 'id', used_at = now()
+  where dr.company_id = v_company_id and dr.requester_id = auth.uid() and dr.status = 'Aprovado' and dr.id::text in (
+    select value ->> 'discountApprovalId' from jsonb_array_elements(v_validated_items) where coalesce(value ->> 'discountApprovalId', '') <> ''
+  );
 
   insert into public.sales_ledger(company_id, sale_id, location_id, occurred_at, total, status, sale_data, created_by)
   values (v_company_id, v_sale ->> 'id', v_location_id,

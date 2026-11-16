@@ -20,6 +20,7 @@ const requiredFiles = [
   'supabase/schema.sql',
   'supabase/2026-11-professional-upgrade.sql',
   'supabase/2026-11-financial-integrity.sql',
+  'supabase/2026-11-discount-approval.sql',
   'tests/finance.test.mjs'
 ];
 const requiredInterfaceIds = [
@@ -100,6 +101,9 @@ if (!cloud.includes('sales_ledger')) failures.push('Livro central de vendas não
 if (!cloud.includes('recordSale')) failures.push('Registo remoto de vendas não encontrado.');
 if (!cloud.includes('save_vendamais_state')) failures.push('Sincronização do estado empresarial não encontrada.');
 if (!cloud.includes('flushPendingSales')) failures.push('Fila de vendas sem internet não encontrada.');
+if (!cloud.includes('request_vendamais_discount') || !cloud.includes('review_vendamais_discount') || !cloud.includes('discount_requests') || !cloud.includes('onDiscountRequest')) failures.push('Fluxo remoto de aprovação de descontos incompleto.');
+if (!app.includes('Central de aprovação de descontos') || !app.includes('discountApprovalId') || !app.includes('requestProductDiscountModal')) failures.push('Interface de aprovação de descontos incompleta.');
+if (!financialSql.includes('discountApprovalId') || !financialSql.includes('discount_requests')) failures.push('Validação de descontos aprovados no servidor em falta.');
 if (!cloud.includes('requestAccess')) failures.push('Pedido de acesso online não encontrado.');
 if (!cloud.includes('inviteStaff') || !cloud.includes('claimInvitation')) failures.push('Convites preparados pelo administrador não encontrados.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');

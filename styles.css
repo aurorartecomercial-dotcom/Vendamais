@@ -111,3 +111,5 @@
 .trend-column small{font-size:9px;color:var(--muted);white-space:nowrap}
 @media(max-width:1050px){#metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){#metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.comparison-line{align-items:flex-start}.trend-bars{gap:3px}.trend-column{min-width:21px}}
+
+.discount-request-card{border:1px solid var(--line);border-radius:10px;padding:15px;margin:10px 0;background:#fff}.discount-request-card .panel-head p{margin-top:4px}.discount-request-values{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:13px 0;font-size:12px;color:var(--muted)}.discount-request-values b{color:var(--ink)}.discount-request-card .inline-actions{display:flex;gap:8px;flex-wrap:wrap}.discount-request-card .inline-actions .btn{min-width:105px}

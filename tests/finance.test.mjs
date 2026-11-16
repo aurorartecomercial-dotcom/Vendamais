@@ -42,3 +42,30 @@ test('calcula custo médio ponderado após uma nova compra ou devolução', () =
   assert.equal(finance.weightedAverageCost(10, 100, 10, 140), 120);
   assert.equal(finance.weightedAverageCost(5, 120, 1, 60), 110);
 });
+
+
+test('aplica desconto aprovado apenas ao produto seleccionado', () => {
+  const result = finance.calculateCartTotals([
+    { productId: 'a', price: 50000, quantity: 1, discountPct: 10 },
+    { productId: 'b', price: 20000, quantity: 1, discountPct: 0 }
+  ], 0, 14);
+  assert.equal(result.subtotal, 70000);
+  assert.equal(result.itemDiscountValue, 5000);
+  assert.equal(result.discountValue, 5000);
+  assert.equal(result.tax, 9100);
+  assert.equal(result.total, 74100);
+  assert.equal(result.lines[0].net, 45000);
+  assert.equal(result.lines[1].net, 20000);
+});
+
+test('combina desconto por produto com desconto geral sem duplicar a base', () => {
+  const result = finance.calculateCartTotals([
+    { price: 1000, quantity: 2, discountPct: 10 },
+    { price: 500, quantity: 1, discountPct: 0 }
+  ], 5, 0);
+  assert.equal(result.subtotal, 2500);
+  assert.equal(result.itemDiscountValue, 200);
+  assert.equal(result.globalDiscountValue, 115);
+  assert.equal(result.discountValue, 315);
+  assert.equal(result.total, 2185);
+});

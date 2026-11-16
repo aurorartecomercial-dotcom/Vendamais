@@ -58,3 +58,10 @@ O ficheiro `.env.example` é apenas um exemplo para desenvolvimento. Não é pre
 - **PIN antigo:** o PIN local nunca é enviado para a nuvem. Depois da ligação, a conta Supabase é a credencial de acesso entre computadores.
 - **Ligação à internet:** não confirme vendas online se o indicador mostrar falha. A aplicação mantém a cópia local, mas a confirmação é bloqueada até a venda poder ser enviada à base central.
 - **Fiscalidade:** este projecto não substitui software de facturação certificado. Confirme com contabilista/AGT os requisitos de numeração, assinatura e documentos fiscais em Angola.
+
+
+## Aprovação remota de descontos (v2.0.2)
+
+Para activar a Central de Aprovação de Descontos, execute também `supabase/2026-11-discount-approval.sql` depois de `schema.sql`, `2026-11-professional-upgrade.sql` e `2026-11-financial-integrity.sql`. O vendedor e o administrador devem iniciar sessão na mesma empresa Supabase. O vendedor solicita o desconto no carrinho; o administrador recebe o pedido em tempo real no botão **Descontos**, aprova ou rejeita sem abrir caixa. A aprovação fica ligada ao produto, quantidade, percentagem e, quando existe, ao turno/caixa de origem. A venda só consome a aprovação uma vez.
+
+A aprovação é remota e requer Internet nos dois equipamentos. Se o pedido estiver pendente ou a ligação estiver indisponível, o vendedor não consegue aplicar o desconto nem finalizar a venda com esse desconto.

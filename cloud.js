@@ -191,6 +191,7 @@ window.VendaMaisCloud = (() => {
     channel = client.channel(`vendamais:${companyId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales_ledger', filter: `company_id=eq.${companyId}` }, message => hooks.mergeSale?.(message.new?.sale_data))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sales_ledger', filter: `company_id=eq.${companyId}` }, message => hooks.mergeSale?.(message.new?.sale_data))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'discount_requests', filter: `company_id=eq.${companyId}` }, message => hooks.onDiscountRequest?.(message.new || message.old))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'business_snapshots', filter: `company_id=eq.${companyId}` }, message => {
         const remoteRevision = Number(message.new?.revision);
         if (!saving && Number.isFinite(remoteRevision) && remoteRevision > Number(revision)) refresh().catch(error => emitStatus('error', getErrorMessage(error)));
@@ -352,6 +353,24 @@ window.VendaMaisCloud = (() => {
     if (error) throw error;
     return data;
   }
+  async function requestDiscount(payload) {
+    if (!connected()) throw new Error('A aprovação remota de descontos exige sessão online activa.');
+    const { data, error } = await client.rpc('request_vendamais_discount', { p_request: clone(payload) });
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] : data;
+  }
+  async function discountRequests() {
+    if (!connected()) throw new Error('Inicie sessão online para consultar os pedidos.');
+    const { data, error } = await client.from('discount_requests').select('id, requester_id, requester_name, product_id, product_name, quantity, unit_price, discount_percent, discount_value, reason, location_id, cash_session_id, status, created_at, decision_note').eq('status', 'Pendente').order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+  async function reviewDiscountRequest(requestId, approve, note = '') {
+    if (!connected()) throw new Error('Inicie sessão online para aprovar descontos.');
+    const { data, error } = await client.rpc('review_vendamais_discount', { p_request_id: requestId, p_approve: Boolean(approve), p_note: String(note || '').trim() });
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] : data;
+  }
   async function auditEvents() {
     if (!connected()) return [];
     const { data, error } = await client.from('audit_events').select('action, detail, created_at').order('created_at', { ascending: false }).limit(100);
@@ -378,7 +397,7 @@ window.VendaMaisCloud = (() => {
   return {
     setHooks(nextHooks) { hooks = { ...hooks, ...nextHooks }; hooks.onStatus?.(currentStatus); },
     configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
-    resetPassword, clearBusinessData, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, auditEvents, backups,
+    resetPassword, clearBusinessData, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, requestDiscount, discountRequests, reviewDiscountRequest, auditEvents, backups,
     configured, connected, pendingCount: () => pendingSales().length, status: () => currentStatus, config: () => config
   };
 })();

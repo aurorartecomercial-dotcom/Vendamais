@@ -140,3 +140,8 @@ Contribuições são bem-vindas. Consulte [CONTRIBUTING.md](CONTRIBUTING.md), cr
 ## Licença
 
 Distribuído sob a licença [MIT](LICENSE).
+
+
+### Aprovação remota de descontos
+
+Na versão 2.0.2, o vendedor pode solicitar um desconto para um único produto directamente no carrinho. O administrador aprova ou rejeita no seu próprio computador, sem abrir caixa nem criar uma segunda venda. Para instalações online, execute a migração `supabase/2026-11-discount-approval.sql` depois das migrações base e financeiras. Ambos os utilizadores devem estar ligados à mesma empresa Supabase.

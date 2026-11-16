@@ -219,3 +219,13 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Demonstração de resultados com resultado bruto e resultado líquido estimado após despesas.
 - Indicadores de contas a receber e contas a pagar a fornecedores.
 - Exportação Excel actualizada com folha dedicada às despesas e resumo financeiro revisto.
+
+
+## 2.0.2 — Central de Aprovação de Descontos
+
+- Adicionada solicitação de desconto por produto pelo vendedor, sem fechar o caixa nem criar uma venda separada.
+- Adicionada central remota para o administrador aprovar ou rejeitar pedidos em tempo real através do Supabase Realtime.
+- A aprovação fica vinculada ao produto, preço, quantidade e caixa/turno original, quando informado.
+- O servidor valida a aprovação e consome-a uma única vez no registo transaccional da venda.
+- O desconto de produto é reflectido nos totais, IVA, margem e relatórios, sem aplicar desconto aos restantes artigos.
+- Incluída migração SQL e testes unitários para descontos por linha.
