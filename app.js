@@ -292,7 +292,7 @@ function currentCashForAll(locationId = currentLocationId()) { return data.cashS
 const ROLE_VIEWS = {
   Administrador: ['dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'settings'],
   Gerente: ['dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports'],
-  Vendedor: ['pos', 'cash', 'documents']
+  Vendedor: ['dashboard', 'pos', 'cash', 'documents']
 };
 function canManage() { return currentUser?.role === 'Administrador' || currentUser?.role === 'Gerente'; }
 function isAdministrator() { return currentUser?.role === 'Administrador'; }
@@ -373,6 +373,9 @@ function renderView(view) {
 function renderAll() { applyBrandTheme(); renderView($('.view.active').id.replace('View', '')); }
 
 function renderDashboard() {
+  if (isSeller()) return renderSellerDashboard();
+  const stockPanel = $('#lowStockList')?.closest('article'); if (stockPanel) stockPanel.hidden = false;
+  const reportLink = $('#recentSales')?.closest('article')?.querySelector('[data-go="reports"]'); if (reportLink) reportLink.hidden = false;
   const today = dateISO(); const start = monthStart();
   const locationId = currentLocationId(); const low = data.products.filter(product => stockAt(product, locationId) <= product.minStock);
   const todaySales = salesBetween(today, today).filter(sale => sale.locationId === locationId); const monthly = salesBetween(start, today).filter(sale => sale.locationId === locationId);
@@ -414,6 +417,64 @@ function renderDashboard() {
   }
   renderOperationalControl(today, start);
 }
+function renderSellerDashboard() {
+  const today = dateISO();
+  const start = monthStart();
+  const ownSales = data.sales.filter(sale => sale.operatorId === currentUser.id && sale.status !== 'Devolvida');
+  const todaySales = ownSales.filter(sale => String(sale.date || '').slice(0, 10) === today);
+  const monthlySales = ownSales.filter(sale => String(sale.date || '').slice(0, 10) >= start && String(sale.date || '').slice(0, 10) <= today);
+  const todayTotal = sum(todaySales, sale => sale.total);
+  const monthTotal = sum(monthlySales, sale => sale.total);
+  const average = monthlySales.length ? monthTotal / monthlySales.length : 0;
+  const session = currentCashSession();
+  const cash = cashSessionAmounts(session);
+  const metricRows = [
+    ['Vendas de hoje', todaySales.length, 'Operações concluídas hoje', '▣', todaySales.length ? 'positive' : ''],
+    ['Faturação de hoje', money(todayTotal), 'Total das suas vendas hoje', '↗', todayTotal ? 'positive' : ''],
+    ['Faturação do mês', money(monthTotal), `${monthlySales.length} venda(s) no período`, '◷', monthTotal ? 'positive' : ''],
+    ['Ticket médio', money(average), 'Média por venda neste mês', '◈', ''],
+    ['Estado do meu caixa', session ? 'Aberto' : 'Fechado', session ? `Esperado: ${money(cash.expected)}` : 'Abra o seu turno para começar', '▤', session ? 'positive' : 'warning']
+  ];
+  $('#metrics').innerHTML = metricRows.map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
+
+  const dayData = Array.from({ length: 7 }, (_, index) => {
+    const date = dateISO(index - 6);
+    const value = sum(ownSales.filter(sale => String(sale.date || '').slice(0, 10) === date), sale => sale.total);
+    const label = new Intl.DateTimeFormat('pt-PT', { weekday: 'short' }).format(new Date(`${date}T12:00:00`)).replace('.', '');
+    return { date, value, label };
+  });
+  const max = Math.max(...dayData.map(item => item.value), 1);
+  $('#weekTotal').textContent = money(sum(dayData, item => item.value));
+  $('#salesChart').innerHTML = dayData.map((item, index) => `<div class="bar-col"><span class="bar-value">${item.value ? number(item.value / 1000) + ' mil' : '—'}</span><div class="bar ${index === 6 ? 'today' : ''}" style="height:${Math.max(4, item.value / max * 100)}%"></div><span class="bar-label">${item.label}</span></div>`).join('');
+
+  const recent = [...ownSales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+  $('#recentSales').innerHTML = recent.length ? recent.map(sale => `<tr><td><b>${escapeHtml(sale.reference || '—')}</b><br><small class="muted">${shortDate(sale.date)}</small></td><td>${escapeHtml(saleCustomerName(sale))}</td><td class="money"><b>${money(sale.total)}</b></td><td><span class="status ${saleBalanceDue(sale) ? 'pending' : 'completed'}">${saleBalanceDue(sale) ? 'Em dívida' : 'Pago'}</span></td></tr>`).join('') : emptyRow(4, 'Ainda não existem vendas associadas à sua conta.');
+  $('#financialSummary').innerHTML = summaryRows([
+    ['Faturação de hoje', money(todayTotal)],
+    ['Vendas concluídas hoje', String(todaySales.length)],
+    ['Faturação do mês', money(monthTotal)],
+    ['Valor por receber', money(sum(monthlySales, saleBalanceDue))],
+    ['Ticket médio', money(average), true]
+  ]);
+
+  const title = $('#dashboardView .welcome-row h2');
+  const description = $('#dashboardView .welcome-row p');
+  if (title) title.textContent = `Olá, ${currentUser.name.split(' ')[0]}`;
+  if (description) description.textContent = 'Acompanhe o seu desempenho e as suas vendas.';
+  const stockPanel = $('#lowStockList')?.closest('article');
+  if (stockPanel) stockPanel.hidden = true;
+  const storePanel = $('#storeTodayPanel');
+  if (storePanel) storePanel.hidden = true;
+  const operationalPanel = $('#operationalControlPanel');
+  if (operationalPanel) operationalPanel.hidden = true;
+  const recentTitle = $('#recentSales')?.closest('article')?.querySelector('h3');
+  if (recentTitle) recentTitle.textContent = 'As minhas vendas recentes';
+  const recentDescription = $('#recentSales')?.closest('article')?.querySelector('p');
+  if (recentDescription) recentDescription.textContent = 'Apenas operações registadas na sua conta.';
+  const reportLink = $('#recentSales')?.closest('article')?.querySelector('[data-go="reports"]');
+  if (reportLink) reportLink.hidden = true;
+}
+
 function renderOperationalControl(today, monthStartDate) {
   let panel = $('#operationalControlPanel');
   if (!panel) {

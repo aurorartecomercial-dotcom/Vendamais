@@ -19,7 +19,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
 | Caixa e turnos | Abrir e fechar caixa por operador, controlar fundo inicial, movimentos físicos, contagem e diferenças. |
 | Documentos e devoluções | Consultar e imprimir documentos; processar devoluções com nota de crédito interna e reposição de stock. |
-| Operação | Acesso por PIN com perfis distintos de Administrador, Gerente e Vendedor. A gestão cria as lojas e atribui cada vendedor a uma loja já existente. |
+| Operação | Acesso por PIN com perfis distintos de Administrador, Gerente e Vendedor. A gestão cria as lojas e atribui cada vendedor a uma loja já existente. O vendedor tem um painel individual com as próprias vendas, faturação, ticket médio e estado do seu caixa. |
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
 | Gestão financeira por loja | Comparar faturação com e sem IVA, custos fixos e variáveis, custo histórico dos produtos e resultado estimado de cada loja ou de todas em conjunto. |

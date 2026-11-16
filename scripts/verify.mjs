@@ -38,6 +38,7 @@ const requiredInterfaceIds = [
 ];
 const requiredFunctions = [
   'renderDashboard',
+  'renderSellerDashboard',
   'renderPos',
   'renderProducts',
   'renderInventory',
@@ -115,6 +116,8 @@ if (!app.includes('coversConfiguredCost')) failures.push('Prevenção explícita
 if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
 if (!app.includes('isAdministrator')) failures.push('Protecção de administrador não encontrada.');
 if (!app.includes('ROLE_VIEWS')) failures.push('Permissões por perfil não encontradas.');
+if (!app.includes("Vendedor: ['dashboard', 'pos', 'cash', 'documents']")) failures.push('Dashboard individual do vendedor não está acessível.');
+if (!app.includes('sale.operatorId === currentUser.id')) failures.push('Dashboard do vendedor sem filtro de titularidade das vendas.');
 if (!app.includes('sessionLocked')) failures.push('Bloqueio de sessão não encontrado.');
 if (!app.includes('pinMustChange')) failures.push('Controlo de PIN não encontrado.');
 if (!app.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) failures.push('Exportação Excel não encontrada.');

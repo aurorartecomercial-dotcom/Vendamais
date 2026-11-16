@@ -1,5 +1,19 @@
 # Registo de alterações
 
+## [2.1.0] — 2026-11-16
+
+### Adicionado
+
+- O perfil Vendedor passa a ter acesso ao painel inicial, sem receber acesso aos relatórios gerais, produtos, stock ou definições.
+- Criado painel individual do vendedor com vendas do dia, faturação diária e mensal, ticket médio, estado do próprio caixa, gráfico de sete dias e vendas recentes filtradas pelo identificador do operador.
+- O painel do vendedor não apresenta lucro, custos, indicadores globais ou vendas de outros operadores.
+- Aplicado acabamento visual premium responsivo aos cartões, painéis, navegação e gráficos, sem substituir os fluxos existentes.
+
+### Segurança e validação pendente antes de produção
+
+- A função Supabase `save_vendamais_state` deve ser endurecida no servidor. A interface por perfil não é uma fronteira de segurança. A correcção exige desenhar operações RPC específicas para as alterações legítimas do vendedor (caixa e cliente) antes de bloquear a escrita geral; não se deve simplesmente retirar o acesso do vendedor, pois isso interromperia operações actuais.
+- É necessária validação integrada num projecto Supabase de teste, com contas reais de Administrador, Gerente e Vendedor, incluindo RLS, sincronização concorrente e fluxos de caixa.
+
 ## [2.0.1] — 2026-11-16
 
 ### Corrigido e reforçado
