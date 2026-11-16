@@ -8,7 +8,9 @@ Esta edição usa **Supabase** como base de dados central com login individual. 
 
 1. Crie um projecto em [Supabase](https://supabase.com/dashboard).
 2. Abra **SQL Editor** → **New query**, cole todo o conteúdo de `supabase/schema.sql` e carregue em **Run**.
-3. Em **Project Settings** → **API**, copie:
+3. Execute `supabase/2026-11-professional-upgrade.sql` para instalar as funções e políticas profissionais.
+4. Execute `supabase/2026-11-financial-integrity.sql` para validar no servidor os preços e custos do catálogo, desconto, IVA, total, pagamento, stock e repetição de vendas.
+5. Em **Project Settings** → **API**, copie:
    - **Project URL**;
    - a chave pública **anon** ou **publishable**.
 

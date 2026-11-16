@@ -5,6 +5,7 @@
 window.VendaMaisCloud = (() => {
   const CONFIG_KEY = 'vendamais_cloud_config_v1';
   const PENDING_SALES_KEY = 'vendamais_pending_sales_v1';
+  const PENDING_SALE_UPDATES_KEY = 'vendamais_pending_sale_updates_v1';
   let config = readConfig();
   let client = null;
   let companyId = '';
@@ -35,6 +36,8 @@ window.VendaMaisCloud = (() => {
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function pendingSales() { try { const value = JSON.parse(localStorage.getItem(PENDING_SALES_KEY)); return Array.isArray(value) ? value : []; } catch { return []; } }
   function savePendingSales(sales) { localStorage.setItem(PENDING_SALES_KEY, JSON.stringify(sales)); hooks.onPending?.(sales.length); }
+  function pendingSaleUpdates() { try { const value = JSON.parse(localStorage.getItem(PENDING_SALE_UPDATES_KEY)); return Array.isArray(value) ? value : []; } catch { return []; } }
+  function savePendingSaleUpdates(sales) { localStorage.setItem(PENDING_SALE_UPDATES_KEY, JSON.stringify(sales)); }
   function queueSale(sale) {
     const queued = pendingSales();
     if (!queued.some(item => item.id === sale.id)) queued.push({ ...clone(sale), syncStatus: 'Pendente de sincronização', queuedAt: new Date().toISOString() });
@@ -240,10 +243,26 @@ window.VendaMaisCloud = (() => {
       return { ok: false, error: message };
     }
   }
+  async function flushPendingSaleUpdates() {
+    if (!connected() || navigator.onLine === false) return false;
+    const queued = pendingSaleUpdates();
+    const mine = queued.filter(item => item.companyId === companyId);
+    if (!mine.length) return true;
+    const remaining = queued.filter(item => item.companyId !== companyId);
+    for (let index = 0; index < mine.length; index += 1) {
+      const sale = mine[index].sale;
+      try {
+        const { error } = await client.from('sales_ledger').update({ sale_data: clone(sale), status: sale.status || 'Concluída', total: Number(sale.total || 0) }).eq('company_id', companyId).eq('sale_id', sale.id);
+        if (error) throw error;
+      } catch (error) { remaining.push(...mine.slice(index)); emitStatus('pending', `Actualização financeira pendente: ${getErrorMessage(error)}`); break; }
+    }
+    savePendingSaleUpdates(remaining);
+    return remaining.length === 0;
+  }
   async function flushPendingSales() {
     if (!connected() || navigator.onLine === false || flushing) return false;
     const queued = pendingSales();
-    if (!queued.length) return true;
+    if (!queued.length) return flushPendingSaleUpdates();
     flushing = true;
     const remaining = [];
     try {
@@ -253,16 +272,30 @@ window.VendaMaisCloud = (() => {
         catch (error) { remaining.push(...queued.slice(index)); break; }
       }
       savePendingSales(remaining);
-      if (!remaining.length) await refresh();
+      if (!remaining.length) { await refresh(); await flushPendingSaleUpdates(); }
       emitStatus(remaining.length ? 'pending' : 'online', remaining.length ? `${remaining.length} venda(s) pendente(s) de sincronização` : 'Dados online sincronizados');
       return remaining.length === 0;
     } finally { flushing = false; }
   }
   async function updateSale(sale) {
-    if (!connected()) return true;
-    const { error } = await client.from('sales_ledger').update({ sale_data: clone(sale), status: sale.status || 'Concluída', total: Number(sale.total || 0) }).eq('company_id', companyId).eq('sale_id', sale.id);
-    if (error) { emitStatus('error', getErrorMessage(error)); return false; }
-    return true;
+    if (!connected()) return { ok: true, localOnly: true };
+    if (navigator.onLine === false) {
+      const queued = pendingSaleUpdates().filter(item => item.companyId !== companyId || item.sale?.id !== sale.id);
+      queued.push({ companyId, sale: clone(sale) }); savePendingSaleUpdates(queued);
+      emitStatus('pending', 'Actualização financeira guardada para sincronização.');
+      return { ok: true, queued: true };
+    }
+    try {
+      const { error } = await client.from('sales_ledger').update({ sale_data: clone(sale), status: sale.status || 'Concluída', total: Number(sale.total || 0) }).eq('company_id', companyId).eq('sale_id', sale.id);
+      if (error) throw error;
+      savePendingSaleUpdates(pendingSaleUpdates().filter(item => item.companyId !== companyId || item.sale?.id !== sale.id));
+      return { ok: true, queued: false };
+    } catch (error) {
+      const queued = pendingSaleUpdates().filter(item => item.companyId !== companyId || item.sale?.id !== sale.id);
+      queued.push({ companyId, sale: clone(sale) }); savePendingSaleUpdates(queued);
+      emitStatus('pending', `Actualização financeira guardada para sincronização: ${getErrorMessage(error)}`);
+      return { ok: true, queued: true };
+    }
   }
   async function clearBusinessData() {
     if (!connected()) throw new Error('Inicie a sessão online como administrador para limpar os dados centrais.');
@@ -273,6 +306,7 @@ window.VendaMaisCloud = (() => {
     if (error) { emitStatus('error', getErrorMessage(error)); throw error; }
     if (!data?.ok) throw new Error('O servidor não confirmou a limpeza dos dados.');
     savePendingSales([]);
+    savePendingSaleUpdates([]);
     await refresh();
     emitStatus('online', 'Dados comerciais eliminados e sincronizados');
     return true;

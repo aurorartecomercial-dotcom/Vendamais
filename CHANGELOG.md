@@ -1,5 +1,20 @@
 # Registo de alterações
 
+## [2.0.1] — 2026-11-16
+
+### Corrigido e reforçado
+
+- Criado núcleo financeiro com arredondamento monetário a duas casas, cálculo uniforme de subtotal, desconto, IVA e total, validação de pagamentos e rateio mensal.
+- Relatórios deixam de somar simultaneamente o custo fixo configurado e a despesa fixa real correspondente no mesmo mês/categoria, com marcação explícita para novos registos.
+- Resumo de meios de pagamento passa a considerar recebimentos reais e não a totalidade de facturas a crédito.
+- Compras e despesas pagas em dinheiro passam a movimentar o caixa; pagamentos iniciais a fornecedores ficam registados no histórico; despesas a crédito passam a integrar contas a pagar e permitem liquidação parcial ou total.
+- Custo de stock passa a usar custo médio ponderado nas entradas de compra e nas devoluções, mantendo o custo histórico em cada venda.
+- Pagamentos, despesas, compras, movimentos e devoluções passam a reverter a alteração local se a gravação no navegador falhar.
+- Devolução total exige o reembolso integral do montante já recebido, evitando anular uma venda com reembolso parcial.
+- Adicionada migração Supabase para recalcular e validar no servidor os preços, custos, descontos, IVA, total, pagamento, stock e idempotência das vendas.
+- Acrescentados testes unitários aos cálculos financeiros.
+
+
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
 ## [2.0.0] — 2026-11-14

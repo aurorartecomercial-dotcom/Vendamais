@@ -46,3 +46,12 @@ Validação concluída: 9 ficheiros e 11 ecrãs verificados.
 ```
 
 Esta validação passou. Não foi executado um teste manual completo de todos os fluxos no navegador, nem testes contra um projecto Supabase real.
+
+
+## Adenda — Fase 2 financeira (2026-11-16)
+
+Foram implementadas correcções locais e adicionados testes em `tests/finance.test.mjs`: arredondamento monetário, cálculo de venda, validação de liquidação, rateio mensal, prevenção de dupla contagem de custos fixos, custo médio ponderado e rollback local de operações financeiras. As compras e despesas em dinheiro passam a reflectir-se no caixa; recebimentos e pagamentos usam sincronização pendente quando a actualização do livro remoto falha.
+
+Foi criada a migração `supabase/2026-11-financial-integrity.sql`. **A migração tem de ser executada no projecto Supabase real** depois de `2026-11-professional-upgrade.sql`; não foi possível confirmar a sua execução nesta auditoria. Até essa execução e aos testes de integração no projecto real, a versão online não deve ser considerada validada para produção.
+
+Continuam fora do âmbito desta fase: autenticação local por PIN como mecanismo de segurança, reforço completo de todas as relações multiempresa/RLS, contabilidade fiscal certificada/SAF-T, reconciliação bancária, inventário com custo médio separado por loja e testes concorrentes reais no PostgreSQL.
