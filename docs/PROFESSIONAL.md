@@ -12,9 +12,7 @@ supabase/2026-11-professional-upgrade.sql
 
 Depois carregue em **Run**. A mensagem deve indicar sucesso. Este script não remove produtos, vendas ou configurações existentes; cria segurança, auditoria, cópias e funções novas.
 
-Em seguida, execute também `supabase/2026-11-financial-integrity.sql`. Esta migração reforça a função de venda para validar no servidor os preços e custos do catálogo, desconto, IVA, total, pagamento, stock e repetição de pedidos.
-
-> Se a base ainda não tiver o esquema inicial, execute primeiro `supabase/schema.sql`, depois este ficheiro e, por último, `supabase/2026-11-financial-integrity.sql`.
+> Se a base ainda não tiver o esquema inicial, execute primeiro `supabase/schema.sql` e depois este ficheiro.
 
 ## Primeiro acesso do administrador
 

@@ -1,34 +1,5 @@
 # Registo de alterações
 
-## [2.1.0] — 2026-11-16
-
-### Adicionado
-
-- O perfil Vendedor passa a ter acesso ao painel inicial, sem receber acesso aos relatórios gerais, produtos, stock ou definições.
-- Criado painel individual do vendedor com vendas do dia, faturação diária e mensal, ticket médio, estado do próprio caixa, gráfico de sete dias e vendas recentes filtradas pelo identificador do operador.
-- O painel do vendedor não apresenta lucro, custos, indicadores globais ou vendas de outros operadores.
-- Aplicado acabamento visual premium responsivo aos cartões, painéis, navegação e gráficos, sem substituir os fluxos existentes.
-
-### Segurança e validação pendente antes de produção
-
-- A função Supabase `save_vendamais_state` deve ser endurecida no servidor. A interface por perfil não é uma fronteira de segurança. A correcção exige desenhar operações RPC específicas para as alterações legítimas do vendedor (caixa e cliente) antes de bloquear a escrita geral; não se deve simplesmente retirar o acesso do vendedor, pois isso interromperia operações actuais.
-- É necessária validação integrada num projecto Supabase de teste, com contas reais de Administrador, Gerente e Vendedor, incluindo RLS, sincronização concorrente e fluxos de caixa.
-
-## [2.0.1] — 2026-11-16
-
-### Corrigido e reforçado
-
-- Criado núcleo financeiro com arredondamento monetário a duas casas, cálculo uniforme de subtotal, desconto, IVA e total, validação de pagamentos e rateio mensal.
-- Relatórios deixam de somar simultaneamente o custo fixo configurado e a despesa fixa real correspondente no mesmo mês/categoria, com marcação explícita para novos registos.
-- Resumo de meios de pagamento passa a considerar recebimentos reais e não a totalidade de facturas a crédito.
-- Compras e despesas pagas em dinheiro passam a movimentar o caixa; pagamentos iniciais a fornecedores ficam registados no histórico; despesas a crédito passam a integrar contas a pagar e permitem liquidação parcial ou total.
-- Custo de stock passa a usar custo médio ponderado nas entradas de compra e nas devoluções, mantendo o custo histórico em cada venda.
-- Pagamentos, despesas, compras, movimentos e devoluções passam a reverter a alteração local se a gravação no navegador falhar.
-- Devolução total exige o reembolso integral do montante já recebido, evitando anular uma venda com reembolso parcial.
-- Adicionada migração Supabase para recalcular e validar no servidor os preços, custos, descontos, IVA, total, pagamento, stock e idempotência das vendas.
-- Acrescentados testes unitários aos cálculos financeiros.
-
-
 Todas as alterações relevantes deste projecto são documentadas neste ficheiro.
 
 ## [2.0.0] — 2026-11-14
@@ -233,13 +204,3 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Demonstração de resultados com resultado bruto e resultado líquido estimado após despesas.
 - Indicadores de contas a receber e contas a pagar a fornecedores.
 - Exportação Excel actualizada com folha dedicada às despesas e resumo financeiro revisto.
-
-
-## 2.0.2 — Central de Aprovação de Descontos
-
-- Adicionada solicitação de desconto por produto pelo vendedor, sem fechar o caixa nem criar uma venda separada.
-- Adicionada central remota para o administrador aprovar ou rejeitar pedidos em tempo real através do Supabase Realtime.
-- A aprovação fica vinculada ao produto, preço, quantidade e caixa/turno original, quando informado.
-- O servidor valida a aprovação e consome-a uma única vez no registo transaccional da venda.
-- O desconto de produto é reflectido nos totais, IVA, margem e relatórios, sem aplicar desconto aos restantes artigos.
-- Incluída migração SQL e testes unitários para descontos por linha.
