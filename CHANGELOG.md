@@ -259,3 +259,10 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Pedidos novos do vendedor são aceites apenas para o seu próprio caixa aberto e ficam sempre pendentes.
 - Decisão de pedidos reservada ao perfil Administrador; gerente não pode aprovar/rejeitar pedidos.
 - Documentada a ordem de aplicação da migração no README.
+
+## Diário financeiro idempotente
+
+- Adicionado diário financeiro com impactos independentes em tesouraria, resultado, estoque, contas a receber e contas a pagar.
+- Adicionada migração local idempotente dos registos históricos sem duplicar movimentos de caixa que já são reflexo de compras ou despesas.
+- Adicionada classificação de retiradas pessoais e pagamentos de dívidas antigas sem reduzir o lucro operacional.
+- Adicionada consulta por período e loja em Balanço & relatórios.

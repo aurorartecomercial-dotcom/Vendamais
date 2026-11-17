@@ -69,3 +69,13 @@ test('combina desconto por produto com desconto geral sem duplicar a base', () =
   assert.equal(result.discountValue, 315);
   assert.equal(result.total, 2185);
 });
+
+
+test('diário financeiro separa caixa, lucro, estoque e dívidas', () => {
+  const summary = finance.summarizeJournal([
+    { cashImpact: -5000, profitImpact: 0, inventoryImpact: 0, receivableImpact: 0, liabilityImpact: -5000 },
+    { cashImpact: -1200, profitImpact: -1200, inventoryImpact: 0, receivableImpact: 0, liabilityImpact: 0 },
+    { cashImpact: 0, profitImpact: 0, inventoryImpact: 8000, receivableImpact: 0, liabilityImpact: 8000 }
+  ]);
+  assert.deepEqual(summary, { count: 3, cash: -6200, profit: -1200, inventory: 8000, receivable: 0, payable: 3000 });
+});

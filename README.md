@@ -158,3 +158,8 @@ O vendedor pode solicitar uma entrada ou saída no seu turno aberto, indicando v
 Para activar a aprovação segura de movimentos de caixa no ambiente online, execute no SQL Editor do Supabase o ficheiro `supabase/2026-11-cash-approval-security.sql`, depois de aplicar `schema.sql` e os upgrades SQL anteriores do projecto. Esta migração substitui a função `save_vendamais_state` por uma versão que valida as alterações no servidor: o vendedor só consegue acrescentar pedidos pendentes associados ao seu próprio turno aberto; não consegue lançar movimentos directamente, editar/apagar pedidos ou decidir pedidos; e apenas o perfil `Administrador` pode aprovar/rejeitar pedidos. O `Gerente` mantém os movimentos manuais que já lhe são permitidos, mas não decide pedidos de vendedores.
 
 A migração deve ser aplicada antes de disponibilizar a versão online. Faça primeiro uma cópia de segurança do projecto Supabase. A interface local/offline não substitui esta validação no servidor.
+
+
+## Diário financeiro
+
+A versão actual inclui um diário financeiro idempotente em **Balanço & relatórios → Diário financeiro**. Consulte `docs/DIARIO-FINANCEIRO.md` para as regras de caixa, lucro, estoque, contas a receber e contas a pagar, bem como a migração compatível com os dados locais anteriores.

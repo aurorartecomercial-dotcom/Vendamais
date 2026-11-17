@@ -64,6 +64,11 @@
     return roundMoney((values || []).reduce((total, value) => total + Number(value || 0), 0));
   }
 
+  function summarizeJournal(entries) {
+    const rows = Array.isArray(entries) ? entries : [];
+    return { count: rows.length, cash: sumMoney(rows.map(row => row.cashImpact)), profit: sumMoney(rows.map(row => row.profitImpact)), inventory: sumMoney(rows.map(row => row.inventoryImpact)), receivable: sumMoney(rows.map(row => row.receivableImpact)), payable: sumMoney(rows.map(row => row.liabilityImpact)) };
+  }
+
   function hasActualFixedExpense(expenses, locationId, categories, monthKey) {
     const monthStart = `${monthKey}-01`;
     const [year, month] = monthKey.split('-').map(Number);
@@ -71,5 +76,5 @@
     return (expenses || []).some(expense => expense.locationId === locationId && categories.includes(expense.category) && expense.costType === 'Fixo' && expense.coversConfiguredCost !== false && expense.occurrenceDate >= monthStart && expense.occurrenceDate <= monthEnd);
   }
 
-  root.VendaMaisFinance = Object.freeze({ roundMoney, calculateSaleTotals, calculateCartTotals, validateSettlement, prorateMonthlyCost, sumMoney, finiteNonNegative, hasActualFixedExpense, weightedAverageCost });
+  root.VendaMaisFinance = Object.freeze({ roundMoney, calculateSaleTotals, calculateCartTotals, validateSettlement, prorateMonthlyCost, sumMoney, summarizeJournal, finiteNonNegative, hasActualFixedExpense, weightedAverageCost });
 })(typeof window !== 'undefined' ? window : globalThis);

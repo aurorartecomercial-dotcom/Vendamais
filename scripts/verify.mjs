@@ -93,6 +93,11 @@ for (const fn of requiredFunctions) {
   if (!app.includes(`function ${fn}`)) failures.push(`Função essencial em falta: ${fn}`);
 }
 if (!app.includes('localStorage')) failures.push('Cópia de trabalho local não encontrada.');
+if (!app.includes('function postFinancialEntry') || !app.includes('idempotencyKey') || !app.includes('backfillFinancialJournal')) failures.push('Diário financeiro idempotente ou migração de dados anteriores em falta.');
+if (!html.includes('data-report-tab="journal"') || !html.includes('id="financialJournalTable"')) failures.push('Diário financeiro não está acessível nos relatórios.');
+if (!app.includes('Retirada pessoal') || !app.includes('Pagamento de dívida antiga')) failures.push('Classificação de retiradas pessoais ou pagamento de dívida antiga em falta.');
+if (!financeCore.includes('summarizeJournal')) failures.push('Resumo de impactos do diário financeiro em falta.');
+
 if (!html.includes('finance-core.js')) failures.push('Núcleo de cálculos financeiros não carregado.');
 for (const fn of ['calculateSaleTotals', 'validateSettlement', 'prorateMonthlyCost', 'hasActualFixedExpense', 'weightedAverageCost']) if (!financeCore.includes(fn)) failures.push(`Cálculo financeiro essencial em falta: ${fn}`);
 if (!financialSql.includes('create or replace function public.record_vendamais_sale')) failures.push('Migração de integridade financeira do servidor em falta.');
