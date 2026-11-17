@@ -33,13 +33,13 @@
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.0.0</div>
+      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.1.0</div>
     </aside>
     <main class="main">
       <header class="topbar">
         <button class="icon-btn mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
         <div><p class="eyebrow" id="topDate"></p><h1 id="viewTitle">Visão geral</h1></div>
-        <div class="top-actions"><label class="location-switcher" title="Local de operação"><span>Local</span><select id="activeLocationSelect" aria-label="Local de operação"></select></label><button class="cloud-status offline" id="cloudStatus" type="button" title="Configurar dados online"><span aria-hidden="true">☁</span><span id="cloudStatusText">Só neste dispositivo</span></button><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><span class="session-role" id="sessionRole"></span><button class="icon-btn" id="lockSession" title="Bloquear sessão">◉</button><button class="avatar" id="accountButton" title="Trocar utilizador">AD</button></div>
+        <div class="top-actions"><label class="location-switcher" title="Local de operação"><span>Local</span><select id="activeLocationSelect" aria-label="Local de operação"></select></label><button class="cloud-status offline" id="cloudStatus" type="button" title="Configurar dados online"><span aria-hidden="true">☁</span><span id="cloudStatusText">Só neste dispositivo</span></button><button class="btn secondary" id="discountInboxButton" type="button" hidden>▣ Descontos <span id="discountInboxCount">0</span></button><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><span class="session-role" id="sessionRole"></span><button class="icon-btn" id="lockSession" title="Bloquear sessão">◉</button><button class="avatar" id="accountButton" title="Trocar utilizador">AD</button></div>
       </header>
 
       <section class="view active" id="dashboardView">
@@ -58,7 +58,11 @@
         <div class="pos-layout">
           <div class="pos-catalog panel">
             <div class="pos-tools"><div class="searchbox"><span>⌕</span><input id="productSearch" placeholder="Procurar produto por nome ou código" /></div><select id="posCategory"><option value="">Todas as categorias</option></select><span class="location-note" id="posLocationLabel"></span></div>
-            <div class="product-grid" id="posProducts"></div>
+            <div class="product-scroll-wrap">
+              <button class="product-scroll-btn" id="productsScrollUp" type="button" aria-label="Subir lista de produtos" title="Subir">▲</button>
+              <div class="product-scroll" id="productScroll"><div class="product-grid" id="posProducts"></div></div>
+              <button class="product-scroll-btn" id="productsScrollDown" type="button" aria-label="Descer lista de produtos" title="Descer">▼</button>
+            </div>
           </div>
           <aside class="cart-panel">
             <div class="cart-head"><div><h2>Venda atual</h2><span id="cartCount">0 artigos</span></div><button class="icon-btn" id="clearCart" title="Limpar venda">⌫</button></div>
@@ -69,8 +73,8 @@
               <button class="text-btn edit-customer-link" id="editSaleCustomer" type="button" hidden>Editar dados do cliente</button>
             </div>
             <div id="cartItems" class="cart-items"><div class="empty-cart">O carrinho está vazio.<br><small>Escolha produtos ao lado.</small></div></div>
-            <div class="cart-discount"><label>Desconto <div class="input-suffix"><input id="saleDiscount" type="number" min="0" step="0.01" value="0" /><span>%</span></div></label></div>
-            <div class="cart-totals"><div><span>Subtotal</span><strong id="cartSubtotal">0,00 Kz</strong></div><div><span>IVA <small id="taxRateLabel">14%</small></span><strong id="cartTax">0,00 Kz</strong></div><div class="grand-total"><span>Total</span><strong id="cartTotal">0,00 Kz</strong></div></div>
+            <div class="cart-discount"><label>Desconto geral <div class="input-suffix"><input id="saleDiscount" type="number" min="0" step="0.01" value="0" /><span>%</span></div></label></div>
+            <button class="btn secondary wide" id="requestProductDiscount" type="button" hidden>Solicitar desconto de um produto</button><div class="cart-totals"><div><span>Subtotal</span><strong id="cartSubtotal">0,00 Kz</strong></div><div><span>IVA <small id="taxRateLabel">14%</small></span><strong id="cartTax">0,00 Kz</strong></div><div class="grand-total"><span>Total</span><strong id="cartTotal">0,00 Kz</strong></div></div>
             <button class="btn primary wide" id="finishSale">Finalizar venda <span>→</span></button>
           </aside>
         </div>
@@ -110,6 +114,14 @@
 
       <section class="view" id="cashView">
         <div class="section-head"><div><h2>Caixa & turnos</h2><p>Abra, movimente e feche o caixa por operador.</p></div><div class="inline-actions"><button class="btn secondary" id="cashMovement">↕ Movimento de caixa</button><button class="btn primary" id="cashPrimaryAction">Abrir caixa</button></div></div>
+        <article class="panel cash-approval-panel" id="cashApprovalPanel" hidden>
+          <div class="panel-head"><div><h3>Pedidos de movimentos de caixa</h3><p> aprove ou rejeite pedidos enviados pelos vendedores. Um pedido aprovado só é lançado no turno original.</p></div><span class="badge pending" id="cashApprovalCount">0 pendentes</span></div>
+          <div class="table-wrap"><table><thead><tr><th>Data</th><th>Vendedor</th><th>Tipo</th><th>Valor</th><th>Motivo</th><th>Caixa</th><th>Acção</th></tr></thead><tbody id="cashApprovalTable"></tbody></table></div>
+        </article>
+        <article class="panel cash-my-requests-panel" id="cashMyRequestsPanel" hidden>
+          <div class="panel-head"><div><h3>Os meus pedidos de movimentos</h3><p>Acompanhe a decisão do administrador.</p></div></div>
+          <div class="table-wrap"><table><thead><tr><th>Data</th><th>Tipo</th><th>Valor</th><th>Motivo</th><th>Estado</th></tr></thead><tbody id="cashMyRequestsTable"></tbody></table></div>
+        </article>
         <div class="metric-grid compact" id="cashMetrics"></div>
         <div class="dashboard-grid"><article class="panel form-card"><div class="panel-head"><div><h3 id="cashSessionTitle">Nenhum caixa aberto</h3><p id="cashSessionInfo">Abra um turno antes de efectuar vendas.</p></div></div><div id="cashSummary" class="summary-list"></div></article><article class="panel recent-panel"><div class="panel-head"><div><h3>Movimentos do turno</h3><p>Entradas e saídas de dinheiro</p></div></div><div class="table-wrap"><table><thead><tr><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Operador</th></tr></thead><tbody id="cashMovementsTable"></tbody></table></div></article></div>
       </section>
@@ -125,10 +137,21 @@
         <div class="report-filters panel"><label>De <input type="date" id="reportStart" /></label><label>Até <input type="date" id="reportEnd" /></label><label>Loja / visão geral<select id="reportLocationFilter"><option value="all">Todas as lojas</option></select></label><button class="btn primary" id="applyReport">Actualizar</button></div>
         <p class="report-period" id="reportPeriodLabel" aria-live="polite"></p>
         <nav class="report-tabs" aria-label="Secções do balanço"><button class="report-tab active" type="button" data-report-tab="overview">Visão geral</button><button class="report-tab" type="button" data-report-tab="stores">Por loja</button><button class="report-tab" type="button" data-report-tab="sales">Vendas</button><button class="report-tab" type="button" data-report-tab="expenses">Despesas</button><button class="report-tab" type="button" data-report-tab="finance">Demonstração financeira</button><button class="report-tab" type="button" data-report-tab="products">Produtos</button><button class="report-tab" type="button" data-report-tab="sellers">Vendedores</button></nav>
-        <div class="report-pane active" data-report-pane="overview"><div class="metric-grid" id="reportMetrics"></div><div class="dashboard-grid report-overview-grid"><article class="panel report-panel"><div class="panel-head"><div><h3>Resumo financeiro</h3><p>O resultado exclui o IVA e já desconta custos e despesas.</p></div></div><div id="incomeStatement" class="statement"></div></article><article class="panel report-panel"><div class="panel-head"><div><h3>Meios de pagamento</h3><p>Valor facturado por método.</p></div></div><div id="paymentSummary" class="summary-list"></div></article></div></div>
+        <div class="report-pane active" data-report-pane="overview">
+          <div class="metric-grid" id="reportMetrics"></div>
+          <div class="report-quality-warning" id="reportQuality" hidden role="status"></div>
+          <div class="dashboard-grid report-overview-grid">
+            <article class="panel report-panel"><div class="panel-head"><div><h3>Resumo financeiro</h3><p>Veja de onde vem cada valor e como o resultado é calculado.</p></div></div><div id="incomeStatement" class="statement"></div></article>
+            <article class="panel report-panel"><div class="panel-head"><div><h3>Meios de pagamento</h3><p>Valor recebido ou registado por método de pagamento.</p></div></div><div id="paymentSummary" class="summary-list"></div><div class="panel-subhead"><h3>Comparação com período anterior</h3><p>Compara períodos com a mesma duração.</p></div><div id="reportComparison" class="comparison-card"></div></article>
+          </div>
+          <div class="dashboard-grid report-overview-grid">
+            <article class="panel report-panel"><div class="panel-head"><div><h3>Faturação e despesas ao longo do tempo</h3><p>Por dia em períodos até 31 dias; por mês em períodos maiores.</p></div></div><div id="reportTrend" class="report-trend"></div></article>
+            <article class="panel report-panel"><div class="panel-head"><div><h3>O que estes números significam</h3><p>Definições rápidas para interpretar o relatório.</p></div></div><div class="summary-list"> <div class="summary-row"><span>Faturamento</span><strong>Vendas registadas</strong></div><div class="summary-row"><span>Lucro</span><strong>Depois dos custos</strong></div><div class="summary-row"><span>Caixa</span><strong>Dinheiro disponível/esperado</strong></div><div class="summary-row"><span>Stock</span><strong>Mercadoria ao custo</strong></div><div class="summary-row"><span>Por receber</span><strong>Dívida dos clientes</strong></div><div class="summary-row"><span>Por pagar</span><strong>Dívida a fornecedores</strong></div></div></article>
+          </div>
+        </div>
         <div class="report-pane" data-report-pane="stores" hidden><article class="panel report-panel"><div class="panel-head"><div><h3>Desempenho por loja</h3><p>Resultado = vendas sem IVA − custo dos produtos − custos operacionais.</p></div></div><div class="table-wrap"><table><thead><tr><th>Loja</th><th>Faturação c/ IVA</th><th>Vendas s/ IVA</th><th>Custo produtos</th><th>Custos fixos</th><th>Custos variáveis</th><th>Resultado</th><th>Vendas</th></tr></thead><tbody id="storePerformanceTable"></tbody></table></div></article><article class="panel report-panel"><div class="panel-head"><div><h3>Custos fixos configurados</h3><p>Valor mensal e parcela imputada ao período (pro rata por dias).</p></div></div><div class="table-wrap"><table><thead><tr><th>Loja</th><th>Tipo de custo</th><th>Valor mensal</th><th>No período</th></tr></thead><tbody id="storeFixedBreakdownTable"></tbody></table></div></article><p class="report-help">Configure os custos mensais em Definições → Lojas &amp; armazéns → Editar. Uma despesa fixa registada na aba Despesas é somada em separado; não registe o mesmo encargo nos dois locais.</p></div>
         <div class="report-pane" data-report-pane="sales" hidden><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas por semana</h3><p>Semanas do mês: dias 1–7, 8–14, 15–21, 22–28 e 29–31.</p></div></div><div class="table-wrap"><table><thead><tr><th>Período</th><th>Semana</th><th>Vendas</th><th>Faturação c/ IVA</th></tr></thead><tbody id="weeklySalesTable"></tbody></table></div></article><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas no período</h3><p>Apenas documentos concluídos; devoluções ficam excluídas.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Referência</th><th>Cliente</th><th>Vendedor</th><th>Pagamento</th><th>Total</th></tr></thead><tbody id="reportSalesTable"></tbody></table></div></article></div>
-        <div class="report-pane" data-report-pane="expenses" hidden><article class="panel report-panel"><div class="panel-head"><div><h3>Despesas operacionais registadas</h3><p>Despesas únicas e recorrentes; os custos configurados por loja são apresentados na aba Por loja.</p></div><button class="btn primary" id="newExpense" type="button">＋ Registar despesa</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Loja</th><th>Categoria</th><th>Tipo / periodicidade</th><th>Pagamento</th><th>Valor</th></tr></thead><tbody id="reportExpensesTable"></tbody></table></div></article></div>
+        <div class="report-pane" data-report-pane="expenses" hidden><article class="panel report-panel"><div class="panel-head"><div><h3>Despesas operacionais registadas</h3><p>Despesas únicas e recorrentes; os custos configurados por loja são apresentados na aba Por loja.</p></div><button class="btn primary" id="newExpense" type="button">＋ Registar despesa</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Loja</th><th>Categoria</th><th>Tipo / periodicidade</th><th>Pagamento</th><th>Valor</th><th>Acção</th></tr></thead><tbody id="reportExpensesTable"></tbody></table></div></article></div>
         <div class="report-pane" data-report-pane="finance" hidden><article class="panel report-panel"><div class="panel-head"><div><h3>Demonstração de resultados</h3><p>Apuramento operacional do período seleccionado.</p></div></div><div id="incomeStatementDetail" class="statement"></div></article><article class="calculation-guide"><h3>Como cada cálculo é feito</h3><div id="calculationGuide"></div></article></div>
         <div class="report-pane" data-report-pane="products" hidden><article class="panel report-panel"><div class="panel-head"><div><h3>Desempenho de produtos</h3><p>Valores líquidos já reflectem descontos; a margem usa o custo guardado no momento da venda.</p></div></div><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Quantidade</th><th>Vendas brutas</th><th>Vendas líquidas s/ IVA</th><th>Custo vendido</th><th>Margem bruta</th></tr></thead><tbody id="productPerformanceTable"></tbody></table></div></article></div>
         <div class="report-pane" data-report-pane="sellers" hidden><div class="seller-filter panel"><label>Vendedor<select id="sellerReportFilter"><option value="all">Todos os vendedores</option></select></label><p>Escolha um vendedor para consultar exactamente o que vendeu por dia e por mês.</p></div><div class="metric-grid" id="sellerMetrics"></div><article class="panel report-panel"><div class="panel-head"><div><h3>Resumo por vendedor</h3><p>Faturação e valor médio apenas das vendas concluídas.</p></div></div><div class="table-wrap"><table><thead><tr><th>Vendedor</th><th>Vendas</th><th>Faturação c/ IVA</th><th>Média por venda</th><th>Por receber</th></tr></thead><tbody id="sellerPerformanceTable"></tbody></table></div></article><div class="seller-report-grid"><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas por dia</h3><p>Fecho diário por vendedor.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Vendedor</th><th>Vendas</th><th>Faturação</th><th>Média</th></tr></thead><tbody id="sellerDailyTable"></tbody></table></div></article><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas por mês</h3><p>Consolidação mensal por vendedor.</p></div></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Vendedor</th><th>Vendas</th><th>Faturação</th><th>Média</th></tr></thead><tbody id="sellerMonthlyTable"></tbody></table></div></article></div></div>
@@ -145,6 +168,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
   <script src="supabase-config.js"></script>
   <script src="cloud.js"></script>
+  <script src="finance-core.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

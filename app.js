@@ -37,6 +37,9 @@ function dateTime(offset = 0, hour = 10) {
 }
 function uid(prefix) { return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; }
 function money(value) { return `${Number(value || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kz`; }
+function roundMoney(value) { return window.VendaMaisFinance?.roundMoney(Number(value) || 0) ?? Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100; }
+function captureDataSnapshot() { return JSON.stringify(data); }
+function persistOrRollback(snapshot, rerender = true) { if (saveData()) return true; data = normaliseData(JSON.parse(snapshot)); currentUser = getSessionUser(); if (rerender) renderAll(); return false; }
 function number(value) { return Number(value || 0).toLocaleString('pt-PT', { maximumFractionDigits: 2 }); }
 function shortDate(value) { return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value.slice(0, 10)}T12:00:00`)); }
 function fullDate(value) { return new Intl.DateTimeFormat('pt-PT', { dateStyle: 'medium', timeStyle: value.length > 10 ? 'short' : undefined }).format(new Date(value.length > 10 ? value : `${value}T12:00:00`)); }
@@ -132,8 +135,8 @@ function demoData() {
     auditLog: [],
     integrations: { thermalPrinter: false, barcodeScanner: true, multicaixa: false, accountingExport: false },
     purchases: [
-      { id: 'buy_201', reference: 'CP-0201', date: dateISO(-7), supplierId: 's_kimb', payment: 'Transferência', total: 148500, items: [{ productId: 'p_agua', name: 'Água mineral 1,5L', quantity: 100, unitCost: 210 }, { productId: 'p_sumol', name: 'Sumo tropical 33cl', quantity: 100, unitCost: 310 }] },
-      { id: 'buy_202', reference: 'CP-0202', date: dateISO(-3), supplierId: 's_alim', payment: 'Crédito', total: 172800, items: [{ productId: 'p_oleo', name: 'Óleo alimentar 1L', quantity: 60, unitCost: 1450 }, { productId: 'p_leite', name: 'Leite UHT 1L', quantity: 80, unitCost: 570 }] }
+      { id: 'buy_201', reference: 'CP-0201', date: dateISO(-7), supplierId: 's_kimb', payment: 'Transferência', total: 52000, items: [{ productId: 'p_agua', name: 'Água mineral 1,5L', quantity: 100, unitCost: 210 }, { productId: 'p_sumol', name: 'Sumo tropical 33cl', quantity: 100, unitCost: 310 }] },
+      { id: 'buy_202', reference: 'CP-0202', date: dateISO(-3), supplierId: 's_alim', payment: 'Crédito', total: 132600, items: [{ productId: 'p_oleo', name: 'Óleo alimentar 1L', quantity: 60, unitCost: 1450 }, { productId: 'p_leite', name: 'Leite UHT 1L', quantity: 80, unitCost: 570 }] }
     ],
     movements: [
       { id: 'm_1', date: dateTime(-7, 10), productId: 'p_agua', productName: 'Água mineral 1,5L', type: 'Entrada', quantity: 100, note: 'Compra CP-0201' },
@@ -145,16 +148,15 @@ function demoData() {
 }
 
 function emptyBusinessData(previous = {}) {
-  const base = demoData();
-  return normaliseData({
-    meta: { schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() },
-    settings: { ...base.settings, ...(previous.settings || {}) },
-    locations: Array.isArray(previous.locations) && previous.locations.length ? previous.locations : base.locations,
-    products: [], customers: [], suppliers: [], sales: [], purchases: [], movements: [], receipts: [], supplierPayments: [], transfers: [],
-    cashSessions: [], cashMovements: [], expenses: [], returns: [], auditLog: [],
-    users: Array.isArray(previous.users) && previous.users.length ? previous.users : base.users,
-    integrations: { ...base.integrations, ...(previous.integrations || {}) }
-  });
+  const base = blankData(previous);
+  base.settings = { ...base.settings, ...(previous.settings || {}) };
+  base.locations = (Array.isArray(previous.locations) && previous.locations.length ? previous.locations : base.locations)
+    .map(location => normaliseLocation({ ...location, fixedCosts: Object.fromEntries(FIXED_COST_LABELS.map(label => [label, 0])) }));
+  base.settings.activeLocationId = base.locations.find(location => location.active)?.id || base.locations[0].id;
+  base.users = (Array.isArray(previous.users) && previous.users.length ? previous.users : base.users)
+    .filter(user => user.active).map(user => normaliseUser(user, base.settings.activeLocationId));
+  if (!base.users.some(user => user.role === 'Administrador')) base.users.unshift(normaliseUser({ id: uid('usr'), name: 'Administrador', initials: 'AD', role: 'Administrador', active: true, pin: '0000', pinMustChange: true }, base.settings.activeLocationId));
+  return normaliseData(base);
 }
 
 function customerSnapshot(customer) {
@@ -185,23 +187,47 @@ function normaliseProduct(product = {}, fallbackLocationId = 'loc_main') {
   const stockByLocation = normaliseStockMap(product.stockByLocation, fallbackLocationId, product.stock);
   return { ...product, stockByLocation, stock: totalStock({ stockByLocation }), unit: product.unit || 'un.', barcode: String(product.barcode || '').trim(), warehouse: product.warehouse || 'Armazém principal', expiryDate: product.expiryDate || '', lot: String(product.lot || '').trim() };
 }
+function normaliseLedgerSettlement(totalValue, paidValue, balanceValue, isCredit) {
+  const total = roundMoney(Math.max(0, Number(totalValue) || 0));
+  const hasPaid = paidValue !== undefined && paidValue !== null;
+  const hasBalance = balanceValue !== undefined && balanceValue !== null;
+  const rawBalance = hasBalance ? Number(balanceValue) : (isCredit ? total : 0);
+  const rawPaid = hasPaid ? Number(paidValue) : (total - (Number.isFinite(rawBalance) ? rawBalance : 0));
+  const settlementIntegrityWarning = (hasPaid && (!Number.isFinite(rawPaid) || rawPaid < 0 || rawPaid > total + 0.01)) || (hasBalance && (!Number.isFinite(rawBalance) || rawBalance < 0 || rawBalance > total + 0.01)) || (hasPaid && hasBalance && Math.abs(roundMoney(rawPaid + rawBalance) - total) > 0.01);
+  let balanceDue = roundMoney(Math.min(total, Math.max(0, Number.isFinite(rawBalance) ? rawBalance : 0)));
+  let amountPaid = roundMoney(Math.min(total, Math.max(0, Number.isFinite(rawPaid) ? rawPaid : total - balanceDue)));
+  // Corrige a exibição de dados antigos, mas mantém um alerta para revisão manual.
+  if (Math.abs(roundMoney(amountPaid + balanceDue) - total) > 0.01) balanceDue = roundMoney(Math.max(0, total - amountPaid));
+  return { total, amountPaid, balanceDue, settlementIntegrityWarning, paymentStatus: balanceDue <= 0 ? 'Pago' : (amountPaid > 0 ? 'Parcial' : 'Pendente') };
+}
 function normaliseSale(sale = {}, customers = []) {
-  const total = Number(sale.total || 0);
   const credit = sale.payment === 'Crédito' || sale.paymentStatus === 'Pendente' || Number(sale.balanceDue || 0) > 0;
-  const balanceDue = Math.min(total, Math.max(0, Number(sale.balanceDue ?? (credit ? total : 0))));
+  const settlement = normaliseLedgerSettlement(sale.total, sale.amountPaid, sale.balanceDue, credit);
   const customer = sale.customer?.name ? sale.customer : customerSnapshot(customers.find(item => item.id === sale.customerId));
-  return { ...sale, locationId: sale.locationId || '', operatorId: sale.operatorId || '', operatorName: String(sale.operatorName || '').trim(), customer, documentType: sale.documentType || (credit ? 'Factura' : 'Factura-Recibo'), paymentStatus: balanceDue <= 0 ? 'Pago' : (balanceDue < total ? 'Parcial' : 'Pendente'), amountPaid: Math.max(0, Number(sale.amountPaid ?? (total - balanceDue))), balanceDue, dueDate: sale.dueDate || '' };
+  return { ...sale, ...settlement, locationId: sale.locationId || '', operatorId: sale.operatorId || '', operatorName: String(sale.operatorName || '').trim(), customer, documentType: sale.documentType || (credit ? 'Factura' : 'Factura-Recibo'), dueDate: sale.dueDate || '' };
 }
 function normalisePurchase(purchase = {}) {
-  const total = Number(purchase.total || 0); const credit = purchase.payment === 'Crédito' || purchase.paymentStatus === 'Pendente' || Number(purchase.balanceDue || 0) > 0; const balanceDue = Math.min(total, Math.max(0, Number(purchase.balanceDue ?? (credit ? total : 0))));
-  return { ...purchase, paymentStatus: balanceDue <= 0 ? 'Pago' : (balanceDue < total ? 'Parcial' : 'Pendente'), amountPaid: Math.max(0, Number(purchase.amountPaid ?? (total - balanceDue))), balanceDue };
+  const credit = purchase.payment === 'Crédito' || purchase.paymentStatus === 'Pendente' || Number(purchase.balanceDue || 0) > 0;
+  return { ...purchase, ...normaliseLedgerSettlement(purchase.total, purchase.amountPaid, purchase.balanceDue, credit) };
 }
+
+function blankData(previous = {}) {
+  const settings = { company: '', nif: '', phone: '', email: '', address: '', taxRate: 0, stockLimit: 5, defaultWarehouse: 'Armazém principal', activeLocationId: 'loc_main', themeId: 'esmeralda', ...(previous.settings || {}) };
+  const zeroCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, 0]));
+  const locations = Array.isArray(previous.locations) && previous.locations.length
+    ? previous.locations.map(location => ({ ...location, fixedCosts: { ...zeroCosts } }))
+    : [{ id: 'loc_main', name: 'Loja principal', type: 'Loja', address: '', active: true, colorId: 'esmeralda', fixedCosts: { ...zeroCosts } }];
+  const admin = (Array.isArray(previous.users) ? previous.users : []).find(user => user.role === 'Administrador' && user.active);
+  const users = admin ? [{ ...admin, locationId: locations[0].id, pinMustChange: true }] : [{ id: 'u_admin', name: 'Administrador', initials: 'AD', role: 'Administrador', active: true, pin: '0000', pinMustChange: true, locationId: locations[0].id }];
+  return { meta: { schemaVersion: STORAGE_VERSION, lastUpdated: new Date().toISOString() }, settings, locations, products: [], customers: [], suppliers: [], sales: [], purchases: [], movements: [], receipts: [], supplierPayments: [], expensePayments: [], transfers: [], cashSessions: [], cashMovements: [], cashMovementRequests: [], expenses: [], returns: [], auditLog: [], users, integrations: { thermalPrinter: false, barcodeScanner: true, multicaixa: false, accountingExport: false } };
+}
+
 function normaliseData(candidate) {
-  const base = demoData();
+  const base = blankData();
   const source = candidate && typeof candidate === 'object' && candidate.settings ? candidate : base;
-  const collections = ['suppliers', 'movements', 'receipts', 'supplierPayments', 'cashSessions', 'cashMovements', 'returns', 'auditLog', 'transfers', 'expenses'];
+  const collections = ['suppliers', 'movements', 'receipts', 'supplierPayments', 'expensePayments', 'cashSessions', 'cashMovements', 'cashMovementRequests', 'returns', 'auditLog', 'transfers', 'expenses'];
   const restored = { ...base, ...source, settings: { ...base.settings, ...source.settings }, meta: { ...base.meta, ...source.meta, schemaVersion: STORAGE_VERSION } };
-  collections.forEach(key => { restored[key] = Array.isArray(source[key]) ? source[key] : (Array.isArray(base[key]) ? base[key] : []); });
+  collections.forEach(key => { restored[key] = Array.isArray(source[key]) ? source[key] : []; });
   restored.locations = (Array.isArray(source.locations) && source.locations.length ? source.locations : base.locations).map(normaliseLocation);
   const fallbackLocationId = restored.locations.find(location => location.id === restored.settings.activeLocationId && location.active)?.id || restored.locations.find(location => location.active)?.id || restored.locations[0].id;
   restored.settings.activeLocationId = fallbackLocationId;
@@ -266,7 +292,7 @@ function currentCashForAll(locationId = currentLocationId()) { return data.cashS
 const ROLE_VIEWS = {
   Administrador: ['dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'settings'],
   Gerente: ['dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports'],
-  Vendedor: ['pos', 'cash', 'documents']
+  Vendedor: ['dashboard', 'pos', 'cash', 'documents']
 };
 function canManage() { return currentUser?.role === 'Administrador' || currentUser?.role === 'Gerente'; }
 function isAdministrator() { return currentUser?.role === 'Administrador'; }
@@ -277,7 +303,7 @@ function saleCustomer(sale) { return sale.customer?.name ? sale.customer : custo
 function saleCustomerName(sale) { return saleCustomer(sale).name || 'Consumidor final'; }
 function saleBalanceDue(sale) { return Math.max(0, Number(sale.balanceDue || 0)); }
 function categoryList() { return [...new Set(data.products.map(product => product.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
-function saleCost(sale) { return sale.items.reduce((sum, item) => sum + Number(item.cost || 0) * Number(item.quantity || 0), 0); }
+function saleCost(sale) { return roundMoney((sale.items || []).reduce((total, item) => total + Number(item.cost || 0) * Number(item.quantity || 0), 0)); }
 function sum(array, fn) { return array.reduce((total, item) => total + Number(fn(item) || 0), 0); }
 function dayStart(value) { return value ? new Date(`${value}T00:00:00`).getTime() : -Infinity; }
 function dayEnd(value) { return value ? new Date(`${value}T23:59:59`).getTime() : Infinity; }
@@ -317,7 +343,7 @@ function applyRoleInterface() {
     locationSelect.disabled = isSeller();
     locationSelect.title = isSeller() ? `O vendedor trabalha no local atribuído: ${locationName(currentLocationId())}.` : 'Seleccione o local de operação.';
   }
-  const quickSale = $('#quickSale'); if (quickSale) quickSale.hidden = !canAccessView('pos');
+  const quickSale = $('#quickSale'); if (quickSale) quickSale.hidden = !canAccessView('pos'); const discountInbox = $('#discountInboxButton'); if (discountInbox) discountInbox.hidden = !isAdministrator();
   const cashMovement = $('#cashMovement'); if (cashMovement) cashMovement.hidden = !canManage();
   const exportDocumentsButton = $('#exportDocuments'); if (exportDocumentsButton) exportDocumentsButton.hidden = !canManage();
 }
@@ -347,18 +373,26 @@ function renderView(view) {
 function renderAll() { applyBrandTheme(); renderView($('.view.active').id.replace('View', '')); }
 
 function renderDashboard() {
+  if (isSeller()) return renderSellerDashboard();
+  const stockPanel = $('#lowStockList')?.closest('article'); if (stockPanel) stockPanel.hidden = false;
+  const reportLink = $('#recentSales')?.closest('article')?.querySelector('[data-go="reports"]'); if (reportLink) reportLink.hidden = false;
   const today = dateISO(); const start = monthStart();
   const locationId = currentLocationId(); const low = data.products.filter(product => stockAt(product, locationId) <= product.minStock);
   const todaySales = salesBetween(today, today).filter(sale => sale.locationId === locationId); const monthly = salesBetween(start, today).filter(sale => sale.locationId === locationId);
   const totalStock = sum(data.products, product => stockAt(product, locationId) * product.cost);
   const income = sum(monthly, sale => sale.total);
+  const monthReport = calculateReport(start, today, locationId);
+  const openCash = data.cashSessions.filter(session => session.status === 'Aberto' && session.locationId === locationId);
+  const expectedCash = sum(openCash, session => cashSessionAmounts(session).expected);
   $('#metrics').innerHTML = [
-    ['Vendas de hoje', money(sum(todaySales, sale => sale.total)), `${todaySales.length} transação${todaySales.length === 1 ? '' : 'ões'}`, '◷', 'positive'],
+    ['Vendas de hoje', money(sum(todaySales, sale => sale.total)), `${todaySales.length} transação${todaySales.length === 1 ? '' : 'ões'} concluídas`, '◷', 'positive'],
     ['Faturação do mês', money(income), `${monthly.length} vendas registadas`, '↗', 'positive'],
+    ['Resultado estimado', monthReport.costIssues ? 'Por apurar' : money(monthReport.profit), monthReport.costIssues ? `${monthReport.costIssues} inconsistência(s) financeira(s)` : 'Após custos e despesas', '◇', monthReport.costIssues ? 'warning' : (monthReport.profit < 0 ? 'warning' : 'positive')],
+    ['Dinheiro nos caixas abertos', money(expectedCash), openCash.length ? `${openCash.length} turno(s) aberto(s) · valor esperado` : 'Nenhum turno aberto', '▤', openCash.length ? 'positive' : ''],
     ['Valor do stock', money(totalStock), `${number(sum(data.products, product => stockAt(product, locationId)))} un. em ${locationName(locationId)}`, '◈', ''],
     ['Stock reduzido', low.length, low.length ? 'Requer reposição' : 'Todos os níveis estão bons', '⚠', low.length ? 'warning' : 'positive']
-  ].map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
-  const dayData = Array.from({ length: 7 }, (_, index) => { const offset = index - 6; const date = dateISO(offset); return { date, value: sum(salesBetween(date, date), sale => sale.total), label: new Intl.DateTimeFormat('pt-PT', { weekday: 'short' }).format(new Date(`${date}T12:00:00`)).replace('.', '') }; });
+  ].map(([label, value, hint, icon, kind]) => `<article class="metric-card" title="${escapeHtml(label)}"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
+  const dayData = Array.from({ length: 7 }, (_, index) => { const offset = index - 6; const date = dateISO(offset); return { date, value: sum(salesBetween(date, date).filter(sale => sale.locationId === locationId), sale => sale.total), label: new Intl.DateTimeFormat('pt-PT', { weekday: 'short' }).format(new Date(`${date}T12:00:00`)).replace('.', '') }; });
   const max = Math.max(...dayData.map(item => item.value), 1);
   $('#weekTotal').textContent = money(sum(dayData, item => item.value));
   $('#salesChart').innerHTML = dayData.map((item, index) => `<div class="bar-col"><span class="bar-value">${item.value ? number(item.value / 1000) + ' mil' : '—'}</span><div class="bar ${index === 6 ? 'today' : ''}" style="height:${Math.max(4, item.value / max * 100)}%"></div><span class="bar-label">${item.label}</span></div>`).join('');
@@ -367,7 +401,7 @@ function renderDashboard() {
   $('#recentSales').innerHTML = recent.length ? recent.map(sale => `<tr><td><b>${sale.reference}</b><br><small class="muted">${shortDate(sale.date)}</small></td><td>${escapeHtml(saleCustomerName(sale))}</td><td class="money"><b>${money(sale.total)}</b></td><td><span class="status ${saleBalanceDue(sale) ? 'pending' : 'completed'}">${saleBalanceDue(sale) ? 'Em dívida' : 'Pago'}</span></td></tr>`).join('') : emptyRow(4);
   const costs = sum(monthly, saleCost); const tax = sum(monthly, sale => sale.tax);
   const receivable = sum(monthly, saleBalanceDue);
-  $('#financialSummary').innerHTML = summaryRows([['Faturação (com IVA)', money(income)], ['Vendas sem IVA', money(income - tax)], ['Valores por receber', money(receivable)], ['Custo dos produtos vendidos', `− ${money(costs)}`], ['Margem bruta', money(income - tax - costs), true]]);
+  $('#financialSummary').innerHTML = summaryRows([['Faturação (com IVA)', money(income)], ['IVA incluído', `− ${money(tax)}`], ['Vendas sem IVA', money(income - tax)], ['Valores por receber', money(receivable)], ['Custo dos produtos vendidos', `− ${money(costs)}`], ['Despesas operacionais', `− ${money(monthReport.operatingCosts)}`], [monthReport.costIssues ? 'Resultado (por apurar)' : 'Resultado líquido estimado', monthReport.costIssues ? 'Por apurar' : money(monthReport.profit), true]]);
   const todayPanel = $('#storeTodayPanel'); const todayTable = $('#storeTodayTable');
   if (todayPanel && todayTable) {
     const canSeeAllStores = canManage();
@@ -383,6 +417,64 @@ function renderDashboard() {
   }
   renderOperationalControl(today, start);
 }
+function renderSellerDashboard() {
+  const today = dateISO();
+  const start = monthStart();
+  const ownSales = data.sales.filter(sale => sale.operatorId === currentUser.id && sale.status !== 'Devolvida');
+  const todaySales = ownSales.filter(sale => String(sale.date || '').slice(0, 10) === today);
+  const monthlySales = ownSales.filter(sale => String(sale.date || '').slice(0, 10) >= start && String(sale.date || '').slice(0, 10) <= today);
+  const todayTotal = sum(todaySales, sale => sale.total);
+  const monthTotal = sum(monthlySales, sale => sale.total);
+  const average = monthlySales.length ? monthTotal / monthlySales.length : 0;
+  const session = currentCashSession();
+  const cash = cashSessionAmounts(session);
+  const metricRows = [
+    ['Vendas de hoje', todaySales.length, 'Operações concluídas hoje', '▣', todaySales.length ? 'positive' : ''],
+    ['Faturação de hoje', money(todayTotal), 'Total das suas vendas hoje', '↗', todayTotal ? 'positive' : ''],
+    ['Faturação do mês', money(monthTotal), `${monthlySales.length} venda(s) no período`, '◷', monthTotal ? 'positive' : ''],
+    ['Ticket médio', money(average), 'Média por venda neste mês', '◈', ''],
+    ['Estado do meu caixa', session ? 'Aberto' : 'Fechado', session ? `Esperado: ${money(cash.expected)}` : 'Abra o seu turno para começar', '▤', session ? 'positive' : 'warning']
+  ];
+  $('#metrics').innerHTML = metricRows.map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
+
+  const dayData = Array.from({ length: 7 }, (_, index) => {
+    const date = dateISO(index - 6);
+    const value = sum(ownSales.filter(sale => String(sale.date || '').slice(0, 10) === date), sale => sale.total);
+    const label = new Intl.DateTimeFormat('pt-PT', { weekday: 'short' }).format(new Date(`${date}T12:00:00`)).replace('.', '');
+    return { date, value, label };
+  });
+  const max = Math.max(...dayData.map(item => item.value), 1);
+  $('#weekTotal').textContent = money(sum(dayData, item => item.value));
+  $('#salesChart').innerHTML = dayData.map((item, index) => `<div class="bar-col"><span class="bar-value">${item.value ? number(item.value / 1000) + ' mil' : '—'}</span><div class="bar ${index === 6 ? 'today' : ''}" style="height:${Math.max(4, item.value / max * 100)}%"></div><span class="bar-label">${item.label}</span></div>`).join('');
+
+  const recent = [...ownSales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+  $('#recentSales').innerHTML = recent.length ? recent.map(sale => `<tr><td><b>${escapeHtml(sale.reference || '—')}</b><br><small class="muted">${shortDate(sale.date)}</small></td><td>${escapeHtml(saleCustomerName(sale))}</td><td class="money"><b>${money(sale.total)}</b></td><td><span class="status ${saleBalanceDue(sale) ? 'pending' : 'completed'}">${saleBalanceDue(sale) ? 'Em dívida' : 'Pago'}</span></td></tr>`).join('') : emptyRow(4, 'Ainda não existem vendas associadas à sua conta.');
+  $('#financialSummary').innerHTML = summaryRows([
+    ['Faturação de hoje', money(todayTotal)],
+    ['Vendas concluídas hoje', String(todaySales.length)],
+    ['Faturação do mês', money(monthTotal)],
+    ['Valor por receber', money(sum(monthlySales, saleBalanceDue))],
+    ['Ticket médio', money(average), true]
+  ]);
+
+  const title = $('#dashboardView .welcome-row h2');
+  const description = $('#dashboardView .welcome-row p');
+  if (title) title.textContent = `Olá, ${currentUser.name.split(' ')[0]}`;
+  if (description) description.textContent = 'Acompanhe o seu desempenho e as suas vendas.';
+  const stockPanel = $('#lowStockList')?.closest('article');
+  if (stockPanel) stockPanel.hidden = true;
+  const storePanel = $('#storeTodayPanel');
+  if (storePanel) storePanel.hidden = true;
+  const operationalPanel = $('#operationalControlPanel');
+  if (operationalPanel) operationalPanel.hidden = true;
+  const recentTitle = $('#recentSales')?.closest('article')?.querySelector('h3');
+  if (recentTitle) recentTitle.textContent = 'As minhas vendas recentes';
+  const recentDescription = $('#recentSales')?.closest('article')?.querySelector('p');
+  if (recentDescription) recentDescription.textContent = 'Apenas operações registadas na sua conta.';
+  const reportLink = $('#recentSales')?.closest('article')?.querySelector('[data-go="reports"]');
+  if (reportLink) reportLink.hidden = true;
+}
+
 function renderOperationalControl(today, monthStartDate) {
   let panel = $('#operationalControlPanel');
   if (!panel) {
@@ -395,10 +487,14 @@ function renderOperationalControl(today, monthStartDate) {
   const overdue = data.sales.filter(sale => saleBalanceDue(sale) > 0 && sale.dueDate && sale.dueDate < today && sale.status !== 'Devolvida');
   const allLow = data.locations.filter(location => location.active).reduce((count, location) => count + data.products.filter(product => stockAt(product, location.id) <= product.minStock).length, 0);
   const pending = window.VendaMaisCloud?.pendingCount?.() || 0;
+  const missingSaleCosts = data.sales.reduce((count, sale) => count + sale.items.filter(item => { const cost = Number(item.cost); const price = Number(item.price); return !Number.isFinite(cost) || cost <= 0 || (price > 0 && cost < price * 0.01); }).length, 0);
+  const productsWithoutCost = data.products.filter(product => { const cost = Number(product.cost); const price = Number(product.price); return !Number.isFinite(cost) || cost <= 0 || (price > 0 && cost < price * 0.01); }).length;
   $('#operationalAlerts').innerHTML = summaryRows([
     ['Caixas abertos', `${openCash.length} turno${openCash.length === 1 ? '' : 's'}`, openCash.length > 0],
     ['Documentos vencidos', `${overdue.length} em cobrança`, overdue.length > 0],
     ['Alertas de stock', `${allLow} referência${allLow === 1 ? '' : 's'}`, allLow > 0],
+    ['Produtos sem custo de compra', `${productsWithoutCost} produto(s)`, productsWithoutCost > 0],
+    ['Vendas com custo por confirmar', `${missingSaleCosts} linha(s)`, missingSaleCosts > 0],
     ['Vendas por sincronizar', `${pending} pendente${pending === 1 ? '' : 's'}`, pending > 0]
   ]);
   const stores = data.locations.filter(location => location.type === 'Loja' && location.active);
@@ -440,17 +536,30 @@ function renderPosProducts() {
   const search = $('#productSearch').value.trim().toLowerCase(); const category = $('#posCategory').value;
   const locationId = currentLocationId(); const products = data.products.filter(product => (!category || product.category === category) && (!search || `${product.name} ${product.code} ${product.barcode || ''}`.toLowerCase().includes(search)));
   $('#posProducts').innerHTML = products.length ? products.map((product, index) => { const available = stockAt(product, locationId); return `<button class="product-card ${available <= 0 ? 'sold-out' : ''}" data-add-product="${product.id}" ${available <= 0 ? 'disabled' : ''}><span class="product-image">${icons[index % icons.length]}</span><b>${escapeHtml(product.name)}</b><span class="code">${escapeHtml(product.code)}${product.barcode ? ` · ${escapeHtml(product.barcode)}` : ''}</span><footer><strong>${money(product.price)}</strong><small>${number(available)} ${escapeHtml(product.unit || 'un.')}</small></footer></button>`; }).join('') : '<div class="empty-state">Nenhum produto encontrado.</div>';
+  updateProductScrollControls();
+}
+function updateProductScrollControls() {
+  const scroller = $('#productScroll'); if (!scroller) return;
+  const up = $('#productsScrollUp'); const down = $('#productsScrollDown');
+  const canScroll = scroller.scrollHeight > scroller.clientHeight + 2;
+  if (up) { up.disabled = !canScroll || scroller.scrollTop <= 2; up.hidden = !canScroll; }
+  if (down) { down.disabled = !canScroll || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2; down.hidden = !canScroll; }
+}
+function scrollProducts(direction) {
+  const scroller = $('#productScroll'); if (!scroller) return;
+  scroller.scrollBy({ top: direction * Math.max(220, scroller.clientHeight * .72), behavior: 'smooth' });
+  window.setTimeout(updateProductScrollControls, 260);
 }
 function cartNumbers() {
-  const subtotal = sum(cart, item => item.price * item.quantity); const discount = isSeller() ? 0 : Math.min(100, Math.max(0, Number($('#saleDiscount')?.value || 0))); const discountValue = subtotal * discount / 100; const taxable = subtotal - discountValue; const tax = taxable * (Number(data.settings.taxRate) / 100); return { subtotal, discount, discountValue, tax, total: taxable + tax };
+  return window.VendaMaisFinance.calculateCartTotals(cart, isSeller() ? 0 : Number($('#saleDiscount')?.value || 0), Number(data.settings.taxRate || 0));
 }
 function renderCart() {
   const count = sum(cart, item => item.quantity); $('#cartCount').textContent = `${count} artigo${count === 1 ? '' : 's'}`;
-  $('#cartItems').innerHTML = cart.length ? cart.map(item => `<div class="cart-item"><div><b>${escapeHtml(item.name)}</b><small>${money(item.price)} cada</small></div><div class="cart-item-right"><strong>${money(item.price * item.quantity)}</strong><div class="quantity"><button data-cart-change="${item.productId}" data-change="-1">−</button><span>${number(item.quantity)}</span><button data-cart-change="${item.productId}" data-change="1">+</button></div></div></div>`).join('') : '<div class="empty-cart">O carrinho está vazio.<br><small>Escolha produtos ao lado.</small></div>';
-  const totals = cartNumbers(); $('#cartSubtotal').textContent = money(totals.subtotal); $('#cartTax').textContent = money(totals.tax); $('#cartTotal').textContent = money(totals.total); $('#taxRateLabel').textContent = `${number(data.settings.taxRate)}%`; const discountInput = $('#saleDiscount'); if (discountInput) { if (isSeller()) discountInput.value = '0'; discountInput.disabled = isSeller(); discountInput.title = isSeller() ? 'Descontos requerem autorização de gerente ou administrador.' : ''; }
+  $('#cartItems').innerHTML = cart.length ? cart.map(item => `<div class="cart-item"><div><b>${escapeHtml(item.name)}</b><small>${money(item.price)} cada${Number(item.discountPct || 0) ? ` · desconto aprovado ${number(item.discountPct)}%` : ''}${item.discountRequestStatus === 'Pendente' ? ' · pedido pendente' : ''}</small></div><div class="cart-item-right"><strong>${money(Number(item.price) * Number(item.quantity) - Number(item.price) * Number(item.quantity) * Number(item.discountPct || 0) / 100)}</strong><div class="quantity"><button data-cart-change="${item.productId}" data-change="-1">−</button><span>${number(item.quantity)}</span><button data-cart-change="${item.productId}" data-change="1">+</button></div></div></div>`).join('') : '<div class="empty-cart">O carrinho está vazio.<br><small>Escolha produtos ao lado.</small></div>';
+  const totals = cartNumbers(); $('#cartSubtotal').textContent = money(totals.subtotal); $('#cartTax').textContent = money(totals.tax); $('#cartTotal').textContent = money(totals.total); $('#taxRateLabel').textContent = `${number(data.settings.taxRate)}%`; const discountInput = $('#saleDiscount'); if (discountInput) { if (isSeller()) discountInput.value = '0'; discountInput.disabled = isSeller(); discountInput.title = isSeller() ? 'Descontos requerem autorização de gerente ou administrador.' : ''; } const requestButton = $('#requestProductDiscount'); if (requestButton) requestButton.hidden = !isSeller() || !cart.length || !window.VendaMaisCloud?.connected?.();
 }
 function addToCart(id) { const product = productById(id); const available = stockAt(product); if (!product || available <= 0) return notify('Este produto não tem stock disponível neste local.'); const entry = cart.find(item => item.productId === id); if (entry) { if (entry.quantity >= available) return notify('A quantidade máxima disponível já está no carrinho.'); entry.quantity += 1; } else { cart.push({ productId: product.id, name: product.name, code: product.code, price: product.price, cost: product.cost, quantity: 1 }); } renderCart(); }
-function changeCart(id, change) { const entry = cart.find(item => item.productId === id); if (!entry) return; const product = productById(id); const next = entry.quantity + change; if (next <= 0) cart = cart.filter(item => item.productId !== id); else if (next > stockAt(product)) return notify('Não há mais unidades em stock neste local.'); else entry.quantity = next; renderCart(); }
+function changeCart(id, change) { const entry = cart.find(item => item.productId === id); if (!entry) return; if (entry.discountRequestStatus === 'Pendente') return notify('Aguarde a decisão do administrador antes de alterar a quantidade deste produto.'); const product = productById(id); const next = entry.quantity + change; if (next <= 0) cart = cart.filter(item => item.productId !== id); else if (next > stockAt(product)) return notify('Não há mais unidades em stock neste local.'); else { if (entry.discountApprovalId && next !== entry.quantity) { entry.discountPct = 0; entry.discountValue = 0; entry.discountApprovalId = ''; entry.discountRequestId = ''; entry.discountRequestStatus = ''; notify('A quantidade mudou. Solicite nova aprovação para manter o desconto.'); } entry.quantity = next; } renderCart(); }
 
 function renderProducts() {
   const categoryFilter = $('#productCategoryFilter'); const previous = categoryFilter.value;
@@ -519,25 +628,73 @@ function renderCash() {
   $('#cashSummary').innerHTML = session ? summaryRows([['Fundo inicial', money(values.opening)], ['Vendas em dinheiro', money(values.directSales)], ['Recebimentos em dinheiro', money(values.receipts)], ['Entradas avulsas', money(values.in)], ['Saídas avulsas', `− ${money(values.out)}`], ['Dinheiro esperado', money(values.expected), true]]) : '<div class="empty-state">Sem movimentos de caixa para mostrar.</div>';
   const movements = session ? data.cashMovements.filter(movement => movement.sessionId === session.id) : [];
   $('#cashMovementsTable').innerHTML = movements.length ? [...movements].sort((a,b) => new Date(b.date) - new Date(a.date)).map(movement => `<tr><td>${fullDate(movement.date)}</td><td><span class="status ${movement.type === 'Saída' ? 'danger' : 'completed'}">${movement.type}</span></td><td>${escapeHtml(movement.note)}</td><td class="money"><b class="${movement.type === 'Saída' ? 'text-danger' : ''}">${movement.type === 'Saída' ? '−' : '+'}${money(movement.amount)}</b></td><td>${escapeHtml(userById(movement.userId)?.name || '—')}</td></tr>`).join('') : emptyRow(5, 'Ainda não existem movimentos neste turno.');
+  renderCashMovementApprovals();
 }
 function cashOpenModal() {
   if (sessionLocked) return accountModal();
   if (currentCashForAll()) return notify('Já existe um caixa aberto neste local. Feche o turno anterior antes de abrir outro.');
   openModal(`${modalHeader('Abrir caixa', `Registe o fundo inicial para ${locationName(currentLocationId())}.`)}<form id="cashOpenForm"><div class="modal-form"><label>Operador<input value="${escapeHtml(currentUser.name)}" disabled /></label><label>Local<input value="${escapeHtml(locationName(currentLocationId()))}" disabled /></label><label>Fundo inicial (Kz)<input name="openingAmount" type="number" min="0" step="0.01" required value="0" /></label><label class="full">Observação<input name="note" placeholder="Ex.: fundo entregue pelo gerente" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Abrir turno</button></div></form>`);
-  $('#cashOpenForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const session = { id: uid('cash'), userId: currentUser.id, locationId: currentLocationId(), openedAt: new Date().toISOString(), openingAmount: Math.max(0, Number(values.openingAmount)), note: values.note.trim(), status: 'Aberto' }; data.cashSessions.push(session); audit('Abertura de caixa', `${locationName(session.locationId)} · fundo inicial: ${money(session.openingAmount)}`); saveData(); closeModal(); notify('Caixa aberto com sucesso.'); renderCash(); });
+  $('#cashOpenForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const openingAmount = Number(values.openingAmount); if (!Number.isFinite(openingAmount) || openingAmount < 0) return notify('Introduza um fundo inicial válido.'); const snapshot = captureDataSnapshot(); const session = { id: uid('cash'), userId: currentUser.id, locationId: currentLocationId(), openedAt: new Date().toISOString(), openingAmount: roundMoney(openingAmount), note: values.note.trim(), status: 'Aberto' }; data.cashSessions.push(session); audit('Abertura de caixa', `${locationName(session.locationId)} · fundo inicial: ${money(session.openingAmount)}`); if (!persistOrRollback(snapshot, false)) return; closeModal(); notify('Caixa aberto com sucesso.'); renderCash(); });
 }
 function cashMovementModal() {
-  if (!canManage()) return notify('Apenas administradores e gerentes podem registar movimentos manuais de caixa.');
-  const session = currentCashSession(); if (!session) return notify('Abra o caixa antes de registar movimentos.');
-  openModal(`${modalHeader('Movimento de caixa', 'Use entradas e saídas apenas para movimentos físicos de dinheiro.')}<form id="cashMovementForm"><div class="modal-form"><label>Tipo<select name="type"><option>Entrada</option><option>Saída</option></select></label><label>Valor (Kz)<input name="amount" type="number" min="0.01" step="0.01" required /></label><label class="full">Motivo<input name="note" required placeholder="Ex.: troco adicional, pagamento de transporte" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Guardar movimento</button></div></form>`);
-  $('#cashMovementForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const movement = { id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: values.type, amount: Number(values.amount), note: values.note.trim() }; data.cashMovements.push(movement); audit(`Movimento de caixa: ${movement.type}`, `${movement.note} — ${money(movement.amount)}`); saveData(); closeModal(); notify('Movimento de caixa registado.'); renderCash(); });
+  const session = currentCashSession(); if (!session) return notify('Abra o seu caixa antes de solicitar um movimento.');
+  if (!isSeller() && !canManage()) return notify('Não tem autorização para movimentos manuais de caixa.');
+  const sellerRequest = isSeller();
+  openModal(`${modalHeader(sellerRequest ? 'Solicitar movimento de caixa' : 'Movimento de caixa', sellerRequest ? 'O pedido ficará pendente até ser aprovado pelo administrador.' : 'Use entradas e saídas apenas para movimentos físicos de dinheiro.')}<form id="cashMovementForm"><div class="modal-form"><label>Tipo<select name="type"><option>Entrada</option><option>Saída</option></select></label><label>Valor (Kz)<input name="amount" type="number" min="0.01" step="0.01" required /></label><label class="full">Motivo<input name="note" required placeholder="Ex.: troco adicional, pagamento de transporte" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${sellerRequest ? 'Enviar para aprovação' : 'Guardar movimento'}</button></div></form>`);
+  $('#cashMovementForm').addEventListener('submit', event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const amount = Number(values.amount);
+    if (!Number.isFinite(amount) || amount <= 0 || !values.note.trim()) return notify('Introduza um valor e um motivo válidos.');
+    const snapshot = captureDataSnapshot();
+    if (sellerRequest) {
+      data.cashMovementRequests ||= [];
+      data.cashMovementRequests.push({ id: uid('cashreq'), sessionId: session.id, locationId: session.locationId, userId: currentUser.id, requestedAt: new Date().toISOString(), type: values.type, amount: roundMoney(amount), note: values.note.trim(), status: 'Pendente', decidedBy: '', decidedAt: '', decisionNote: '' });
+      audit('Pedido de movimento de caixa', `${values.type} · ${money(amount)} · ${values.note.trim()}`);
+    } else {
+      const movement = { id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: values.type, amount: roundMoney(amount), note: values.note.trim() };
+      data.cashMovements.push(movement); audit(`Movimento de caixa: ${movement.type}`, `${movement.note} — ${money(movement.amount)}`);
+    }
+    if (!persistOrRollback(snapshot, false)) return;
+    closeModal(); notify(sellerRequest ? 'Pedido enviado. Aguarde a aprovação do administrador.' : 'Movimento de caixa registado.'); renderCash();
+  });
 }
+function renderCashMovementApprovals() {
+  const panel = $('#cashApprovalPanel'); if (!panel) return;
+  const visible = currentUser?.role === 'Administrador';
+  panel.hidden = !visible;
+  if (visible) {
+    const requests = (data.cashMovementRequests || []).filter(item => item.status === 'Pendente').sort((a,b) => new Date(a.requestedAt) - new Date(b.requestedAt));
+    $('#cashApprovalCount').textContent = `${requests.length} pendente${requests.length === 1 ? '' : 's'}`;
+    $('#cashApprovalTable').innerHTML = requests.length ? requests.map(item => `<tr><td>${fullDate(item.requestedAt)}</td><td>${escapeHtml(userById(item.userId)?.name || 'Vendedor')}</td><td><span class="status ${item.type === 'Saída' ? 'danger' : 'completed'}">${item.type}</span></td><td class="money"><b>${money(item.amount)}</b></td><td>${escapeHtml(item.note)}</td><td>${escapeHtml(data.cashSessions.find(s => s.id === item.sessionId)?.status === 'Aberto' ? 'Aberto' : 'Fechado')}</td><td><button class="action-btn" data-cash-request="approve" data-id="${item.id}">Aprovar</button> <button class="action-btn text-danger" data-cash-request="reject" data-id="${item.id}">Rejeitar</button></td></tr>`).join('') : emptyRow(7, 'Não existem pedidos pendentes.');
+  }
+  const minePanel = $('#cashMyRequestsPanel');
+  if (minePanel) {
+    const mine = (data.cashMovementRequests || []).filter(item => item.userId === currentUser.id).sort((a,b) => new Date(b.requestedAt) - new Date(a.requestedAt));
+    minePanel.hidden = !isSeller();
+    if (isSeller()) $('#cashMyRequestsTable').innerHTML = mine.length ? mine.map(item => `<tr><td>${fullDate(item.requestedAt)}</td><td>${escapeHtml(item.type)}</td><td class="money">${money(item.amount)}</td><td>${escapeHtml(item.note)}</td><td><span class="status ${item.status === 'Aprovado' ? 'completed' : item.status === 'Rejeitado' ? 'danger' : 'pending'}">${escapeHtml(item.status)}</span></td></tr>`).join('') : emptyRow(5, 'Ainda não enviou pedidos.');
+  }
+}
+function decideCashMovementRequest(id, decision) {
+  if (currentUser?.role !== 'Administrador') return notify('Só o administrador pode decidir estes pedidos.');
+  const request = (data.cashMovementRequests || []).find(item => item.id === id && item.status === 'Pendente');
+  if (!request) return notify('Este pedido já foi decidido ou não existe.');
+  const session = data.cashSessions.find(item => item.id === request.sessionId);
+  if (decision === 'approve' && (!session || session.status !== 'Aberto')) return notify('Não é possível aprovar: o turno original já está fechado.');
+  const snapshot = captureDataSnapshot();
+  request.status = decision === 'approve' ? 'Aprovado' : 'Rejeitado'; request.decidedBy = currentUser.id; request.decidedAt = new Date().toISOString();
+  if (decision === 'approve') {
+    data.cashMovements.push({ id: uid('cashmov'), sessionId: request.sessionId, userId: request.userId, date: new Date().toISOString(), type: request.type, amount: request.amount, note: request.note, approvedBy: currentUser.id, requestId: request.id });
+    audit('Pedido de movimento aprovado', `${request.type} · ${money(request.amount)} · solicitado por ${userById(request.userId)?.name || request.userId}`);
+  } else audit('Pedido de movimento rejeitado', `${request.type} · ${money(request.amount)} · ${request.note}`);
+  if (!persistOrRollback(snapshot, false)) return;
+  notify(decision === 'approve' ? 'Pedido aprovado e movimento lançado no caixa.' : 'Pedido rejeitado.'); renderCash();
+}
+
 function cashCloseModal() {
   if (sessionLocked) return accountModal();
   const session = currentCashSession(); if (!session) return cashOpenModal(); const values = cashSessionAmounts(session);
   openModal(`${modalHeader('Fechar caixa', 'Conte o dinheiro físico antes de confirmar o fecho.')}<div class="sale-summary"><div><span>Fundo inicial</span><strong>${money(values.opening)}</strong></div><div><span>Vendas em dinheiro</span><strong>${money(values.sales)}</strong></div><div><span>Movimentos líquidos</span><strong>${money(values.in - values.out)}</strong></div><div><span>Valor esperado</span><strong>${money(values.expected)}</strong></div></div><form id="cashCloseForm"><div class="modal-form"><label>Valor contado (Kz)<input name="countedAmount" type="number" min="0" step="0.01" required value="${values.expected.toFixed(2)}" /></label><label>Diferença<input id="cashDifference" value="0,00 Kz" disabled /></label><label class="full">Observação de fecho<input name="closingNote" placeholder="Explique qualquer diferença encontrada" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Confirmar fecho</button></div></form>`);
   const form = $('#cashCloseForm'); const refreshDifference = () => { $('#cashDifference').value = money(Number(form.elements.countedAmount.value || 0) - values.expected); }; form.elements.countedAmount.addEventListener('input', refreshDifference);
-  form.addEventListener('submit', event => { event.preventDefault(); const formValues = Object.fromEntries(new FormData(form).entries()); const counted = Number(formValues.countedAmount); const difference = counted - values.expected; if (difference !== 0 && !formValues.closingNote.trim()) return notify('Explique a diferença de caixa antes de fechar.'); Object.assign(session, { status: 'Fechado', closedAt: new Date().toISOString(), countedAmount: counted, expectedAmount: values.expected, difference, closingNote: formValues.closingNote.trim() }); audit('Fecho de caixa', `Esperado: ${money(values.expected)} · Contado: ${money(counted)} · Diferença: ${money(difference)}`); saveData(); closeModal(); notify('Caixa fechado e registado.'); renderCash(); });
+  form.addEventListener('submit', event => { event.preventDefault(); const formValues = Object.fromEntries(new FormData(form).entries()); const counted = Number(formValues.countedAmount); if (!Number.isFinite(counted) || counted < 0) return notify('Introduza um valor contado válido.'); const difference = roundMoney(counted - values.expected); if (difference !== 0 && !formValues.closingNote.trim()) return notify('Explique a diferença de caixa antes de fechar.'); const snapshot = captureDataSnapshot(); Object.assign(session, { status: 'Fechado', closedAt: new Date().toISOString(), countedAmount: roundMoney(counted), expectedAmount: roundMoney(values.expected), difference, closingNote: formValues.closingNote.trim() }); audit('Fecho de caixa', `Esperado: ${money(values.expected)} · Contado: ${money(counted)} · Diferença: ${money(difference)}`); if (!persistOrRollback(snapshot, false)) return; closeModal(); notify('Caixa fechado e registado.'); renderCash(); });
 }
 function renderDocuments() { filterDocuments(); }
 function filterDocuments() {
@@ -551,18 +708,29 @@ function returnSaleModal(sale) {
   if (!sale || sale.status === 'Devolvida') return notify('Este documento já foi devolvido.');
   const refundable = Math.max(0, Number(sale.amountPaid || 0));
   openModal(`${modalHeader('Processar devolução', `Documento ${sale.reference} · ${money(sale.total)}`)}<p class="modal-note">A devolução cria uma nota de crédito interna, repõe todo o stock e anula o saldo pendente. Valor já pago a devolver: <b>${money(refundable)}</b>.</p><form id="returnForm"><div class="modal-form">${refundable ? `<label>Meio de reembolso<select name="refundPayment"><option ${sale.payment === 'Dinheiro' ? 'selected' : ''}>Dinheiro</option><option ${sale.payment === 'Transferência' ? 'selected' : ''}>Transferência</option><option ${sale.payment === 'Multicaixa' ? 'selected' : ''}>Multicaixa</option><option>Crédito em conta</option></select></label><label>Valor a reembolsar (Kz)<input name="refundAmount" type="number" min="0" max="${refundable}" step="0.01" required value="${refundable.toFixed(2)}" /></label>` : '<div class="full payment-feedback">Não existe valor pago a reembolsar; será anulada apenas a dívida do documento.</div>'}<label class="full">Motivo da devolução<textarea name="reason" required rows="3" placeholder="Ex.: artigo danificado, troca autorizada"></textarea></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Confirmar devolução</button></div></form>`);
-  $('#returnForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const reason = values.reason.trim(); const refundAmount = refundable ? Number(values.refundAmount) : 0; if (refundAmount < 0 || refundAmount > refundable) return notify('O reembolso não pode ultrapassar o valor já pago.'); const saleLocationId = sale.locationId || currentLocationId(); const session = values.refundPayment === 'Dinheiro' && refundAmount > 0 ? currentCashSession() : null; if (values.refundPayment === 'Dinheiro' && refundAmount > 0 && !session) return notify('Abra o caixa do local actual antes de efectuar um reembolso em dinheiro.'); sale.status = 'Devolvida'; sale.paymentStatus = 'Anulada'; sale.balanceDue = 0; sale.items.forEach(item => { const product = productById(item.productId); if (product) { changeStock(product, saleLocationId, Number(item.quantity)); data.movements.push({ id: uid('mov'), date: new Date().toISOString(), locationId: saleLocationId, productId: product.id, productName: product.name, type: 'Entrada', quantity: Number(item.quantity), note: `Devolução ${sale.reference}` }); } }); if (session) data.cashMovements.push({ id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: 'Saída', amount: refundAmount, note: `Reembolso ${sale.reference}` }); const creditReference = nextReference('NC', data.returns); data.returns.push({ id: uid('return'), saleId: sale.id, reference: creditReference, date: new Date().toISOString(), reason, amount: sale.total, refundAmount, refundPayment: values.refundPayment || '', userId: currentUser.id }); audit('Devolução / nota de crédito', `${sale.reference} · ${creditReference} · ${locationName(saleLocationId)} · reembolso ${money(refundAmount)} · ${reason}`); window.VendaMaisCloud?.updateSale(sale); saveData(); closeModal(); notify('Devolução registada e stock reposto.'); renderAll(); });
+  $('#returnForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const reason = values.reason.trim(); const refundAmount = refundable ? Number(values.refundAmount) : 0; if (!Number.isFinite(refundAmount) || refundAmount < 0 || refundAmount > refundable || Math.abs(refundAmount - refundable) > 0.01) return notify('A devolução total exige o reembolso integral do valor já recebido. Para uma compensação parcial, não processe a devolução total.'); const saleLocationId = sale.locationId || currentLocationId(); const snapshot = captureDataSnapshot(); const session = values.refundPayment === 'Dinheiro' && refundAmount > 0 ? data.cashSessions.find(item => item.status === 'Aberto' && item.userId === currentUser.id && item.locationId === saleLocationId) : null; if (values.refundPayment === 'Dinheiro' && refundAmount > 0 && !session) return notify('Abra o seu caixa na loja da venda antes de efectuar um reembolso em dinheiro.'); sale.status = 'Devolvida'; sale.paymentStatus = 'Anulada'; sale.balanceDue = 0; sale.items.forEach(item => { const product = productById(item.productId); if (product) { const returnedQty = Number(item.quantity); const stockBefore = totalStock(product); const historicalCost = Number(item.cost || 0); const weightedCost = window.VendaMaisFinance.weightedAverageCost(stockBefore, Number(product.cost || 0), returnedQty, historicalCost); changeStock(product, saleLocationId, returnedQty); product.cost = roundMoney(weightedCost); data.movements.push({ id: uid('mov'), date: new Date().toISOString(), locationId: saleLocationId, productId: product.id, productName: product.name, type: 'Entrada', quantity: Number(item.quantity), note: `Devolução ${sale.reference}` }); } }); if (session) data.cashMovements.push({ id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: 'Saída', amount: refundAmount, note: `Reembolso ${sale.reference}` }); const creditReference = nextReference('NC', data.returns); data.returns.push({ id: uid('return'), saleId: sale.id, reference: creditReference, date: new Date().toISOString(), reason, amount: sale.total, refundAmount, refundPayment: values.refundPayment || '', userId: currentUser.id }); audit('Devolução / nota de crédito', `${sale.reference} · ${creditReference} · ${locationName(saleLocationId)} · reembolso ${money(refundAmount)} · ${reason}`); if (!persistOrRollback(snapshot)) return; window.VendaMaisCloud?.updateSale(sale).then(result => { if (result?.queued) notify('Devolução guardada localmente; sincronização online pendente.'); }); closeModal(); notify('Devolução registada e stock reposto.'); renderAll(); });
 }
 
 function expenseModal() {
   if (!canManage()) return notify('Apenas a área de gestão pode registar despesas.');
-  openModal(`${modalHeader('Registar despesa', 'Classifique o custo e, se for recorrente, o sistema considera-o automaticamente em cada mês.')}<form id="expenseForm"><div class="modal-form"><label class="full">Descrição<input name="description" required maxlength="120" placeholder="Ex.: renda, energia, internet" /></label><label>Categoria<select name="category"><option>Renda</option><option>Salários</option><option>Energia e água</option><option>Transporte</option><option>Comunicações</option><option>Manutenção</option><option>Material de escritório</option><option>Impostos e taxas</option><option>Outras despesas</option></select></label><label>Tipo de custo<select name="costType"><option value="Fixo">Fixo</option><option value="Variável">Variável</option></select></label><label>Valor (Kz)<input name="amount" type="number" min="0.01" step="0.01" required /></label><label>Data de início<input name="date" type="date" required value="${dateISO()}" /></label><label>Periodicidade<select name="recurrence"><option value="Única">Uma vez</option><option value="Mensal">Mensal (recorrente)</option></select></label><label>Loja<select name="locationId">${activeLocations().map(location => `<option value="${location.id}" ${location.id === currentLocationId() ? 'selected' : ''}>${escapeHtml(location.name)}</option>`).join('')}</select></label><label>Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option><option>Crédito</option></select></label><label class="full">Observação<input name="note" maxlength="240" placeholder="Referência ou informação adicional" /></label></div><div class="modal-note">Uma despesa mensal recorrente é projectada nos relatórios de cada mês a partir da data de início. Não é necessário registá-la novamente.</div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Guardar despesa</button></div></form>`);
+  openModal(`${modalHeader('Registar despesa', 'Classifique o custo e, se for recorrente, o sistema considera-o automaticamente em cada mês.')}<form id="expenseForm"><div class="modal-form"><label class="full">Descrição<input name="description" required maxlength="120" placeholder="Ex.: renda, energia, internet" /></label><label>Categoria<select name="category"><option>Renda</option><option>Salários</option><option>Energia e água</option><option>Transporte</option><option>Comunicações</option><option>Manutenção</option><option>Material de escritório</option><option>Impostos e taxas</option><option>Outras despesas</option></select></label><label>Tipo de custo<select name="costType"><option value="Fixo">Fixo</option><option value="Variável">Variável</option></select></label><label>Valor (Kz)<input name="amount" type="number" min="0.01" step="0.01" required /></label><label>Data de início<input name="date" type="date" required value="${dateISO()}" /></label><label>Periodicidade<select name="recurrence"><option value="Única">Uma vez</option><option value="Mensal">Mensal (recorrente)</option></select></label><label>Loja<select name="locationId">${activeLocations().map(location => `<option value="${location.id}" ${location.id === currentLocationId() ? 'selected' : ''}>${escapeHtml(location.name)}</option>`).join('')}</select></label><label>Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option><option>Crédito</option></select></label><label class="full">Observação<input name="note" maxlength="240" placeholder="Referência ou informação adicional" /></label><label class="full"><span><input name="coversConfiguredCost" type="checkbox" /> Esta despesa corresponde a um custo fixo já configurado nesta loja</span></label></div><div class="modal-note">Uma despesa mensal recorrente é projectada nos relatórios de cada mês. Marque a opção apenas quando esta despesa substituir o mesmo custo fixo configurado, para evitar duplicação.</div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Guardar despesa</button></div></form>`);
   $('#expenseForm').addEventListener('submit', event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const amount = Number(values.amount);
     if (!Number.isFinite(amount) || amount <= 0) return notify('Introduza um valor de despesa válido.');
-    const expense = { id: uid('expense'), date: values.date, description: values.description.trim(), category: values.category, costType: values.costType, recurrence: values.recurrence, amount, payment: values.payment, note: values.note.trim(), locationId: values.locationId || currentLocationId(), userId: currentUser.id, createdAt: new Date().toISOString() };
-    data.expenses.push(expense); audit('Despesa registada', `${expense.description} · ${money(amount)} · ${expense.costType} · ${locationName(expense.locationId)} · ${expense.recurrence}`);
-    if (!saveData()) { data.expenses = data.expenses.filter(item => item.id !== expense.id); return; }
+    if (values.payment === 'Crédito' && values.recurrence === 'Mensal') return notify('Registe cada despesa a crédito como uma ocorrência única, para controlar correctamente cada factura e pagamento.');
+    const fixedCategories = ['Renda', 'Salários'];
+    const variableCategories = ['Transporte', 'Manutenção', 'Material de escritório', 'Impostos e taxas'];
+    const classificationMismatch = (fixedCategories.includes(values.category) && values.costType !== 'Fixo') || (variableCategories.includes(values.category) && values.costType !== 'Variável');
+    if (classificationMismatch && !confirm('A categoria e o tipo de custo parecem não corresponder. Deseja guardar mesmo assim?')) return;
+    const locationId = values.locationId || currentLocationId();
+    const cashSession = values.payment === 'Dinheiro' ? data.cashSessions.find(item => item.status === 'Aberto' && item.userId === currentUser.id && item.locationId === locationId) : null;
+    if (values.payment === 'Dinheiro' && !cashSession) return notify('Abra o seu caixa nesta loja antes de registar uma despesa paga em dinheiro.');
+    const snapshot = captureDataSnapshot();
+    const expense = { id: uid('expense'), date: values.date, description: values.description.trim(), category: values.category, costType: values.costType, recurrence: values.recurrence, amount: roundMoney(amount), payment: values.payment, amountPaid: values.payment === 'Crédito' ? 0 : roundMoney(amount), balanceDue: values.payment === 'Crédito' ? roundMoney(amount) : 0, paymentStatus: values.payment === 'Crédito' ? 'Pendente' : 'Pago', note: values.note.trim(), coversConfiguredCost: values.coversConfiguredCost === 'on', locationId, userId: currentUser.id, cashSessionId: cashSession?.id || '', createdAt: new Date().toISOString() };
+    data.expenses.push(expense);
+    if (cashSession) data.cashMovements.push({ id: uid('cashmov'), sessionId: cashSession.id, userId: currentUser.id, date: `${values.date}T12:00:00`, type: 'Saída', amount: expense.amount, note: `Despesa: ${expense.description}` });
+    audit('Despesa registada', `${expense.description} · ${money(amount)} · ${expense.costType} · ${locationName(expense.locationId)} · ${expense.recurrence}`);
+    if (!persistOrRollback(snapshot, false)) return;
     closeModal(); renderReports(); notify('Despesa registada com sucesso.');
   });
 }
@@ -599,33 +767,96 @@ function allocatedMonthlyCost(monthlyValue, start, end) {
   return monthKeysBetween(start, end).reduce((total, monthKey) => {
     const [year, month] = monthKey.split('-').map(Number); const monthStartValue = `${monthKey}-01`; const monthEndValue = `${monthKey}-${String(daysInMonth(year, month - 1)).padStart(2, '0')}`;
     const includedStart = start > monthStartValue ? start : monthStartValue; const includedEnd = end < monthEndValue ? end : monthEndValue;
-    return total + Number(monthlyValue || 0) * inclusiveDays(includedStart, includedEnd) / daysInMonth(year, month - 1);
+    return total + window.VendaMaisFinance.prorateMonthlyCost(monthlyValue, inclusiveDays(includedStart, includedEnd), daysInMonth(year, month - 1));
   }, 0);
 }
 function saleOperatorName(sale) { return sale.operatorName || userById(sale.operatorId)?.name || 'Sem vendedor atribuído'; }
 function sellerKey(sale) { return sale.operatorId || (sale.operatorName ? `legacy:${sale.operatorName}` : 'unassigned'); }
 function paymentMethods(sales) { return [...new Set(['Dinheiro', 'Multicaixa', 'Transferência', 'Crédito', 'Outro', ...sales.map(sale => sale.payment).filter(Boolean)])]; }
 function reportStores(locationFilter = 'all') { return data.locations.filter(location => location.type === 'Loja' && location.active && (locationFilter === 'all' || location.id === locationFilter)); }
-function configuredFixedCostRows(stores, start, end) { return stores.flatMap(location => FIXED_COST_LABELS.map(label => ({ location, label, monthly: Number(location.fixedCosts?.[label] || 0) })).filter(row => row.monthly > 0).map(row => ({ ...row, allocated: allocatedMonthlyCost(row.monthly, start, end) }))); }
+function fixedExpenseCategories(label) {
+  const map = { Renda: ['Renda'], Energia: ['Energia e água'], Água: ['Energia e água'], Internet: ['Comunicações'], Salários: ['Salários'], Segurança: ['Outras despesas'], Outros: ['Outras despesas'] };
+  return map[label] || [label];
+}
+function configuredFixedCostRows(stores, start, end, expenses = []) {
+  return stores.flatMap(location => FIXED_COST_LABELS.map(label => {
+    const monthly = Number(location.fixedCosts?.[label] || 0);
+    if (monthly <= 0) return null;
+    const categories = fixedExpenseCategories(label);
+    const months = monthKeysBetween(start, end);
+    let allocated = 0;
+    let coveredByActual = false;
+    months.forEach(monthKey => {
+      const [year, month] = monthKey.split('-').map(Number);
+      const monthStart = `${monthKey}-01`;
+      const monthEnd = `${monthKey}-${String(daysInMonth(year, month - 1)).padStart(2, '0')}`;
+      const includedStart = start > monthStart ? start : monthStart;
+      const includedEnd = end < monthEnd ? end : monthEnd;
+      const hasActualExpense = window.VendaMaisFinance.hasActualFixedExpense(expenses, location.id, categories, monthKey);
+      if (hasActualExpense) coveredByActual = true;
+      else allocated += window.VendaMaisFinance.prorateMonthlyCost(monthly, inclusiveDays(includedStart, includedEnd), daysInMonth(year, month - 1));
+    });
+    return { location, label, monthly, allocated: roundMoney(allocated), coveredByActual };
+  }).filter(Boolean));
+}
 function calculateReport(start, end, locationFilter = 'all') {
   const inLocation = item => locationFilter === 'all' || item.locationId === locationFilter;
-  const sales = salesBetween(start, end).filter(inLocation); const expenses = expenseOccurrences(start, end).filter(inLocation); const stores = reportStores(locationFilter);
-  const configuredFixed = configuredFixedCostRows(stores, start, end); const configuredFixedTotal = sum(configuredFixed, row => row.allocated);
-  const registeredFixed = sum(expenses.filter(item => item.costType === 'Fixo'), item => item.amount); const variableTotal = sum(expenses.filter(item => item.costType !== 'Fixo'), item => item.amount);
-  const revenue = sum(sales, sale => sale.total); const tax = sum(sales, sale => sale.tax); const netRevenue = revenue - tax; const cogs = sum(sales, saleCost); const grossProfit = netRevenue - cogs;
-  const fixedTotal = configuredFixedTotal + registeredFixed; const operatingCosts = fixedTotal + variableTotal; const profit = grossProfit - operatingCosts;
-  const receivable = sum(sales, saleBalanceDue); const payable = sum(data.purchases.filter(purchase => Number(purchase.balanceDue || 0) > 0 && inLocation(purchase)), purchase => purchase.balanceDue);
-  return { start, end, locationFilter, sales, expenses, stores, configuredFixed, configuredFixedTotal, registeredFixed, fixedTotal, variableTotal, operatingCosts, revenue, tax, netRevenue, cogs, grossProfit, profit, receivable, payable };
+  const sales = salesBetween(start, end).filter(inLocation); const expenses = expenseOccurrences(start, end).filter(inLocation); const receipts = data.receipts.filter(receipt => { const sale = data.sales.find(item => item.id === receipt.saleId); const date = String(receipt.date || '').slice(0, 10); return date >= start && date <= end && sale && inLocation(sale) && sale.status !== 'Devolvida'; }); const stores = reportStores(locationFilter);
+  const configuredFixed = configuredFixedCostRows(stores, start, end, expenses); const configuredFixedTotal = roundMoney(sum(configuredFixed, row => row.allocated));
+  const registeredFixed = roundMoney(sum(expenses.filter(item => item.costType === 'Fixo'), item => item.amount)); const variableTotal = roundMoney(sum(expenses.filter(item => item.costType !== 'Fixo'), item => item.amount));
+  const revenue = roundMoney(sum(sales, sale => sale.total)); const tax = roundMoney(sum(sales, sale => sale.tax)); const netRevenue = roundMoney(revenue - tax); const cogs = roundMoney(sum(sales, saleCost)); const grossProfit = roundMoney(netRevenue - cogs);
+  const salesIssues = sales.reduce((count, sale) => {
+    const items = Array.isArray(sale.items) ? sale.items : [];
+    const missingCosts = items.filter(item => { const cost = Number(item.cost); return item.cost === undefined || item.cost === null || !Number.isFinite(cost) || cost <= 0; }).length;
+    const subtotal = Number(sale.subtotal), discountValue = Number(sale.discountValue || 0), taxValue = Number(sale.tax), total = Number(sale.total);
+    const lineSubtotal = roundMoney(sum(items, item => Number(item.price) * Number(item.quantity)));
+    const totalsInvalid = ![subtotal, discountValue, taxValue, total].every(Number.isFinite) || subtotal < 0 || discountValue < 0 || taxValue < 0 || total < 0 || Math.abs(roundMoney(subtotal - discountValue + taxValue) - total) > 0.02 || Math.abs(lineSubtotal - subtotal) > 0.02;
+    const settlementInvalid = sale.settlementIntegrityWarning === true || !window.VendaMaisFinance.validateSettlement(total, sale.amountPaid, sale.balanceDue).valid;
+    return count + missingCosts + Number(totalsInvalid) + Number(settlementInvalid);
+  }, 0);
+  const purchaseIssues = data.purchases.filter(inLocation).reduce((count, purchase) => {
+    const items = Array.isArray(purchase.items) ? purchase.items : [];
+    const lineTotal = roundMoney(sum(items, item => Number(item.unitCost) * Number(item.quantity)));
+    const total = Number(purchase.total);
+    const totalsInvalid = !Number.isFinite(total) || total < 0 || Math.abs(lineTotal - total) > 0.02;
+    const settlementInvalid = purchase.settlementIntegrityWarning === true || !window.VendaMaisFinance.validateSettlement(total, purchase.amountPaid, purchase.balanceDue).valid;
+    return count + Number(totalsInvalid) + Number(settlementInvalid);
+  }, 0);
+  const costIssues = salesIssues + purchaseIssues;
+  const fixedTotal = roundMoney(configuredFixedTotal + registeredFixed); const operatingCosts = roundMoney(fixedTotal + variableTotal); const profit = roundMoney(grossProfit - operatingCosts);
+  const receivable = roundMoney(sum(sales, saleBalanceDue)); const payable = roundMoney(sum(data.purchases.filter(purchase => Number(purchase.balanceDue || 0) > 0 && inLocation(purchase)), purchase => purchase.balanceDue) + sum(data.expenses.filter(expense => Number(expense.balanceDue || 0) > 0 && inLocation(expense)), expense => expense.balanceDue));
+  const stockValue = roundMoney(sum(data.products, product => sum(Object.entries(product.stockByLocation || {}).filter(([id]) => locationFilter === 'all' || id === locationFilter), ([id, qty]) => Number(qty || 0) * Number(product.cost || 0))));
+  return { start, end, locationFilter, sales, receipts, expenses, stores, configuredFixed, configuredFixedTotal, registeredFixed, fixedTotal, variableTotal, operatingCosts, revenue, tax, netRevenue, cogs, grossProfit, profit, receivable, payable, stockValue, costIssues, profitReliable: costIssues === 0 };
+}
+function previousPeriod(start, end) {
+  const days = inclusiveDays(start, end); const previousEnd = dateFromISO(start); previousEnd.setDate(previousEnd.getDate() - 1);
+  const previousStart = new Date(previousEnd); previousStart.setDate(previousStart.getDate() - days + 1);
+  return { start: isoFromDate(previousStart), end: isoFromDate(previousEnd) };
+}
+function reportTrendHtml(report) {
+  const days = inclusiveDays(report.start, report.end); const buckets = new Map();
+  if (days <= 31) {
+    for (let i = 0; i < days; i++) { const date = dateFromISO(report.start); date.setDate(date.getDate() + i); const key = isoFromDate(date); buckets.set(key, { label: key.slice(8, 10) + '/' + key.slice(5, 7), sales: 0, expenses: 0 }); }
+    report.sales.forEach(sale => { const row = buckets.get(sale.date.slice(0, 10)); if (row) row.sales += Number(sale.total || 0); });
+    report.expenses.forEach(expense => { const row = buckets.get(expense.occurrenceDate); if (row) row.expenses += Number(expense.amount || 0); });
+  } else {
+    monthKeysBetween(report.start, report.end).forEach(month => buckets.set(month, { label: shortMonth(month), sales: 0, expenses: 0 }));
+    report.sales.forEach(sale => { const row = buckets.get(sale.date.slice(0, 7)); if (row) row.sales += Number(sale.total || 0); });
+    report.expenses.forEach(expense => { const row = buckets.get(expense.occurrenceDate.slice(0, 7)); if (row) row.expenses += Number(expense.amount || 0); });
+  }
+  const rows = [...buckets.values()]; const max = Math.max(1, ...rows.flatMap(row => [row.sales, row.expenses]));
+  return rows.length ? `<div class="trend-legend"><span><i class="sales-dot"></i>Faturação</span><span><i class="expense-dot"></i>Despesas registadas</span></div><div class="trend-bars">${rows.map(row => `<div class="trend-column" title="${escapeHtml(row.label)} · Faturação ${money(row.sales)} · Despesas ${money(row.expenses)}"><div class="trend-pair"><i class="trend-bar sales-bar" style="height:${Math.max(2, row.sales / max * 100)}%"></i><i class="trend-bar expense-bar" style="height:${Math.max(2, row.expenses / max * 100)}%"></i></div><small>${escapeHtml(row.label)}</small></div>`).join('')}</div>` : '<div class="empty-state">Sem dados para o período seleccionado.</div>';
 }
 function statementHtml(report) {
-  return `<div class="statement-row"><span>Faturação (com IVA)</span><strong>${money(report.revenue)}</strong></div><div class="statement-row"><span>IVA incluído</span><strong>− ${money(report.tax)}</strong></div><div class="statement-row subtotal"><span>Vendas líquidas (sem IVA)</span><strong>${money(report.netRevenue)}</strong></div><div class="statement-row"><span>Custo dos produtos vendidos</span><strong>− ${money(report.cogs)}</strong></div><div class="statement-row subtotal"><span>Resultado bruto</span><strong>${money(report.grossProfit)}</strong></div><div class="statement-row"><span>Custos fixos configurados (pro rata)</span><strong>− ${money(report.configuredFixedTotal)}</strong></div><div class="statement-row"><span>Despesas fixas registadas</span><strong>− ${money(report.registeredFixed)}</strong></div><div class="statement-row subtotal"><span>Total de custos fixos</span><strong>− ${money(report.fixedTotal)}</strong></div><div class="statement-row"><span>Custos variáveis</span><strong>− ${money(report.variableTotal)}</strong></div><div class="statement-row emphasis ${report.profit < 0 ? 'loss' : ''}"><span>Resultado líquido estimado</span><strong>${money(report.profit)}</strong></div><div class="statement-row information"><span>Contas a receber do período</span><strong>${money(report.receivable)}</strong></div><div class="statement-row information"><span>Contas a pagar a fornecedores (saldo actual)</span><strong>${money(report.payable)}</strong></div>`;
+  const resultText = report.costIssues ? 'Por apurar · dados financeiros por validar' : money(report.profit);
+  return `<div class="statement-row"><span>Faturação (com IVA)</span><strong>${money(report.revenue)}</strong></div><div class="statement-row"><span>IVA incluído</span><strong>− ${money(report.tax)}</strong></div><div class="statement-row subtotal"><span>Vendas líquidas (sem IVA)</span><strong>${money(report.netRevenue)}</strong></div><div class="statement-row"><span>Custo dos produtos vendidos</span><strong>− ${money(report.cogs)}</strong></div><div class="statement-row subtotal"><span>Resultado bruto</span><strong>${money(report.grossProfit)}</strong></div><div class="statement-row"><span>Custos fixos configurados (pro rata)</span><strong>− ${money(report.configuredFixedTotal)}</strong></div><div class="statement-row"><span>Despesas fixas registadas</span><strong>− ${money(report.registeredFixed)}</strong></div><div class="statement-row subtotal"><span>Total de custos fixos</span><strong>− ${money(report.fixedTotal)}</strong></div><div class="statement-row"><span>Custos variáveis</span><strong>− ${money(report.variableTotal)}</strong></div><div class="statement-row emphasis ${report.profit < 0 || report.costIssues ? 'loss' : ''}"><span>Resultado líquido estimado</span><strong>${resultText}</strong></div><div class="statement-row information"><span>Contas a receber do período</span><strong>${money(report.receivable)}</strong></div><div class="statement-row information"><span>Contas a pagar (saldo actual)</span><strong>${money(report.payable)}</strong></div>`;
 }
 function productPerformance(sales) {
   const products = {};
   sales.forEach(sale => sale.items.forEach(item => {
-    const key = item.productId || item.code || item.name; const gross = Number(item.quantity || 0) * Number(item.price || 0); const discountFactor = Number(sale.subtotal || 0) > 0 ? Math.max(0, (Number(sale.subtotal) - Number(sale.discountValue || 0)) / Number(sale.subtotal)) : 1;
+    const key = item.productId || item.code || item.name; const gross = Number(item.quantity || 0) * Number(item.price || 0); const saleGlobalDiscount = Number(sale.subtotal || 0) > 0 ? Number(sale.discountValue || 0) - sum(sale.items || [], line => Number(line.discountValue || 0)) : 0; const discountFactor = Number(sale.subtotal || 0) > 0 ? Math.max(0, (Number(sale.subtotal) - sum(sale.items || [], line => Number(line.discountValue || 0)) - saleGlobalDiscount) / Math.max(0.01, Number(sale.subtotal) - sum(sale.items || [], line => Number(line.discountValue || 0)))) : 1;
     if (!products[key]) products[key] = { code: item.code || '—', name: item.name || 'Produto sem nome', quantity: 0, gross: 0, net: 0, cost: 0 };
-    products[key].quantity += Number(item.quantity || 0); products[key].gross += gross; products[key].net += gross * discountFactor; products[key].cost += Number(item.cost || 0) * Number(item.quantity || 0);
+    products[key].quantity += Number(item.quantity || 0); products[key].gross += gross; products[key].net += Math.max(0, gross - Number(item.discountValue || 0)) * discountFactor; products[key].cost += Number(item.cost || 0) * Number(item.quantity || 0);
   }));
   return Object.values(products).map(product => ({ ...product, margin: product.net - product.cost })).sort((a, b) => b.net - a.net);
 }
@@ -650,15 +881,29 @@ function renderReports() {
   const start = startInput.value, end = endInput.value, locationFilter = locationSelect?.value || 'all';
   if (!start || !end || end < start) { notify('A data final do relatório deve ser igual ou posterior à data inicial.'); return; }
   const report = calculateReport(start, end, locationFilter); const periodLabel = $('#reportPeriodLabel'); if (periodLabel) periodLabel.textContent = `Período analisado: ${reportPeriod(start, end)} · ${locationFilter === 'all' ? 'todas as lojas' : locationName(locationFilter)}`;
-  $('#reportMetrics').innerHTML = [['Faturação c/ IVA', money(report.revenue), `${report.sales.length} vendas concluídas`, '↗', 'positive'], ['Vendas s/ IVA', money(report.netRevenue), 'Base real para apurar a margem', '◈', ''], ['Resultado líquido estimado', money(report.profit), report.revenue ? `${number(report.profit / report.revenue * 100)}% da faturação · após custos` : 'Sem vendas no período', '◈', report.profit >= 0 ? 'positive' : 'warning'], ['Por receber', money(report.receivable), 'Vendas a crédito ainda em aberto', '◷', report.receivable ? 'warning' : 'positive'], ['Custos fixos', money(report.fixedTotal), 'Configurados + despesas fixas registadas', '⌂', ''], ['Custos variáveis', money(report.variableTotal), `${report.expenses.filter(item => item.costType !== 'Fixo').length} lançamentos considerados`, '−', '']].map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
+  const profitLabel = report.costIssues ? 'Por apurar' : money(report.profit);
+  const profitHint = report.costIssues ? `${report.costIssues} inconsistência(s) de custo, IVA, total ou liquidação` : (report.revenue ? `${number(report.profit / report.revenue * 100)}% da faturação · após custos` : 'Sem vendas no período');
+  $('#reportMetrics').innerHTML = [['Faturação c/ IVA', money(report.revenue), `${report.sales.length} vendas concluídas`, '↗', 'positive'], ['Vendas s/ IVA', money(report.netRevenue), 'Faturação menos IVA incluído', '◈', ''], ['Resultado líquido estimado', profitLabel, profitHint, '◇', report.costIssues ? 'warning' : (report.profit >= 0 ? 'positive' : 'warning')], ['Por receber', money(report.receivable), 'Crédito de clientes ainda em aberto', '◷', report.receivable ? 'warning' : 'positive'], ['Por pagar', money(report.payable), 'Compras e despesas a crédito', '↘', report.payable ? 'warning' : 'positive'], ['Custos operacionais', money(report.operatingCosts), 'Custos fixos + variáveis', '⌂', ''], ['Valor do stock actual', money(report.stockValue), 'Stock disponível × custo unitário registado', '▦', ''], ['Ticket médio', money(report.sales.length ? report.revenue / report.sales.length : 0), 'Faturação ÷ número de vendas', '◎', '']].map(([label, value, hint, icon, kind]) => `<article class="metric-card" title="${escapeHtml(label)}"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
   $('#incomeStatement').innerHTML = statementHtml(report); if ($('#incomeStatementDetail')) $('#incomeStatementDetail').innerHTML = statementHtml(report);
-  const guide = $('#calculationGuide'); if (guide) guide.innerHTML = `<div><b>Vendas líquidas</b><span>Faturação com IVA − IVA incluído.</span></div><div><b>Resultado bruto</b><span>Vendas líquidas − custo histórico dos produtos vendidos.</span></div><div><b>Custos fixos</b><span>Custos mensais configurados, proporcionais aos dias do período, + despesas fixas registadas.</span></div><div><b>Resultado líquido estimado</b><span>Resultado bruto − custos fixos − custos variáveis. Contas a receber e a pagar não alteram este resultado.</span></div>`;
-  const paymentRows = paymentMethods(report.sales).map(method => { const subset = report.sales.filter(sale => sale.payment === method); return `<div class="summary-row"><span>${escapeHtml(method)} <small class="muted">(${subset.length})</small></span><strong>${money(sum(subset, sale => sale.total))}</strong></div>`; }); $('#paymentSummary').innerHTML = paymentRows.length ? paymentRows.join('') : '<div class="empty-state">Sem vendas no período.</div>';
-  $('#reportExpensesTable').innerHTML = report.expenses.length ? [...report.expenses].sort((a, b) => b.occurrenceDate.localeCompare(a.occurrenceDate)).map(expense => `<tr><td>${shortDate(expense.occurrenceDate)}</td><td><b>${escapeHtml(expense.description)}</b>${expense.note ? `<br><small class="muted">${escapeHtml(expense.note)}</small>` : ''}</td><td>${escapeHtml(locationName(expense.locationId))}</td><td>${escapeHtml(expense.category)}</td><td>${escapeHtml(expense.costType || 'Variável')} · ${expense.recurrence === 'Mensal' ? 'Mensal' : 'Única'}</td><td>${escapeHtml(expense.payment)}</td><td class="money"><b>${money(expense.amount)}</b></td></tr>`).join('') : emptyRow(7, 'Sem despesas registadas neste período.');
+  const quality = $('#reportQuality'); if (quality) { quality.hidden = report.costIssues === 0; quality.innerHTML = `<strong>Resultado ainda não pode ser confirmado.</strong><span>Existem ${report.costIssues} inconsistência(s) em custos, IVA, total ou liquidação. Confira os artigos vendidos e comprados, os cálculos, o IVA e os pagamentos antes de usar o resultado.</span>`; }
+  const trend = $('#reportTrend'); if (trend) trend.innerHTML = reportTrendHtml(report);
+  const prior = previousPeriod(start, end); const previous = calculateReport(prior.start, prior.end, locationFilter); const delta = previous.revenue ? ((report.revenue - previous.revenue) / previous.revenue) * 100 : (report.revenue ? null : 0);
+  const comparison = $('#reportComparison'); if (comparison) comparison.innerHTML = `<div class="comparison-line"><span>Período actual</span><strong>${money(report.revenue)}</strong></div><div class="comparison-line"><span>Período anterior (${reportPeriod(prior.start, prior.end)})</span><strong>${money(previous.revenue)}</strong></div><div class="comparison-result ${delta !== null && delta < 0 ? 'negative' : 'positive'}"><b>${delta === null ? 'Sem base anterior para comparar' : `${delta >= 0 ? '+' : ''}${number(delta)}%`}</b><span>${delta === null ? 'Ainda não existem vendas no período anterior.' : 'Variação do faturamento face ao período anterior.'}</span></div>`;
+  const guide = $('#calculationGuide'); if (guide) guide.innerHTML = `<div><b>Faturação</b><span>Soma das vendas concluídas no período, incluindo IVA.</span></div><div><b>Vendas líquidas</b><span>Faturação com IVA − IVA incluído.</span></div><div><b>Resultado bruto</b><span>Vendas líquidas − custo histórico dos produtos vendidos.</span></div><div><b>Custos fixos</b><span>Custos mensais configurados, proporcionais aos dias do período, + despesas fixas registadas. Evite lançar o mesmo custo duas vezes.</span></div><div><b>Resultado líquido estimado</b><span>Resultado bruto − custos fixos − custos variáveis. Se faltar custo de algum artigo vendido, o sistema apresenta “Por apurar”.</span></div><div><b>Caixa e crédito</b><span>Caixa é dinheiro efectivamente esperado nos turnos abertos. Contas a receber e a pagar são saldos, não lucro.</span></div><div><b>Ticket médio</b><span>Faturação total ÷ quantidade de vendas concluídas.</span></div><div><b>Valor do stock</b><span>Quantidade disponível × custo unitário registado de cada produto.</span></div>`;
+  const paymentRows = paymentMethods(report.sales).map(method => {
+    const directSales = report.sales.filter(sale => sale.payment === method && sale.payment !== 'Crédito');
+    const directTotal = sum(directSales, sale => sale.amountPaid ?? sale.total);
+    const receivedRows = report.receipts.filter(receipt => receipt.payment === method);
+    const receivedTotal = sum(receivedRows, receipt => receipt.amount);
+    const total = roundMoney(directTotal + receivedTotal);
+    const count = directSales.length + receivedRows.length;
+    return total > 0 ? `<div class="summary-row"><span>${escapeHtml(method)} <small class="muted">(${count})</small></span><strong>${money(total)}</strong></div>` : '';
+  }).filter(Boolean); $('#paymentSummary').innerHTML = paymentRows.length ? paymentRows.join('') : '<div class="empty-state">Ainda não existem recebimentos neste período.</div>';
+  $('#reportExpensesTable').innerHTML = report.expenses.length ? [...report.expenses].sort((a, b) => b.occurrenceDate.localeCompare(a.occurrenceDate)).map(expense => `<tr><td>${shortDate(expense.occurrenceDate)}</td><td><b>${escapeHtml(expense.description)}</b>${expense.note ? `<br><small class="muted">${escapeHtml(expense.note)}</small>` : ''}</td><td>${escapeHtml(locationName(expense.locationId))}</td><td>${escapeHtml(expense.category)}</td><td>${escapeHtml(expense.costType || 'Variável')} · ${expense.recurrence === 'Mensal' ? 'Mensal' : 'Única'}</td><td>${escapeHtml(expense.payment)}${Number(expense.balanceDue || 0) > 0 ? `<br><small class="text-danger">Pendente ${money(expense.balanceDue)}</small>` : ''}</td><td class="money"><b>${money(expense.amount)}</b></td><td>${Number(expense.balanceDue || 0) > 0 ? `<button class="action-btn" data-expense-action="pay" data-id="${expense.id}">Liquidar</button>` : '—'}</td></tr>`).join('') : emptyRow(8, 'Sem despesas registadas neste período.');
   $('#reportSalesTable').innerHTML = report.sales.length ? [...report.sales].sort((a, b) => new Date(b.date) - new Date(a.date)).map(sale => `<tr><td>${shortDate(sale.date)}</td><td><b>${escapeHtml(sale.reference)}</b><br><small class="muted">${escapeHtml(sale.documentType || 'Venda')}</small></td><td>${escapeHtml(saleCustomerName(sale))}</td><td>${escapeHtml(saleOperatorName(sale))}</td><td>${escapeHtml(sale.payment)}${saleBalanceDue(sale) ? '<br><small class="text-danger">Em dívida</small>' : ''}</td><td class="money"><b>${money(sale.total)}</b></td></tr>`).join('') : emptyRow(6, 'Não existem vendas neste período.');
   const productRows = productPerformance(report.sales); const productTable = $('#productPerformanceTable'); if (productTable) productTable.innerHTML = productRows.length ? productRows.map(product => `<tr><td><b>${escapeHtml(product.name)}</b><br><small class="muted">${escapeHtml(product.code)}</small></td><td>${number(product.quantity)}</td><td class="money">${money(product.gross)}</td><td class="money">${money(product.net)}</td><td class="money">− ${money(product.cost)}</td><td class="money"><b class="${product.margin < 0 ? 'text-danger' : ''}">${money(product.margin)}</b></td></tr>`).join('') : emptyRow(6, 'Sem vendas de produtos no período.');
-  const stores = report.stores.map(location => ({ location, result: calculateReport(start, end, location.id) })).sort((a, b) => b.result.profit - a.result.profit); const storeTable = $('#storePerformanceTable'); if (storeTable) storeTable.innerHTML = stores.length ? stores.map(({ location, result }) => `<tr><td><b>${escapeHtml(location.name)}</b></td><td class="money">${money(result.revenue)}</td><td class="money">${money(result.netRevenue)}</td><td class="money">− ${money(result.cogs)}</td><td class="money">− ${money(result.fixedTotal)}</td><td class="money">− ${money(result.variableTotal)}</td><td class="money"><b class="${result.profit < 0 ? 'text-danger' : ''}">${money(result.profit)}</b></td><td>${result.sales.length}</td></tr>`).join('') : emptyRow(8, 'Sem lojas activas para este filtro.');
-  const fixedBreakdown = $('#storeFixedBreakdownTable'); if (fixedBreakdown) fixedBreakdown.innerHTML = report.configuredFixed.length ? report.configuredFixed.map(row => `<tr><td><b>${escapeHtml(row.location.name)}</b></td><td>${row.label}</td><td class="money">${money(row.monthly)}</td><td class="money"><b>${money(row.allocated)}</b></td></tr>`).join('') : emptyRow(4, 'Configure os custos fixos em Definições → Lojas & armazéns.');
+  const stores = report.stores.map(location => ({ location, result: calculateReport(start, end, location.id) })).sort((a, b) => b.result.profit - a.result.profit); const storeTable = $('#storePerformanceTable'); if (storeTable) storeTable.innerHTML = stores.length ? stores.map(({ location, result }) => `<tr><td><b>${escapeHtml(location.name)}</b></td><td class="money">${money(result.revenue)}</td><td class="money">${money(result.netRevenue)}</td><td class="money">− ${money(result.cogs)}</td><td class="money">− ${money(result.fixedTotal)}</td><td class="money">− ${money(result.variableTotal)}</td><td class="money"><b class="${result.profit < 0 || result.costIssues ? 'text-danger' : ''}">${result.costIssues ? 'Por apurar' : money(result.profit)}</b></td><td>${result.sales.length}</td></tr>`).join('') : emptyRow(8, 'Sem lojas activas para este filtro.');
+  const fixedBreakdown = $('#storeFixedBreakdownTable'); if (fixedBreakdown) fixedBreakdown.innerHTML = report.configuredFixed.length ? report.configuredFixed.map(row => `<tr><td><b>${escapeHtml(row.location.name)}</b></td><td>${row.label}</td><td class="money">${money(row.monthly)}</td><td class="money"><b>${money(row.allocated)}</b>${row.coveredByActual ? '<br><small class="muted">Parcialmente coberto por despesa real</small>' : ''}</td></tr>`).join('') : emptyRow(4, 'Configure os custos fixos em Definições → Lojas & armazéns.');
   const weekly = new Map(); report.sales.forEach(sale => { const month = sale.date.slice(0, 7); const week = weekOfMonth(sale.date.slice(0, 10)); const key = `${month}|${week}`; const row = weekly.get(key) || { month, week, count: 0, total: 0 }; row.count += 1; row.total += Number(sale.total || 0); weekly.set(key, row); }); const weeklyRows = monthKeysBetween(start, end).flatMap(month => Array.from({ length: 5 }, (_, index) => weekly.get(`${month}|${index + 1}`) || { month, week: index + 1, count: 0, total: 0 })); const weeklyTable = $('#weeklySalesTable'); if (weeklyTable) weeklyTable.innerHTML = weeklyRows.map(row => `<tr><td>${shortMonth(row.month)}</td><td><b>Semana ${row.week}</b></td><td>${row.count}</td><td class="money"><b>${money(row.total)}</b></td></tr>`).join('');
   const sellerSelect = $('#sellerReportFilter'); const previousSeller = sellerSelect?.value || 'all'; if (sellerSelect) { sellerSelect.innerHTML = '<option value="all">Todos os vendedores</option>' + sellerOptions(report.sales).map(([id, name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join(''); sellerSelect.value = [...sellerSelect.options].some(option => option.value === previousSeller) ? previousSeller : 'all'; }
   const sellerData = sellerRollup(report.sales, sellerSelect?.value || 'all'); const sellerSales = sellerData.sales; const sellerMetricTarget = $('#sellerMetrics'); if (sellerMetricTarget) sellerMetricTarget.innerHTML = [['Faturação', money(sum(sellerSales, sale => sale.total)), `${sellerSales.length} vendas concluídas`, '↗', 'positive'], ['Média por venda', money(sellerSales.length ? sum(sellerSales, sale => sale.total) / sellerSales.length : 0), 'No período seleccionado', '◈', ''], ['Por receber', money(sum(sellerSales, saleBalanceDue)), 'Crédito ainda em aberto', '◷', sum(sellerSales, saleBalanceDue) ? 'warning' : 'positive'], ['Vendedores activos', sellerData.summary.length, 'Com vendas no período', '♙', '']].map(([label, value, hint, icon, kind]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint ${kind}">${hint}</div></article>`).join('');
@@ -723,6 +968,25 @@ function updateCustomerForm(form) {
   nif.placeholder = isCompany ? 'Obrigatório para empresa' : 'Opcional para particular';
   $('#customerNifHint', form).textContent = isCompany ? 'obrigatório' : 'opcional';
 }
+function expensePaymentModal(expense) {
+  if (!canManage()) return notify('Apenas administradores e gerentes podem liquidar despesas.');
+  if (!expense || Number(expense.balanceDue || 0) <= 0) return notify('Esta despesa não tem saldo pendente.');
+  openModal(`${modalHeader('Liquidar despesa', `${escapeHtml(expense.description)} · saldo ${money(expense.balanceDue)}`)}<form id="expensePaymentForm"><div class="modal-form"><label>Valor pago (Kz)<input name="amount" type="number" min="0.01" step="0.01" max="${Number(expense.balanceDue).toFixed(2)}" required value="${Number(expense.balanceDue).toFixed(2)}" /></label><label>Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label class="full">Data do pagamento<input name="date" type="date" required value="${dateISO()}" /></label><label class="full">Observação<input name="note" maxlength="240" placeholder="Referência ou comprovativo" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Confirmar pagamento</button></div></form>`);
+  $('#expensePaymentForm').addEventListener('submit', event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const amount = roundMoney(Number(values.amount));
+    if (!Number.isFinite(amount) || amount <= 0 || amount > Number(expense.balanceDue) + 0.001) return notify('O valor deve ser positivo e não pode ultrapassar o saldo da despesa.');
+    const session = values.payment === 'Dinheiro' ? data.cashSessions.find(item => item.status === 'Aberto' && item.userId === currentUser.id && item.locationId === expense.locationId) : null;
+    if (values.payment === 'Dinheiro' && !session) return notify('Abra o seu caixa nesta loja antes de liquidar a despesa em dinheiro.');
+    const snapshot = captureDataSnapshot();
+    expense.amountPaid = roundMoney(Number(expense.amountPaid || 0) + amount); expense.balanceDue = roundMoney(Math.max(0, Number(expense.balanceDue || 0) - amount)); expense.paymentStatus = expense.balanceDue === 0 ? 'Pago' : 'Parcial';
+    data.expensePayments.push({ id: uid('exppay'), expenseId: expense.id, userId: currentUser.id, cashSessionId: session?.id || '', date: `${values.date}T12:00:00`, amount, payment: values.payment, note: values.note.trim() });
+    if (session) data.cashMovements.push({ id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: `${values.date}T12:00:00`, type: 'Saída', amount, note: `Liquidação de despesa: ${expense.description}` });
+    audit('Liquidação de despesa', `${expense.description} · ${money(amount)} · ${values.payment}`);
+    if (!persistOrRollback(snapshot, false)) return;
+    closeModal(); renderReports(); renderCash(); notify('Pagamento da despesa registado.');
+  });
+}
+
 function contactModal(kind, entity, afterSave = null) {
   if (kind === 'supplier' && !canManage()) return notify('Apenas administradores e gerentes podem gerir fornecedores.');
   if (kind === 'customer' && !canManage() && (entity || !afterSave)) return notify('O vendedor pode apenas cadastrar um novo cliente durante a venda.');
@@ -754,13 +1018,34 @@ function purchaseModal(suggested = []) {
   openModal(`${modalHeader('Registar compra', subtitle)}<form id="purchaseForm"><div class="modal-form"><label>Fornecedor<select name="supplierId" required><option value="">Seleccione o fornecedor</option>${options([...data.suppliers].sort((a,b) => a.name.localeCompare(b.name)), '')}</select></label><label>Local de entrada<select name="locationId">${options(activeLocations(), currentLocationId(), location => `${location.name} · ${location.type}`)}</select></label><label>Data<input name="date" type="date" required value="${dateISO()}" /></label><label>Pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option><option>Crédito</option></select></label><label class="full">Referência (opcional)<input name="reference" placeholder="Ex.: FT 1234" /></label><div class="full"><span class="line-label">Artigos comprados</span><div id="purchaseLines" class="purchase-lines">${suggestedLines}</div><button class="add-line" type="button" id="addPurchaseLine">＋ Adicionar artigo</button></div></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Registar compra</button></div></form>`);
   $('#addPurchaseLine').addEventListener('click', () => { $('#purchaseLines').insertAdjacentHTML('beforeend', purchaseLine()); });
   $('#purchaseLines').addEventListener('click', event => { if (event.target.classList.contains('remove-line')) { const lines = $$('.purchase-line', $('#purchaseLines')); if (lines.length === 1) return notify('A compra deve ter pelo menos um artigo.'); event.target.closest('.purchase-line').remove(); } });
-  $('#purchaseForm').addEventListener('submit', event => { event.preventDefault(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form).entries()); const lines = $$('.purchase-line', form).map(line => ({ productId: $('[name="productId"]', line).value, quantity: Number($('[name="quantity"]', line).value), unitCost: Number($('[name="unitCost"]', line).value) })); if (lines.some(line => !line.productId || line.quantity <= 0 || line.unitCost < 0)) return notify('Preencha todos os artigos da compra.'); const items = lines.map(line => ({ ...line, name: productById(line.productId).name })); const total = sum(items, item => item.quantity * item.unitCost); const credit = values.payment === 'Crédito'; const reference = values.reference.trim().toUpperCase() || nextReference('CP', data.purchases); if (data.purchases.some(purchase => purchase.reference === reference)) return notify('Já existe uma compra com esta referência.'); const purchase = { id: uid('buy'), reference, date: values.date, locationId: values.locationId, supplierId: values.supplierId, payment: values.payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : total, balanceDue: credit ? total : 0, total, items }; data.purchases.push(purchase); items.forEach(item => { const product = productById(item.productId); changeStock(product, purchase.locationId, item.quantity); product.cost = item.unitCost; data.movements.push({ id: uid('mov'), date: `${values.date}T12:00:00`, locationId: purchase.locationId, productId: product.id, productName: product.name, type: 'Entrada', quantity: item.quantity, note: `Compra ${purchase.reference}` }); }); audit('Compra registada', `${purchase.reference} · ${locationName(purchase.locationId)} · ${money(total)} · ${values.payment}`); saveData(); closeModal(); notify('Compra registada e stock actualizado.'); renderAll(); });
+  $('#purchaseForm').addEventListener('submit', event => {
+    event.preventDefault(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form).entries());
+    const lines = $$('.purchase-line', form).map(line => ({ productId: $('[name="productId"]', line).value, quantity: Number($('[name="quantity"]', line).value), unitCost: Number($('[name="unitCost"]', line).value) }));
+    if (lines.some(line => !line.productId || !Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.unitCost) || line.unitCost < 0 || !productById(line.productId))) return notify('Preencha todos os artigos da compra com quantidades e custos válidos.');
+    const items = lines.map(line => ({ ...line, unitCost: roundMoney(line.unitCost), name: productById(line.productId).name }));
+    const total = roundMoney(sum(items, item => item.quantity * item.unitCost)); const credit = values.payment === 'Crédito';
+    const locationId = values.locationId || currentLocationId();
+    const cashSession = values.payment === 'Dinheiro' ? data.cashSessions.find(item => item.status === 'Aberto' && item.userId === currentUser.id && item.locationId === locationId) : null;
+    if (values.payment === 'Dinheiro' && !cashSession) return notify('Abra o seu caixa nesta loja antes de registar uma compra paga em dinheiro.');
+    const reference = values.reference.trim().toUpperCase() || nextReference('CP', data.purchases); if (data.purchases.some(purchase => purchase.reference === reference)) return notify('Já existe uma compra com esta referência.');
+    const snapshot = captureDataSnapshot();
+    const purchase = { id: uid('buy'), reference, date: values.date, locationId, supplierId: values.supplierId, payment: values.payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : total, balanceDue: credit ? total : 0, total, items };
+    data.purchases.push(purchase);
+    items.forEach(item => { const product = productById(item.productId); const stockBefore = totalStock(product); const weightedCost = window.VendaMaisFinance.weightedAverageCost(stockBefore, Number(product.cost || 0), item.quantity, item.unitCost); changeStock(product, purchase.locationId, item.quantity); product.cost = roundMoney(weightedCost); data.movements.push({ id: uid('mov'), date: `${values.date}T12:00:00`, locationId: purchase.locationId, productId: product.id, productName: product.name, type: 'Entrada', quantity: item.quantity, note: `Compra ${purchase.reference}` }); });
+    if (!credit) {
+      data.supplierPayments.push({ id: uid('suppay'), purchaseId: purchase.id, supplierId: purchase.supplierId, userId: currentUser.id, cashSessionId: cashSession?.id || '', date: `${values.date}T12:00:00`, amount: total, payment: values.payment, note: `Pagamento inicial da compra ${purchase.reference}` });
+      if (cashSession) data.cashMovements.push({ id: uid('cashmov'), sessionId: cashSession.id, userId: currentUser.id, date: `${values.date}T12:00:00`, type: 'Saída', amount: total, note: `Compra ${purchase.reference}` });
+    }
+    audit('Compra registada', `${purchase.reference} · ${locationName(purchase.locationId)} · ${money(total)} · ${values.payment}`);
+    if (!persistOrRollback(snapshot, false)) return;
+    closeModal(); notify('Compra registada e stock actualizado.'); renderAll();
+  });
 }
 function supplierPaymentModal(purchase) {
   if (!canManage()) return notify('Apenas administradores e gerentes podem registar pagamentos a fornecedores.');
   if (!purchase || Number(purchase.balanceDue || 0) <= 0) return notify('Esta compra não tem saldo pendente.'); const supplier = supplierById(purchase.supplierId);
   openModal(`${modalHeader('Registar pagamento ao fornecedor', `${escapeHtml(purchase.reference)} · ${escapeHtml(supplier?.name || 'Fornecedor')} · saldo ${money(purchase.balanceDue)}`)}<form id="supplierPaymentForm"><div class="modal-form"><label>Valor pago (Kz)<input name="amount" type="number" min="0.01" step="0.01" required value="${Number(purchase.balanceDue).toFixed(2)}" /></label><label>Meio de pagamento<select name="payment"><option>Transferência</option><option>Multicaixa</option><option>Dinheiro</option></select></label><label class="full">Observação<input name="note" placeholder="Ex.: referência bancária" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Registar pagamento</button></div></form>`);
-  $('#supplierPaymentForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const amount = Number(values.amount); if (amount <= 0 || amount > Number(purchase.balanceDue)) return notify('O valor deve ser maior que zero e não pode ultrapassar o saldo pendente.'); const session = values.payment === 'Dinheiro' ? currentCashSession() : null; if (values.payment === 'Dinheiro' && !session) return notify('Abra o caixa antes de pagar em dinheiro.'); purchase.amountPaid = Number(purchase.amountPaid || 0) + amount; purchase.balanceDue = Math.max(0, Number(purchase.balanceDue) - amount); purchase.paymentStatus = purchase.balanceDue === 0 ? 'Pago' : 'Parcial'; data.supplierPayments.push({ id: uid('suppay'), purchaseId: purchase.id, supplierId: purchase.supplierId, userId: currentUser.id, cashSessionId: session?.id || '', date: new Date().toISOString(), amount, payment: values.payment, note: values.note.trim() }); if (session) data.cashMovements.push({ id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: 'Saída', amount, note: `Pagamento fornecedor ${purchase.reference}` }); audit('Pagamento a fornecedor', `${purchase.reference} · ${money(amount)} · ${values.payment}`); saveData(); closeModal(); notify('Pagamento ao fornecedor registado.'); renderPurchases(); });
+  $('#supplierPaymentForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const amount = roundMoney(Number(values.amount)); if (!Number.isFinite(amount) || amount <= 0 || amount > Number(purchase.balanceDue) + 0.001) return notify('O valor deve ser maior que zero e não pode ultrapassar o saldo pendente.'); const session = values.payment === 'Dinheiro' ? data.cashSessions.find(item => item.status === 'Aberto' && item.userId === currentUser.id && item.locationId === purchase.locationId) : null; if (values.payment === 'Dinheiro' && !session) return notify('Abra o seu caixa na loja da compra antes de pagar em dinheiro.'); const snapshot = captureDataSnapshot(); purchase.amountPaid = roundMoney(Number(purchase.amountPaid || 0) + amount); purchase.balanceDue = roundMoney(Math.max(0, Number(purchase.balanceDue) - amount)); purchase.paymentStatus = purchase.balanceDue === 0 ? 'Pago' : 'Parcial'; purchase.settlementIntegrityWarning = false; data.supplierPayments.push({ id: uid('suppay'), purchaseId: purchase.id, supplierId: purchase.supplierId, userId: currentUser.id, cashSessionId: session?.id || '', date: new Date().toISOString(), amount, payment: values.payment, note: values.note.trim() }); if (session) data.cashMovements.push({ id: uid('cashmov'), sessionId: session.id, userId: currentUser.id, date: new Date().toISOString(), type: 'Saída', amount, note: `Pagamento fornecedor ${purchase.reference}` }); audit('Pagamento a fornecedor', `${purchase.reference} · ${money(amount)} · ${values.payment}`); if (!persistOrRollback(snapshot, false)) return; closeModal(); notify('Pagamento ao fornecedor registado.'); renderPurchases(); });
 }
 function updateCheckoutFields(form, total) {
   const credit = form.elements.settlement.value === 'credit';
@@ -777,24 +1062,71 @@ function updateCheckoutFields(form, total) {
     feedback.textContent = received < total ? `Faltam ${money(total - received)} para concluir.` : `Troco: ${money(change)}`;
   } else feedback.textContent = 'Pagamento integral a confirmar.';
 }
+async function requestProductDiscountModal() {
+  if (!isSeller()) return notify('Apenas vendedores precisam de solicitar autorização.');
+  if (!window.VendaMaisCloud?.connected?.()) return notify('A aprovação remota exige ligação online activa.');
+  if (!cart.length) return notify('Adicione primeiro o produto à venda.');
+  const options = cart.map(item => `<option value="${escapeHtml(item.productId)}">${escapeHtml(item.name)} · ${money(item.price)} · qtd. ${number(item.quantity)}</option>`).join('');
+  openModal(`${modalHeader('Solicitar desconto de produto', 'O administrador receberá o pedido no seu próprio computador. O seu caixa e esta venda permanecem abertos.')}<form id="discountRequestForm"><div class="modal-form"><label class="full">Produto<select name="productId" required>${options}</select></label><label>Desconto solicitado (%)<input name="discountPercent" type="number" min="0.01" max="100" step="0.01" required placeholder="Ex.: 10" /></label><label class="full">Motivo<textarea name="reason" rows="3" maxlength="240" required placeholder="Ex.: desconto negociado com o cliente"></textarea></label></div><p class="modal-note">O desconto só será aplicado depois da aprovação. O administrador não precisa abrir caixa nem registar uma venda.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Enviar pedido</button></div></form>`);
+  $('#discountRequestForm').addEventListener('submit', async event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const item = cart.find(row => row.productId === values.productId); const pct = Number(values.discountPercent);
+    if (!item || !Number.isFinite(pct) || pct <= 0 || pct > 100) return notify('Indique um desconto válido para o produto seleccionado.');
+    if (item.discountRequestStatus === 'Pendente' || Number(item.discountPct || 0) > 0) return notify('Este produto já tem um pedido pendente ou um desconto aprovado.');
+    try {
+      const result = await window.VendaMaisCloud.requestDiscount({ product_id: item.productId, product_name: item.name, quantity: item.quantity, unit_price: item.price, discount_percent: pct, reason: String(values.reason || '').trim(), location_id: currentLocationId(), cash_session_id: currentCashSession()?.id || '' });
+      item.discountRequestId = result.id; item.discountRequestStatus = 'Pendente'; renderCart(); closeModal(); notify('Pedido enviado. Aguarde a aprovação do administrador.');
+    } catch (error) { notify(error.message || 'Não foi possível enviar o pedido de desconto.'); }
+  });
+}
+function renderDiscountRequestCards(requests) {
+  return requests.length ? requests.map(request => `<article class="discount-request-card"><div class="panel-head"><div><b>${escapeHtml(request.product_name)}</b><p>${escapeHtml(request.requester_name || 'Vendedor')} · ${fullDate(request.created_at)}</p></div><span class="badge">Pendente</span></div><div class="discount-request-values"><span>Preço: <b>${money(request.unit_price)}</b></span><span>Desconto: <b>${number(request.discount_percent)}%</b></span><span>Quantidade: <b>${number(request.quantity)}</b></span><span>Redução: <b>${money(request.discount_value)}</b></span></div><p class="muted">${escapeHtml(request.reason)}</p><p class="muted">Local: ${escapeHtml(locationName(request.location_id))} · ${request.cash_session_id ? 'Turno do vendedor vinculado' : 'Sem turno de caixa associado'}</p><div class="inline-actions"><button class="btn primary" data-discount-review="approve" data-id="${request.id}">Aprovar</button><button class="btn secondary" data-discount-review="reject" data-id="${request.id}">Rejeitar</button></div></article>`).join('') : '<div class="empty-state">Não existem pedidos de desconto pendentes.</div>';
+}
+async function discountApprovalModal() {
+  if (!isAdministrator()) return notify('Apenas o administrador pode aprovar descontos.');
+  if (!window.VendaMaisCloud?.connected?.()) return notify('Inicie sessão online para receber pedidos de desconto.');
+  let requests = [];
+  const draw = () => {
+    const host = $('#discountRequestsList'); if (!host) return;
+    host.innerHTML = renderDiscountRequestCards(requests);
+    $('#discountInboxCount').textContent = String(requests.length);
+  };
+  openModal(`${modalHeader('Central de aprovação de descontos', 'Aprove sem abrir caixa. A venda e o turno continuam pertencendo ao vendedor.')}<div id="discountRequestsList"><div class="empty-state">A carregar pedidos…</div></div>`);
+  const load = async () => { try { requests = await window.VendaMaisCloud.discountRequests(); draw(); } catch (error) { const host = $('#discountRequestsList'); if (host) host.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`; } };
+  await load();
+}
+function handleDiscountRequestUpdate(request) {
+  if (!request?.id) return;
+  if (isAdministrator()) { if (request.status === 'Pendente') notify(`Novo pedido de desconto: ${request.product_name || 'produto'}.`); window.VendaMaisCloud.discountRequests().then(rows => { const badge = $('#discountInboxCount'); if (badge) badge.textContent = String(rows.length); }).catch(() => {}); }
+  if (isSeller() && request.requester_id === (currentUser?.cloudUserId || currentUser?.id)) {
+    const item = cart.find(row => row.productId === request.product_id && row.discountRequestId === request.id);
+    if (item && (request.status === 'Aprovado' || request.status === 'Rejeitado')) {
+      item.discountRequestStatus = request.status;
+      if (request.status === 'Aprovado') { item.discountPct = Number(request.discount_percent); item.discountValue = roundMoney(Number(item.price) * Number(item.quantity) * item.discountPct / 100); item.discountApprovalId = request.id; item.discountApprovedBy = request.decided_by; item.discountApprovedAt = request.decided_at; notify(`Desconto aprovado: ${item.name}. Pode continuar a venda.`); }
+      else { item.discountRequestId = ''; notify(`Pedido de desconto rejeitado: ${item.name}. O preço original foi mantido.`); }
+      renderCart();
+    }
+  }
+  if (isAdministrator() && $('#discountRequestsList')) window.VendaMaisCloud.discountRequests().then(rows => { const host = $('#discountRequestsList'); if (host) host.innerHTML = renderDiscountRequestCards(rows); const count = $('#discountInboxCount'); if (count) count.textContent = String(rows.length); }).catch(() => {});
+}
 function saleModal() {
   if (sessionLocked) return accountModal();
   if (!cart.length) return notify('Adicione pelo menos um produto à venda.'); const locationId = currentLocationId(); const totals = cartNumbers(); const customer = customerById($('#saleCustomer').value); const customerText = customer ? `${customer.name}${customer.nif ? ` · NIF ${customer.nif}` : ''}` : 'Consumidor final'; const seller = isSeller();
-  openModal(`${modalHeader('Finalizar venda', seller ? 'Venda imediata. Descontos e crédito requerem autorização de gerente ou administrador.' : 'Confirme os dados comerciais e o pagamento antes de concluir.')}<div class="sale-summary"><div><span>Local</span><strong>${escapeHtml(locationName(locationId))}</strong></div><div><span>Cliente</span><strong>${escapeHtml(customerText)}</strong></div><div><span>Artigos</span><strong>${sum(cart, item => item.quantity)}</strong></div><div><span>Subtotal</span><strong>${money(totals.subtotal)}</strong></div><div><span>IVA (${number(data.settings.taxRate)}%)</span><strong>${money(totals.tax)}</strong></div><div><span>Total a pagar</span><strong>${money(totals.total)}</strong></div></div><form id="saleForm"><div class="modal-form"><label class="full">Documento<select name="documentType"><option value="Factura-Recibo">Factura-recibo</option><option value="Factura">Factura</option><option value="Venda a dinheiro">Venda a dinheiro</option></select></label><label class="full" ${seller ? 'hidden' : ''}>Condição de pagamento<select name="settlement" id="saleSettlement"><option value="paid">Pagamento imediato</option><option value="credit">Venda a crédito</option></select></label><input name="settlement" type="hidden" value="paid" ${seller ? '' : 'disabled'} /><label id="salePaymentMethodField">Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label id="saleCashReceivedField">Valor recebido (Kz)<input name="amountReceived" type="number" min="0" step="0.01" value="${totals.total.toFixed(2)}" /></label><label id="saleDueDateField" class="full" hidden>Data de vencimento<input name="dueDate" type="date" value="${dateISO(30)}" /></label><div id="salePaymentFeedback" class="payment-feedback full"></div></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Voltar</button><button class="btn primary" type="submit">Confirmar venda</button></div></form>`);
+  openModal(`${modalHeader('Finalizar venda', seller ? 'Venda imediata. Descontos e crédito requerem autorização de gerente ou administrador.' : 'Confirme os dados comerciais e o pagamento antes de concluir.')}<div class="sale-summary"><div><span>Local</span><strong>${escapeHtml(locationName(locationId))}</strong></div><div><span>Cliente</span><strong>${escapeHtml(customerText)}</strong></div><div><span>Artigos</span><strong>${sum(cart, item => item.quantity)}</strong></div><div><span>Subtotal</span><strong>${money(totals.subtotal)}</strong></div>${totals.discountValue ? `<div><span>Desconto total</span><strong>− ${money(totals.discountValue)}</strong></div>` : ''}<div><span>IVA (${number(data.settings.taxRate)}%)</span><strong>${money(totals.tax)}</strong></div><div><span>Total a pagar</span><strong>${money(totals.total)}</strong></div></div><form id="saleForm"><div class="modal-form"><label class="full">Documento<select name="documentType"><option value="Factura-Recibo">Factura-recibo</option><option value="Factura">Factura</option><option value="Venda a dinheiro">Venda a dinheiro</option></select></label><label class="full" ${seller ? 'hidden' : ''}>Condição de pagamento<select name="settlement" id="saleSettlement"><option value="paid">Pagamento imediato</option><option value="credit">Venda a crédito</option></select></label><input name="settlement" type="hidden" value="paid" ${seller ? '' : 'disabled'} /><label id="salePaymentMethodField">Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label id="saleCashReceivedField">Valor recebido (Kz)<input name="amountReceived" type="number" min="0" step="0.01" value="${totals.total.toFixed(2)}" /></label><label id="saleDueDateField" class="full" hidden>Data de vencimento<input name="dueDate" type="date" value="${dateISO(30)}" /></label><div id="salePaymentFeedback" class="payment-feedback full"></div></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Voltar</button><button class="btn primary" type="submit">Confirmar venda</button></div></form>`);
   const form = $('#saleForm'); updateCheckoutFields(form, totals.total);
   form.addEventListener('input', () => updateCheckoutFields(form, totals.total));
   form.addEventListener('change', () => updateCheckoutFields(form, totals.total));
   form.addEventListener('submit', async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const credit = values.settlement === 'credit'; const payment = credit ? 'Crédito' : values.payment; const received = Number(values.amountReceived || 0);
     if (isSeller() && credit) return notify('Vendas a crédito requerem autorização de gerente ou administrador.');
+    if (cart.some(item => item.discountRequestStatus === 'Pendente')) return notify('Existe um pedido de desconto pendente. Aguarde a decisão do administrador antes de finalizar a venda.');
     if (credit && !customer) return notify('Seleccione ou cadastre um cliente para fazer uma venda a crédito.');
     if (credit && customer.creditLimit > 0 && customerStats(customer.id).balance + totals.total > customer.creditLimit) return notify('Esta venda ultrapassa o limite de crédito definido para o cliente.');
     if (!credit && payment === 'Dinheiro' && received < totals.total) return notify('O valor recebido é inferior ao total da venda.');
-    const cashSession = payment === 'Dinheiro' ? currentCashSession() : null;
+    const operatorCashSession = currentCashSession(); const cashSession = payment === 'Dinheiro' ? operatorCashSession : null;
     if (payment === 'Dinheiro' && !cashSession) return notify('Abra o caixa antes de concluir uma venda em dinheiro.');
     for (const item of cart) { const product = productById(item.productId); if (!product || stockAt(product, locationId) < item.quantity) return notify(`${item.name} já não tem stock suficiente neste local.`); }
     const balanceDue = credit ? totals.total : 0;
-    let sale = { id: uid('sale'), reference: nextReference('VD', data.sales), date: new Date().toISOString(), locationId, customerId: customer?.id || '', customer: customerSnapshot(customer), operatorId: currentUser.id, operatorName: currentUser.name, cashSessionId: cashSession?.id || '', documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída', syncStatus: 'Local' };
+    let sale = { id: uid('sale'), reference: nextReference('VD', data.sales), date: new Date().toISOString(), locationId, customerId: customer?.id || '', customer: customerSnapshot(customer), operatorId: currentUser.id, operatorName: currentUser.name, cashSessionId: operatorCashSession?.id || '', documentType: credit ? 'Factura' : values.documentType, payment, paymentStatus: credit ? 'Pendente' : 'Pago', amountPaid: credit ? 0 : totals.total, balanceDue, dueDate: credit ? values.dueDate : '', amountReceived: !credit && payment === 'Dinheiro' ? received : totals.total, taxRate: Number(data.settings.taxRate), change: !credit && payment === 'Dinheiro' ? Math.max(0, received - totals.total) : 0, items: cart.map(item => ({ ...item, discountValue: roundMoney(Number(item.price) * Number(item.quantity) * Number(item.discountPct || 0) / 100) })), subtotal: totals.subtotal, discount: totals.discount, discountValue: totals.discountValue, tax: totals.tax, total: totals.total, status: 'Concluída', syncStatus: 'Local' };
     if (window.VendaMaisCloud?.configured?.() && !window.VendaMaisCloud.connected()) return notify('Inicie a sessão em Dados online antes de confirmar vendas desta empresa.');
     if (window.VendaMaisCloud?.connected?.()) {
       const recorded = await window.VendaMaisCloud.recordSale(sale);
@@ -825,7 +1157,7 @@ function receivePaymentModal(customer) {
   openModal(`${modalHeader('Registar recebimento', `Cliente: ${escapeHtml(customer.name)}`)}<form id="receiptForm"><div class="modal-form"><label class="full">Documento em dívida<select name="saleId">${dueSales.map(sale => `<option value="${sale.id}">${sale.reference} · vence ${shortDate(sale.dueDate || sale.date)} · saldo ${money(saleBalanceDue(sale))}</option>`).join('')}</select></label><label>Valor recebido (Kz)<input name="amount" type="number" min="0.01" step="0.01" required value="${saleBalanceDue(dueSales[0]).toFixed(2)}" /></label><label>Meio de pagamento<select name="payment"><option>Dinheiro</option><option>Multicaixa</option><option>Transferência</option></select></label><label class="full">Data do recebimento<input name="date" type="date" required value="${dateISO()}" /></label><label class="full">Observação<input name="note" placeholder="Ex.: pagamento parcial, referência bancária" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Registar recebimento</button></div></form>`);
   const form = $('#receiptForm');
   form.elements.saleId.addEventListener('change', () => { const sale = data.sales.find(item => item.id === form.elements.saleId.value); form.elements.amount.value = saleBalanceDue(sale).toFixed(2); });
-  form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const sale = data.sales.find(item => item.id === values.saleId); const amount = Number(values.amount); if (!sale || amount <= 0) return notify('Introduza um valor válido.'); if (amount > saleBalanceDue(sale)) return notify('O valor é superior ao saldo deste documento.'); const cashSession = values.payment === 'Dinheiro' ? currentCashSession() : null; if (values.payment === 'Dinheiro' && !cashSession) return notify('Abra o caixa antes de receber em dinheiro.'); sale.amountPaid = Number(sale.amountPaid || 0) + amount; sale.balanceDue = Math.max(0, saleBalanceDue(sale) - amount); sale.paymentStatus = sale.balanceDue === 0 ? 'Pago' : 'Parcial'; data.receipts.push({ id: uid('receipt'), saleId: sale.id, customerId: customer.id, userId: currentUser.id, cashSessionId: cashSession?.id || '', date: `${values.date}T12:00:00`, amount, payment: values.payment, note: values.note.trim() }); audit('Recebimento registado', `${sale.reference} · ${money(amount)} · ${values.payment}`); window.VendaMaisCloud?.updateSale(sale); saveData(); closeModal(); notify(`Recebimento de ${money(amount)} registado.`); renderAll(); });
+  form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const sale = data.sales.find(item => item.id === values.saleId); const amount = roundMoney(Number(values.amount)); if (!sale || !Number.isFinite(amount) || amount <= 0) return notify('Introduza um valor válido.'); if (amount > saleBalanceDue(sale) + 0.001) return notify('O valor é superior ao saldo deste documento.'); const cashSession = values.payment === 'Dinheiro' ? data.cashSessions.find(item => item.status === 'Aberto' && item.userId === currentUser.id && item.locationId === sale.locationId) : null; if (values.payment === 'Dinheiro' && !cashSession) return notify('Abra o seu caixa na loja desta venda antes de receber em dinheiro.'); const snapshot = captureDataSnapshot(); sale.amountPaid = roundMoney(Number(sale.amountPaid || 0) + amount); sale.balanceDue = roundMoney(Math.max(0, saleBalanceDue(sale) - amount)); sale.paymentStatus = sale.balanceDue === 0 ? 'Pago' : 'Parcial'; sale.settlementIntegrityWarning = false; data.receipts.push({ id: uid('receipt'), saleId: sale.id, customerId: customer.id, userId: currentUser.id, cashSessionId: cashSession?.id || '', date: `${values.date}T12:00:00`, amount, payment: values.payment, note: values.note.trim() }); audit('Recebimento registado', `${sale.reference} · ${money(amount)} · ${values.payment}`); if (!persistOrRollback(snapshot, false)) return; window.VendaMaisCloud?.updateSale(sale).then(result => { if (result?.queued) notify('Recebimento guardado localmente; sincronização online pendente.'); }); closeModal(); notify(`Recebimento de ${money(amount)} registado.`); renderAll(); });
 }
 function printReceipt(sale) {
   const customer = saleCustomer(sale); const clientDetails = `${escapeHtml(customer.name)}${customer.type && customer.type !== 'Consumidor final' ? `<br><small>${escapeHtml(customer.type)}${customer.nif ? ` · NIF: ${escapeHtml(customer.nif)}` : ''}</small>` : ''}${customer.address ? `<br><small>${escapeHtml(customer.address)}</small>` : ''}`; const win = window.open('', '_blank', 'width=420,height=700'); if (!win) return; win.document.write(`<!doctype html><html><head><title>${escapeHtml(sale.documentType || 'Recibo')} ${sale.reference}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#222;font-size:13px}.head{text-align:center;border-bottom:1px dashed #999;padding-bottom:13px}.head h2{margin:0 0 6px}table{width:100%;border-collapse:collapse;margin:17px 0}td{padding:6px 0;border-bottom:1px solid #eee}.right{text-align:right}.total{font-size:17px;font-weight:bold;border-top:2px solid #222;padding-top:9px;margin-top:8px}.foot{text-align:center;color:#666;margin-top:26px;font-size:11px}@media print{button{display:none}}</style></head><body><div class="head"><h2>${escapeHtml(data.settings.company)}</h2><div>NIF: ${escapeHtml(data.settings.nif || '—')}</div><div>${escapeHtml(data.settings.address || '')}</div></div><p><b>${escapeHtml(sale.documentType || 'Recibo')}:</b> ${escapeHtml(sale.reference)}<br><b>Data:</b> ${fullDate(sale.date)}<br><b>Cliente:</b><br>${clientDetails}</p><table>${sale.items.map(item => `<tr><td>${escapeHtml(item.name)}<br><small>${number(item.quantity)} × ${money(item.price)}</small></td><td class="right">${money(item.quantity * item.price)}</td></tr>`).join('')}</table><div>Subtotal <span style="float:right">${money(sale.subtotal)}</span></div>${sale.discountValue ? `<div>Desconto <span style="float:right">− ${money(sale.discountValue)}</span></div>` : ''}<div>IVA <span style="float:right">${money(sale.tax)}</span></div><div class="total">TOTAL <span style="float:right">${money(sale.total)}</span></div><p>Pagamento: <b>${escapeHtml(sale.payment)}</b><br>Estado: <b>${escapeHtml(sale.paymentStatus || 'Pago')}</b>${saleBalanceDue(sale) ? `<br>Saldo por pagar: <b>${money(saleBalanceDue(sale))}</b>${sale.dueDate ? `<br>Vencimento: ${shortDate(sale.dueDate)}` : ''}` : ''}${sale.change ? `<br>Troco: <b>${money(sale.change)}</b>` : ''}</p><div class="foot">Documento gerado pelo VendaMais. Confirme os requisitos fiscais aplicáveis antes da emissão oficial.<br>Obrigado pela sua preferência.</div><button onclick="window.print()">Imprimir documento</button></body></html>`); win.document.close(); }
@@ -885,8 +1217,8 @@ function reportProductRows(sales) { return productPerformance(sales).map(product
 function exportReportExcel() {
   if (!canManage()) return notify('Apenas administradores e gerentes podem exportar relatórios.');
   const start = $('#reportStart').value || monthStart(); const end = $('#reportEnd').value || dateISO(); const locationFilter = $('#reportLocationFilter')?.value || 'all'; if (end < start) return notify('A data final do relatório deve ser igual ou posterior à data inicial.');
-  const report = calculateReport(start, end, locationFilter); const payments = paymentMethods(report.sales).map(payment => [excelText(payment), excelNumber(report.sales.filter(sale => sale.payment === payment).length), excelNumber(sum(report.sales.filter(sale => sale.payment === payment), sale => sale.total), 6)]);
-  const summaryRows = [[excelText('Relatório de gestão VendaMais', 1)], [excelText(`Empresa: ${data.settings.company}`, 8)], [excelText(`Período: ${reportPeriod(start, end)}`, 8)], [excelText(`Loja: ${locationFilter === 'all' ? 'Todas as lojas' : locationName(locationFilter)}`, 8)], [excelText(`Gerado em: ${fullDate(new Date().toISOString())}`, 8)], [], [excelText('Resumo financeiro', 3), excelText('Valor', 3)], [excelText('Faturação (com IVA)'), excelNumber(report.revenue, 7)], [excelText('IVA incluído'), excelNumber(report.tax, 6)], [excelText('Vendas líquidas (sem IVA)'), excelNumber(report.netRevenue, 7)], [excelText('Custo dos produtos vendidos'), excelNumber(report.cogs, 6)], [excelText('Resultado bruto'), excelNumber(report.grossProfit, 7)], [excelText('Custos fixos configurados (pro rata)'), excelNumber(report.configuredFixedTotal, 6)], [excelText('Despesas fixas registadas'), excelNumber(report.registeredFixed, 6)], [excelText('Custos fixos totais'), excelNumber(report.fixedTotal, 6)], [excelText('Custos variáveis'), excelNumber(report.variableTotal, 6)], [excelText('Resultado líquido estimado'), excelNumber(report.profit, 7)], [excelText('Contas a receber do período'), excelNumber(report.receivable, 7)], [excelText('Contas a pagar a fornecedores (saldo actual)'), excelNumber(report.payable, 7)], [excelText('Vendas concluídas'), excelNumber(report.sales.length)], [], [excelText('Faturação por meio de pagamento', 3), excelText('Nº de vendas', 3), excelText('Total', 3)], ...payments];
+  const report = calculateReport(start, end, locationFilter); const payments = paymentMethods(report.sales).map(payment => { const direct = report.sales.filter(sale => sale.payment === payment && sale.payment !== 'Crédito'); const receipts = report.receipts.filter(receipt => receipt.payment === payment); return [excelText(payment), excelNumber(direct.length + receipts.length), excelNumber(roundMoney(sum(direct, sale => sale.amountPaid ?? sale.total) + sum(receipts, receipt => receipt.amount)), 6)]; }).filter(row => row[2].value > 0);
+  const summaryRows = [[excelText('Relatório de gestão VendaMais', 1)], [excelText(`Empresa: ${data.settings.company}`, 8)], [excelText(`Período: ${reportPeriod(start, end)}`, 8)], [excelText(`Loja: ${locationFilter === 'all' ? 'Todas as lojas' : locationName(locationFilter)}`, 8)], [excelText(`Gerado em: ${fullDate(new Date().toISOString())}`, 8)], [], [excelText('Resumo financeiro', 3), excelText('Valor', 3)], [excelText('Faturação (com IVA)'), excelNumber(report.revenue, 7)], [excelText('IVA incluído'), excelNumber(report.tax, 6)], [excelText('Vendas líquidas (sem IVA)'), excelNumber(report.netRevenue, 7)], [excelText('Custo dos produtos vendidos'), excelNumber(report.cogs, 6)], [excelText('Resultado bruto'), excelNumber(report.grossProfit, 7)], [excelText('Custos fixos configurados (pro rata)'), excelNumber(report.configuredFixedTotal, 6)], [excelText('Despesas fixas registadas'), excelNumber(report.registeredFixed, 6)], [excelText('Custos fixos totais'), excelNumber(report.fixedTotal, 6)], [excelText('Custos variáveis'), excelNumber(report.variableTotal, 6)], [excelText(report.costIssues ? 'Resultado líquido estimado (POR APURAR: inconsistências financeiras)' : 'Resultado líquido estimado'), report.costIssues ? excelText('POR APURAR') : excelNumber(report.profit, 7)], [excelText('Contas a receber do período'), excelNumber(report.receivable, 7)], [excelText('Contas a pagar (saldo actual)'), excelNumber(report.payable, 7)], [excelText('Vendas concluídas'), excelNumber(report.sales.length)], [], [excelText('Faturação por meio de pagamento', 3), excelText('Nº de vendas', 3), excelText('Total', 3)], ...payments];
   const saleHeaders = ['Data', 'Referência', 'Documento', 'Local', 'Vendedor', 'Cliente', 'Tipo de cliente', 'NIF', 'Pagamento', 'Estado', 'Saldo em dívida', 'Subtotal', 'Desconto', 'IVA', 'Total'].map(label => excelText(label, 3));
   const salesRows = reportSalesRows(report.sales); const saleTotals = [excelText(''), excelText(''), excelText(''), excelText(''), excelText(''), excelText(''), excelText(''), excelText(''), excelText(''), excelText('Total do período', 2), excelNumber(report.receivable, 7), excelNumber(sum(report.sales, sale => sale.subtotal), 7), excelNumber(sum(report.sales, sale => sale.discountValue), 7), excelNumber(report.tax, 7), excelNumber(report.revenue, 7)];
   const productHeaders = ['Código', 'Produto', 'Quantidade vendida', 'Vendas brutas', 'Vendas líquidas s/ IVA', 'Custo vendido', 'Margem bruta'].map(label => excelText(label, 3));
@@ -898,11 +1230,11 @@ function exportReportExcel() {
   const customerRows = [...data.customers].sort((a, b) => a.name.localeCompare(b.name)).map(customer => [excelText(customer.name), excelText(customer.type), excelText(customer.nif || '—'), excelText(customer.phone || '—'), excelText(customer.email || '—'), excelText(customer.address || '—'), excelNumber(customer.creditLimit, 6)]);
   const supplierHeaders = ['Fornecedor', 'NIF', 'Telefone', 'E-mail', 'Morada'].map(label => excelText(label, 3));
   const supplierRows = [...data.suppliers].sort((a, b) => a.name.localeCompare(b.name)).map(supplier => [excelText(supplier.name), excelText(supplier.nif || '—'), excelText(supplier.phone || '—'), excelText(supplier.email || '—'), excelText(supplier.address || '—')]);
-  const expenseHeaders = ['Data considerada', 'Descrição', 'Categoria', 'Tipo de custo', 'Periodicidade', 'Loja', 'Pagamento', 'Valor', 'Observação'].map(label => excelText(label, 3));
-  const expenseRows = report.expenses.map(item => [excelDateCell(item.occurrenceDate), excelText(item.description), excelText(item.category), excelText(item.costType || 'Variável'), excelText(item.recurrence || 'Única'), excelText(locationName(item.locationId)), excelText(item.payment), excelNumber(item.amount, 6), excelText(item.note || '—')]);
+  const expenseHeaders = ['Data considerada', 'Descrição', 'Categoria', 'Tipo de custo', 'Periodicidade', 'Loja', 'Pagamento', 'Valor', 'Saldo pendente', 'Estado', 'Observação'].map(label => excelText(label, 3));
+  const expenseRows = report.expenses.map(item => [excelDateCell(item.occurrenceDate), excelText(item.description), excelText(item.category), excelText(item.costType || 'Variável'), excelText(item.recurrence || 'Única'), excelText(locationName(item.locationId)), excelText(item.payment), excelNumber(item.amount, 6), excelNumber(item.balanceDue, 6), excelText(item.paymentStatus || 'Pago'), excelText(item.note || '—')]);
   const storeRows = report.stores.map(location => { const local = calculateReport(start, end, location.id); return [excelText(location.name), excelNumber(local.revenue, 6), excelNumber(local.netRevenue, 6), excelNumber(local.cogs, 6), excelNumber(local.fixedTotal, 6), excelNumber(local.variableTotal, 6), excelNumber(local.profit, 6), excelNumber(local.sales.length)]; });
   const sellerData = sellerRollup(report.sales); const sellerRows = sellerData.summary.map(row => [excelText(row.seller), excelNumber(row.count), excelNumber(row.total, 6), excelNumber(row.average, 6), excelNumber(row.receivable, 6)]); const sellerDailyRows = sellerData.daily.map(row => [excelDateCell(row.date), excelText(row.seller), excelNumber(row.count), excelNumber(row.total, 6), excelNumber(row.average, 6)]); const sellerMonthlyRows = sellerData.monthly.map(row => [excelText(shortMonth(row.month)), excelText(row.seller), excelNumber(row.count), excelNumber(row.total, 6), excelNumber(row.average, 6)]); const fixedRows = report.configuredFixed.map(row => [excelText(row.location.name), excelText(row.label), excelNumber(row.monthly, 6), excelNumber(row.allocated, 6)]);
-  const file = createExcelWorkbook([{ name: 'Resumo', rows: summaryRows, widths: [42, 20, 18], freezeRows: 7 }, { name: 'Vendas', rows: [saleHeaders, ...salesRows, saleTotals], widths: [14, 14, 18, 24, 24, 25, 15, 18, 16, 14, 16, 15, 15, 15, 16] }, { name: 'Artigos vendidos', rows: [productHeaders, ...reportProductRows(report.sales)], widths: [16, 32, 18, 18, 22, 18, 18] }, { name: 'Stock actual', rows: [stockHeaders, ...stockRows], widths: [16, 32, 18, 12, 18, 16, 14, 14, 16] }, { name: 'Stock por local', rows: [locationStockHeaders, ...locationStockRows], widths: [24, 14, 16, 32, 18, 12, 16, 14, 16] }, { name: 'Clientes', rows: [customerHeaders, ...customerRows], widths: [28, 14, 18, 18, 28, 32, 18] }, { name: 'Fornecedores', rows: [supplierHeaders, ...supplierRows], widths: [30, 18, 18, 28, 32] }, { name: 'Despesas', rows: [expenseHeaders, ...expenseRows], widths: [16, 32, 22, 18, 18, 24, 18, 16, 32] }, { name: 'Lojas', rows: [['Loja', 'Faturação c/ IVA', 'Vendas s/ IVA', 'Custo produtos', 'Custos fixos', 'Custos variáveis', 'Resultado estimado', 'Nº vendas'].map(label => excelText(label, 3)), ...storeRows], widths: [24, 18, 18, 18, 18, 18, 20, 14] }, { name: 'Custos fixos', rows: [['Loja', 'Tipo de custo', 'Valor mensal', 'No período'].map(label => excelText(label, 3)), ...fixedRows], widths: [24, 22, 18, 18] }, { name: 'Vendedores', rows: [['Vendedor', 'Nº vendas', 'Faturação', 'Média por venda', 'Por receber'].map(label => excelText(label, 3)), ...sellerRows], widths: [28, 14, 18, 20, 18] }, { name: 'Vendas diárias', rows: [['Data', 'Vendedor', 'Nº vendas', 'Faturação', 'Média'].map(label => excelText(label, 3)), ...sellerDailyRows], widths: [16, 28, 14, 18, 18] }, { name: 'Vendas mensais', rows: [['Mês', 'Vendedor', 'Nº vendas', 'Faturação', 'Média'].map(label => excelText(label, 3)), ...sellerMonthlyRows], widths: [18, 28, 14, 18, 18] }]);
+  const file = createExcelWorkbook([{ name: 'Resumo', rows: summaryRows, widths: [42, 20, 18], freezeRows: 7 }, { name: 'Vendas', rows: [saleHeaders, ...salesRows, saleTotals], widths: [14, 14, 18, 24, 24, 25, 15, 18, 16, 14, 16, 15, 15, 15, 16] }, { name: 'Artigos vendidos', rows: [productHeaders, ...reportProductRows(report.sales)], widths: [16, 32, 18, 18, 22, 18, 18] }, { name: 'Stock actual', rows: [stockHeaders, ...stockRows], widths: [16, 32, 18, 12, 18, 16, 14, 14, 16] }, { name: 'Stock por local', rows: [locationStockHeaders, ...locationStockRows], widths: [24, 14, 16, 32, 18, 12, 16, 14, 16] }, { name: 'Clientes', rows: [customerHeaders, ...customerRows], widths: [28, 14, 18, 18, 28, 32, 18] }, { name: 'Fornecedores', rows: [supplierHeaders, ...supplierRows], widths: [30, 18, 18, 28, 32] }, { name: 'Despesas', rows: [expenseHeaders, ...expenseRows], widths: [16, 32, 22, 18, 18, 24, 18, 16, 18, 16, 32] }, { name: 'Lojas', rows: [['Loja', 'Faturação c/ IVA', 'Vendas s/ IVA', 'Custo produtos', 'Custos fixos', 'Custos variáveis', 'Resultado estimado', 'Nº vendas'].map(label => excelText(label, 3)), ...storeRows], widths: [24, 18, 18, 18, 18, 18, 20, 14] }, { name: 'Custos fixos', rows: [['Loja', 'Tipo de custo', 'Valor mensal', 'No período'].map(label => excelText(label, 3)), ...fixedRows], widths: [24, 22, 18, 18] }, { name: 'Vendedores', rows: [['Vendedor', 'Nº vendas', 'Faturação', 'Média por venda', 'Por receber'].map(label => excelText(label, 3)), ...sellerRows], widths: [28, 14, 18, 20, 18] }, { name: 'Vendas diárias', rows: [['Data', 'Vendedor', 'Nº vendas', 'Faturação', 'Média'].map(label => excelText(label, 3)), ...sellerDailyRows], widths: [16, 28, 14, 18, 18] }, { name: 'Vendas mensais', rows: [['Mês', 'Vendedor', 'Nº vendas', 'Faturação', 'Média'].map(label => excelText(label, 3)), ...sellerMonthlyRows], widths: [18, 28, 14, 18, 18] }]);
   download(`relatorio-vendamais-${start}-${end}.xlsx`, file); notify('Relatório Excel preparado com 13 folhas organizadas.');
 }
 function exportDocuments() {
@@ -916,7 +1248,32 @@ function restore(file) { if (!isAdministrator()) return notify('Apenas administr
 function clearBusinessDataModal() {
   if (!isAdministrator()) return notify('Apenas administradores podem limpar os dados comerciais.');
   openModal(`${modalHeader('Começar com dados próprios', 'Esta operação remove os dados comerciais actuais, incluindo os de demonstração.')}<p class="modal-note">Antes de continuar, guarde uma cópia de segurança. Serão removidos produtos, clientes, fornecedores, vendas, compras, stock, caixa e movimentos. Os dados da empresa e os utilizadores serão mantidos.</p><form id="clearBusinessDataForm"><div class="modal-form"><label class="full">Escreva <b>LIMPAR</b> para confirmar<input name="confirmation" required autocomplete="off" placeholder="LIMPAR" /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Começar sem dados</button></div></form>`);
-  $('#clearBusinessDataForm').addEventListener('submit', event => { event.preventDefault(); const confirmation = new FormData(event.currentTarget).get('confirmation').trim().toUpperCase(); if (confirmation !== 'LIMPAR') return notify('Escreva LIMPAR para confirmar esta operação.'); data = emptyBusinessData(data); currentUser = getSessionUser(); cart = []; audit('Dados comerciais limpos', 'Sistema preparado para introdução de dados próprios.'); saveData(); closeModal(); $('#companyName').textContent = data.settings.company; renderAccountButton(); renderAll(); notify('Sistema limpo. Pode agora criar os seus produtos, fornecedores e clientes.'); });
+  $('#clearBusinessDataForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const confirmation = String(new FormData(event.currentTarget).get('confirmation') || '').trim().toUpperCase();
+    if (confirmation !== 'LIMPAR') return notify('Escreva LIMPAR para confirmar esta operação.');
+    const cleaned = emptyBusinessData(data);
+    const submit = event.currentTarget.querySelector('[type="submit"]');
+    submit.disabled = true; submit.textContent = 'A limpar…';
+    try {
+      if (window.VendaMaisCloud?.configured?.() && !window.VendaMaisCloud?.connected?.()) {
+        throw new Error('A base online está configurada mas não está ligada. Inicie sessão e tente novamente para limpar também o Supabase.');
+      } else if (window.VendaMaisCloud?.connected?.()) {
+        await window.VendaMaisCloud.clearBusinessData();
+      } else {
+        data = cleaned; currentUser = getSessionUser(); cart = [];
+        saveData({ skipCloudSync: true });
+      }
+      currentUser = getSessionUser(); cart = [];
+      localStorage.removeItem('vendamais_pending_sales_v1');
+      closeModal(); $('#companyName').textContent = data.settings.company;
+      renderAccountButton(); renderAll();
+      notify('Dados comerciais eliminados. A limpeza foi guardada e não será revertida ao atualizar.');
+    } catch (error) {
+      submit.disabled = false; submit.textContent = 'Começar sem dados';
+      notify(error.message || 'Não foi possível limpar os dados online.');
+    }
+  });
 }
 function renderAccountButton() { const button = $('#accountButton'); if (!button || !currentUser) return; button.textContent = currentUser.initials || currentUser.name.split(' ').map(name => name[0]).join('').slice(0, 2).toUpperCase(); button.title = `${currentUser.name} · ${currentUser.role}`; }
 function accountModal() {
@@ -1019,6 +1376,7 @@ function replaceDataFromCloud(remote, profile, authUser) {
   applyBrandTheme();
   $('#companyName').textContent = data.settings.company;
   renderAccountButton(); applyRoleInterface(); renderAll();
+  if (isAdministrator() && window.VendaMaisCloud?.connected?.()) window.VendaMaisCloud.discountRequests().then(rows => { const badge = $('#discountInboxCount'); if (badge) badge.textContent = String(rows.length); }).catch(() => {});
 }
 function mergeCloudSale(sale) {
   if (!sale?.id) return;
@@ -1031,11 +1389,21 @@ function cloudBootstrapModal() {
   openModal(`${modalHeader('Criar empresa online', 'Defina o nome e a identidade visual antes de ligar lojas, produtos e vendas à base central.')}<form id="cloudBootstrapForm"><div class="modal-form"><label class="full">Nome da empresa<input name="company" required value="${escapeHtml(data.settings.company || '')}" /></label><label class="full">NIF<input name="nif" value="${escapeHtml(data.settings.nif || '')}" /></label><div class="full">${themePickerHtml('themeId', data.settings.themeId, 'Cores da sua empresa', 'Escolha uma combinação profissional. Poderá alterá-la mais tarde nas Definições.')}</div></div><p class="modal-note">Depois desta etapa, cada venda confirmada será registada no livro central. Os PINs locais não são enviados: o acesso online usa a conta de e-mail e palavra-passe.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar e sincronizar</button></div></form>`);
   $('#cloudBootstrapForm').addEventListener('submit', async event => {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-    const previousSettings = { ...data.settings };
-    data.settings = { ...data.settings, company: String(values.company || '').trim(), nif: String(values.nif || '').trim(), themeId: brandTheme(values.themeId).id };
+    const previousData = data;
+    const clean = blankData();
+    clean.settings.company = String(values.company || '').trim();
+    clean.settings.nif = String(values.nif || '').trim();
+    clean.settings.themeId = brandTheme(values.themeId).id;
+    data = normaliseData(clean); currentUser = getSessionUser(); cart = [];
     applyBrandTheme();
-    try { await window.VendaMaisCloud.bootstrap(values.company, values.nif); saveData({ skipCloudSync: true }); $('#companyName').textContent = data.settings.company; closeModal(); renderAll(); notify('Empresa criada, cores aplicadas e dados sincronizados.'); }
-    catch (error) { data.settings = previousSettings; applyBrandTheme(); notify(error.message || 'Não foi possível criar a empresa online.'); }
+    try {
+      await window.VendaMaisCloud.bootstrap(values.company, values.nif);
+      saveData({ skipCloudSync: true }); $('#companyName').textContent = data.settings.company;
+      closeModal(); renderAll(); notify('Empresa criada vazia. Introduza os seus próprios dados para começar.');
+    } catch (error) {
+      data = previousData; currentUser = getSessionUser(); applyBrandTheme();
+      notify(error.message || 'Não foi possível criar a empresa online.');
+    }
   });
 }
 function cloudNoProfileModal() {
@@ -1103,11 +1471,14 @@ function cloudModal() {
   $('#cloudBackups')?.addEventListener('click', cloudBackupModal);
 }
 
-window.VendaMaisCloud?.setHooks({ getData: () => data, replaceData: replaceDataFromCloud, mergeSale: mergeCloudSale, onStatus: updateCloudUi });
+window.VendaMaisCloud?.setHooks({ getData: () => data, replaceData: replaceDataFromCloud, mergeSale: mergeCloudSale, onDiscountRequest: handleDiscountRequestUpdate, onStatus: updateCloudUi });
 window.addEventListener('online', () => { window.VendaMaisCloud?.flushPendingSales?.(); notify('Ligação restaurada. A sincronização foi retomada.'); });
 window.addEventListener('offline', () => { if (window.VendaMaisCloud?.connected?.()) notify('Sem internet. As próximas vendas ficam pendentes neste equipamento até a ligação voltar.'); });
 
 document.addEventListener('click', event => {
+  if (event.target.closest('#requestProductDiscount')) return requestProductDiscountModal();
+  if (event.target.closest('#discountInboxButton')) return discountApprovalModal();
+  const discountReview = event.target.closest('[data-discount-review]'); if (discountReview) { const id = discountReview.dataset.id; const approve = discountReview.dataset.discountReview === 'approve'; const rejectionNote = approve ? '' : prompt('Indique o motivo da rejeição:'); if (!approve && rejectionNote === null) return; const note = approve ? '' : (rejectionNote.trim() || 'Pedido rejeitado pelo administrador'); window.VendaMaisCloud.reviewDiscountRequest(id, approve, note).then(() => { notify(approve ? 'Desconto aprovado. O vendedor foi notificado.' : 'Pedido rejeitado. O vendedor foi notificado.'); return window.VendaMaisCloud.discountRequests(); }).then(rows => { const host = $('#discountRequestsList'); if (host) { host.innerHTML = rows.length ? rows.map(request => `<article class="discount-request-card"><b>${escapeHtml(request.product_name)}</b><p>${escapeHtml(request.requester_name || 'Vendedor')} · ${number(request.discount_percent)}% · ${money(request.discount_value)}</p><p>${escapeHtml(request.reason)}</p><div class="inline-actions"><button class="btn primary" data-discount-review="approve" data-id="${request.id}">Aprovar</button><button class="btn secondary" data-discount-review="reject" data-id="${request.id}">Rejeitar</button></div></article>`).join('') : '<div class="empty-state">Não existem pedidos de desconto pendentes.</div>'; } const count = $('#discountInboxCount'); if (count) count.textContent = String(rows.length); }).catch(error => notify(error.message || 'Não foi possível processar o pedido.')); return; }
   const reportTab=event.target.closest('[data-report-tab]'); if(reportTab){const key=reportTab.dataset.reportTab;$$('[data-report-tab]').forEach(button=>button.classList.toggle('active',button===reportTab));$$('[data-report-pane]').forEach(pane=>{const active=pane.dataset.reportPane===key;pane.hidden=!active;pane.classList.toggle('active',active);});return;}
   const nav = event.target.closest('.nav-link'); if (nav) return showView(nav.dataset.view);
   const go = event.target.closest('[data-go]'); if (go) return showView(go.dataset.go);
@@ -1133,8 +1504,12 @@ document.addEventListener('click', event => {
   if (event.target.closest('#newPurchase')) return purchaseModal();
   if (event.target.closest('#suggestPurchase')) { const low = data.products.filter(product => stockAt(product) <= product.minStock); return low.length ? purchaseModal(low) : notify('Nenhum produto está abaixo do limite de reposição neste local.'); }
   const purchaseAction = event.target.closest('[data-purchase-action]'); if (purchaseAction) return supplierPaymentModal(data.purchases.find(purchase => purchase.id === purchaseAction.dataset.id));
+  const expenseAction = event.target.closest('[data-expense-action]'); if (expenseAction) return expensePaymentModal(data.expenses.find(expense => expense.id === expenseAction.dataset.id));
   if (event.target.closest('#cashPrimaryAction')) return currentCashSession() ? cashCloseModal() : cashOpenModal();
   if (event.target.closest('#cashMovement')) return cashMovementModal();
+  const cashRequestAction = event.target.closest('[data-cash-request]'); if (cashRequestAction) return decideCashMovementRequest(cashRequestAction.dataset.id, cashRequestAction.dataset.cashRequest);
+  if (event.target.closest('#productsScrollUp')) return scrollProducts(-1);
+  if (event.target.closest('#productsScrollDown')) return scrollProducts(1);
   const documentAction = event.target.closest('[data-document-action]'); if (documentAction) { const sale = data.sales.find(item => item.id === documentAction.dataset.id); if (!canAccessDocument(sale)) return notify('Não tem permissão para consultar este documento.'); return documentAction.dataset.documentAction === 'return' ? returnSaleModal(sale) : printReceipt(sale); }
   if (event.target.closest('#exportDocuments')) return exportDocuments();
   if (event.target.closest('#manageLocations')) return locationsModal();
@@ -1158,6 +1533,7 @@ document.addEventListener('click', event => {
 document.addEventListener('input', event => { if (event.target.id === 'productSearch') renderPosProducts(); if (event.target.id === 'saleDiscount') renderCart(); const table = event.target.dataset?.table; if (table === 'products') filterProducts(); if (table === 'customers') filterCustomers(); if (table === 'suppliers') filterSuppliers(); if (table === 'documents') filterDocuments(); });
 document.addEventListener('change', event => { if (event.target.id === 'posCategory') renderPosProducts(); if (event.target.id === 'productCategoryFilter') filterProducts(); if (event.target.id === 'saleCustomer') renderSaleCustomerInfo(); if (event.target.id === 'documentStatusFilter') filterDocuments(); if (event.target.id === 'activeLocationSelect') changeActiveLocation(event.target.value); if (event.target.id === 'reportLocationFilter' || event.target.id === 'sellerReportFilter') renderReports(); if (event.target.id === 'restoreData') restore(event.target.files[0]); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && $('#modalBackdrop').classList.contains('open')) closeModal(); });
+window.addEventListener('resize', updateProductScrollControls);
 $('#settingsForm').addEventListener('submit', event => { event.preventDefault(); if (!isAdministrator()) return notify('Apenas administradores podem alterar definições.'); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.taxRate = Number(values.taxRate); values.stockLimit = Number(values.stockLimit); values.themeId = brandTheme(values.themeId).id; data.settings = { ...data.settings, ...values }; applyBrandTheme(); saveData(); $('#companyName').textContent = data.settings.company; notify('Definições e identidade visual guardadas.'); renderAll(); });
 
 function initialize() {

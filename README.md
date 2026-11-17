@@ -19,7 +19,7 @@ VendaMais reúne vendas, clientes, fornecedores, compras, inventário e balanço
 | Clientes empresariais e crédito | Distinguir particular/empresa, exigir NIF empresarial, definir crédito, emitir venda a crédito e registar recebimentos. |
 | Caixa e turnos | Abrir e fechar caixa por operador, controlar fundo inicial, movimentos físicos, contagem e diferenças. |
 | Documentos e devoluções | Consultar e imprimir documentos; processar devoluções com nota de crédito interna e reposição de stock. |
-| Operação | Acesso por PIN com perfis distintos de Administrador, Gerente e Vendedor. A gestão cria as lojas e atribui cada vendedor a uma loja já existente. |
+| Operação | Acesso por PIN com perfis distintos de Administrador, Gerente e Vendedor. A gestão cria as lojas e atribui cada vendedor a uma loja já existente. O vendedor tem um painel individual com as próprias vendas, faturação, ticket médio e estado do seu caixa. |
 | Stock avançado | Código de barras, unidade, armazém, lote e aviso de validade próxima. |
 | Balanço | Consultar faturação, IVA, custo dos produtos vendidos, margem, pagamentos e artigos mais vendidos. |
 | Gestão financeira por loja | Comparar faturação com e sem IVA, custos fixos e variáveis, custo histórico dos produtos e resultado estimado de cada loja ou de todas em conjunto. |
@@ -140,3 +140,21 @@ Contribuições são bem-vindas. Consulte [CONTRIBUTING.md](CONTRIBUTING.md), cr
 ## Licença
 
 Distribuído sob a licença [MIT](LICENSE).
+
+
+### Aprovação remota de descontos
+
+Na versão 2.0.2, o vendedor pode solicitar um desconto para um único produto directamente no carrinho. O administrador aprova ou rejeita no seu próprio computador, sem abrir caixa nem criar uma segunda venda. Para instalações online, execute a migração `supabase/2026-11-discount-approval.sql` depois das migrações base e financeiras. Ambos os utilizadores devem estar ligados à mesma empresa Supabase.
+
+
+## Pedidos de movimentos de caixa (2.2.0)
+
+O vendedor pode solicitar uma entrada ou saída no seu turno aberto, indicando valor e motivo. O Administrador aprova ou rejeita na área **Caixa & turnos**. Quando aprovado, o movimento é lançado no turno original. O vendedor acompanha o estado dos próprios pedidos. O catálogo da Nova venda inclui setas para percorrer a lista de produtos.
+
+**Importante:** antes de usar este fluxo em produção online com vários utilizadores, implemente a validação transaccional no servidor Supabase. A validação actual da interface e do estado sincronizado não impede adulteração directa do pedido por um utilizador tecnicamente experiente.
+
+## Segurança de movimentos de caixa (actualização 2026-11)
+
+Para activar a aprovação segura de movimentos de caixa no ambiente online, execute no SQL Editor do Supabase o ficheiro `supabase/2026-11-cash-approval-security.sql`, depois de aplicar `schema.sql` e os upgrades SQL anteriores do projecto. Esta migração substitui a função `save_vendamais_state` por uma versão que valida as alterações no servidor: o vendedor só consegue acrescentar pedidos pendentes associados ao seu próprio turno aberto; não consegue lançar movimentos directamente, editar/apagar pedidos ou decidir pedidos; e apenas o perfil `Administrador` pode aprovar/rejeitar pedidos. O `Gerente` mantém os movimentos manuais que já lhe são permitidos, mas não decide pedidos de vendedores.
+
+A migração deve ser aplicada antes de disponibilizar a versão online. Faça primeiro uma cópia de segurança do projecto Supabase. A interface local/offline não substitui esta validação no servidor.

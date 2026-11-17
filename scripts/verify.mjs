@@ -8,6 +8,7 @@ const requiredFiles = [
   'styles.css',
   'app.js',
   'cloud.js',
+  'finance-core.js',
   'supabase-config.js',
   'README.md',
   'LICENSE',
@@ -17,7 +18,10 @@ const requiredFiles = [
   'docs/ONLINE.md',
   'docs/PROFESSIONAL.md',
   'supabase/schema.sql',
-  'supabase/2026-11-professional-upgrade.sql'
+  'supabase/2026-11-professional-upgrade.sql',
+  'supabase/2026-11-financial-integrity.sql',
+  'supabase/2026-11-discount-approval.sql',
+  'tests/finance.test.mjs'
 ];
 const requiredInterfaceIds = [
   'dashboardView',
@@ -34,6 +38,7 @@ const requiredInterfaceIds = [
 ];
 const requiredFunctions = [
   'renderDashboard',
+  'renderSellerDashboard',
   'renderPos',
   'renderProducts',
   'renderInventory',
@@ -46,6 +51,7 @@ const requiredFunctions = [
   'auditModal',
   'nextReference',
   'purchaseModal',
+  'expensePaymentModal',
   'createExcelWorkbook',
   'exportReportExcel',
   'clearBusinessDataModal',
@@ -63,7 +69,9 @@ const requiredFunctions = [
   'calculateReport',
   'allocatedMonthlyCost',
   'sellerRollup',
-  'productPerformance'
+  'productPerformance',
+  'previousPeriod',
+  'reportTrendHtml'
 ];
 
 const failures = [];
@@ -79,24 +87,37 @@ for (const id of requiredInterfaceIds) {
 const app = readFileSync(resolve(root, 'app.js'), 'utf8');
 const cloud = readFileSync(resolve(root, 'cloud.js'), 'utf8');
 const professionalSql = readFileSync(resolve(root, 'supabase/2026-11-professional-upgrade.sql'), 'utf8');
+const financeCore = readFileSync(resolve(root, 'finance-core.js'), 'utf8');
+const financialSql = readFileSync(resolve(root, 'supabase/2026-11-financial-integrity.sql'), 'utf8');
 for (const fn of requiredFunctions) {
   if (!app.includes(`function ${fn}`)) failures.push(`Função essencial em falta: ${fn}`);
 }
 if (!app.includes('localStorage')) failures.push('Cópia de trabalho local não encontrada.');
+if (!html.includes('finance-core.js')) failures.push('Núcleo de cálculos financeiros não carregado.');
+for (const fn of ['calculateSaleTotals', 'validateSettlement', 'prorateMonthlyCost', 'hasActualFixedExpense', 'weightedAverageCost']) if (!financeCore.includes(fn)) failures.push(`Cálculo financeiro essencial em falta: ${fn}`);
+if (!financialSql.includes('create or replace function public.record_vendamais_sale')) failures.push('Migração de integridade financeira do servidor em falta.');
+if (!financialSql.includes('v_validated_items') || !financialSql.includes('v_tax_rate') || !financialSql.includes('for update')) failures.push('Validação central de preço, IVA ou concorrência incompleta.');
 if (!app.includes('VendaMaisCloud')) failures.push('Integração com dados online não encontrada.');
 if (!cloud.includes('sales_ledger')) failures.push('Livro central de vendas não encontrado.');
 if (!cloud.includes('recordSale')) failures.push('Registo remoto de vendas não encontrado.');
 if (!cloud.includes('save_vendamais_state')) failures.push('Sincronização do estado empresarial não encontrada.');
 if (!cloud.includes('flushPendingSales')) failures.push('Fila de vendas sem internet não encontrada.');
+if (!cloud.includes('request_vendamais_discount') || !cloud.includes('review_vendamais_discount') || !cloud.includes('discount_requests') || !cloud.includes('onDiscountRequest')) failures.push('Fluxo remoto de aprovação de descontos incompleto.');
+if (!app.includes('Central de aprovação de descontos') || !app.includes('discountApprovalId') || !app.includes('requestProductDiscountModal')) failures.push('Interface de aprovação de descontos incompleta.');
+if (!financialSql.includes('discountApprovalId') || !financialSql.includes('discount_requests')) failures.push('Validação de descontos aprovados no servidor em falta.');
 if (!cloud.includes('requestAccess')) failures.push('Pedido de acesso online não encontrado.');
 if (!cloud.includes('inviteStaff') || !cloud.includes('claimInvitation')) failures.push('Convites preparados pelo administrador não encontrados.');
 if (!app.includes('STORAGE_VERSION')) failures.push('Versão de dados não encontrada.');
 if (!app.includes('customerSnapshot')) failures.push('Cópia dos dados do cliente não encontrada.');
 if (!app.includes('creditLimit')) failures.push('Controlo de crédito de cliente não encontrado.');
 if (!app.includes('cashSessions')) failures.push('Controlo de caixa não encontrado.');
+if (!app.includes('expensePayments') || !app.includes('data-expense-action')) failures.push('Liquidação e histórico de despesas a crédito não encontrados.');
+if (!app.includes('coversConfiguredCost')) failures.push('Prevenção explícita de dupla contagem dos custos fixos não encontrada.');
 if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
 if (!app.includes('isAdministrator')) failures.push('Protecção de administrador não encontrada.');
 if (!app.includes('ROLE_VIEWS')) failures.push('Permissões por perfil não encontradas.');
+if (!app.includes("Vendedor: ['dashboard', 'pos', 'cash', 'documents']")) failures.push('Dashboard individual do vendedor não está acessível.');
+if (!app.includes('sale.operatorId === currentUser.id')) failures.push('Dashboard do vendedor sem filtro de titularidade das vendas.');
 if (!app.includes('sessionLocked')) failures.push('Bloqueio de sessão não encontrado.');
 if (!app.includes('pinMustChange')) failures.push('Controlo de PIN não encontrado.');
 if (!app.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) failures.push('Exportação Excel não encontrada.');
@@ -108,6 +129,8 @@ if (!html.includes('id="storePerformanceTable"')) failures.push('Tabela financei
 if (!html.includes('id="weeklySalesTable"')) failures.push('Tabela de vendas semanais não encontrada.');
 if (!html.includes('id="reportLocationFilter"')) failures.push('Filtro de loja nos relatórios não encontrado.');
 if (!html.includes('id="sellerReportFilter"')) failures.push('Filtro de vendedores no relatório não encontrado.');
+if (!html.includes('id="reportQuality"') || !html.includes('id="reportTrend"') || !html.includes('id="reportComparison"')) failures.push('Painel de qualidade, tendência ou comparação financeira em falta.');
+if (!app.includes('costIssues') || !app.includes('Por apurar')) failures.push('Protecção contra lucro apresentado sem custos válidos em falta.');
 if (!html.includes('id="sellerDailyTable"') || !html.includes('id="sellerMonthlyTable"')) failures.push('Tabelas diária e mensal de vendedores não encontradas.');
 if (!html.includes('id="storeTodayTable"')) failures.push('Resumo diário por loja não encontrado.');
 if (!html.includes('id="manageCloud"')) failures.push('Configuração de dados online não encontrada.');
@@ -129,7 +152,7 @@ if (!app.includes('Vendas líquidas (sem IVA)')) failures.push('Cálculo de vend
 if (!app.includes("`Cliente: ${escapeHtml(customer.name)}`")) failures.push('Nome do cliente sem escape no modal de recebimento.');
 if (!app.includes("escapeHtml(supplier?.name || 'Fornecedor')")) failures.push('Nome do fornecedor sem escape no modal de pagamento.');
 if (!app.includes('const previousData = JSON.stringify(data);')) failures.push('Venda sem cópia de segurança para rollback local.');
-if (!app.includes('if (!saveData()) {')) failures.push('Venda não verifica falha de persistência local.');
+if (!app.includes('if (!saveData({ skipCloudSync:')) failures.push('Venda não verifica falha de persistência local.');
 
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));
