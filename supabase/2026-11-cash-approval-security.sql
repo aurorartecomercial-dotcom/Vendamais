@@ -23,6 +23,7 @@ declare
   v_request jsonb;
   v_session jsonb;
   v_request_id text;
+  v_app_user_id text;
   v_next_revision bigint;
   v_old_count integer;
   v_new_count integer;
@@ -42,6 +43,14 @@ begin
   where company_id = v_company_id and revision = p_expected_revision
   for update;
   if not found then return null; end if;
+
+  -- O frontend usa IDs internos para os funcionários. O cloudUserId liga
+  -- esse ID interno ao UUID real da sessão Supabase.
+  select u.value ->> 'id' into v_app_user_id
+  from jsonb_array_elements(coalesce(v_old_state -> 'users', '[]'::jsonb)) u(value)
+  where u.value ->> 'cloudUserId' = auth.uid()::text
+  limit 1;
+  v_app_user_id := coalesce(v_app_user_id, auth.uid()::text);
 
   v_old_requests := coalesce(v_old_state -> 'cashMovementRequests', '[]'::jsonb);
   v_new_requests := coalesce(v_new_state -> 'cashMovementRequests', '[]'::jsonb);
@@ -83,7 +92,7 @@ begin
       end if;
     end loop;
 
-    -- Apenas novos pedidos pendentes, do próprio vendedor, para o seu turno.
+    -- Apenas novos pedidos pendentes, do próprio vendedor (ID interno mapeado), para o seu turno.
     for v_request in
       select n.value
       from jsonb_array_elements(v_new_requests) n(value)
@@ -93,7 +102,7 @@ begin
       )
     loop
       if coalesce(v_request ->> 'id', '') = ''
-         or coalesce(v_request ->> 'userId', '') <> auth.uid()::text
+         or coalesce(v_request ->> 'userId', '') <> v_app_user_id
          or coalesce(v_request ->> 'status', '') <> 'Pendente'
          or coalesce(v_request ->> 'type', '') not in ('Entrada', 'Saída')
          or coalesce(nullif(v_request ->> 'amount', '')::numeric, 0) <= 0
@@ -106,7 +115,7 @@ begin
       select value into v_session
       from jsonb_array_elements(coalesce(v_old_state -> 'cashSessions', '[]'::jsonb)) s(value)
       where s.value ->> 'id' = v_request ->> 'sessionId'
-        and s.value ->> 'userId' = auth.uid()::text
+        and s.value ->> 'userId' = v_app_user_id
         and s.value ->> 'status' = 'Aberto'
         and s.value ->> 'locationId' = coalesce(v_request ->> 'locationId', '')
       limit 1;

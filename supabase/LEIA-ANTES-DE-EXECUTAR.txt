@@ -1,0 +1,21 @@
+CORRECAO DA SINCRONIZACAO DOS PEDIDOS DE MOVIMENTO DE CAIXA
+
+Causa corrigida:
+O VendaMais usa IDs internos para utilizadores e turnos, mas a primeira
+versao da funcao SQL comparava esses IDs directamente com auth.uid().
+A funcao agora resolve o ID interno atraves de users[].cloudUserId.
+
+Como aplicar:
+1. Abrir Supabase > SQL Editor.
+2. Executar novamente o ficheiro:
+   2026-11-cash-approval-security.sql
+3. Voltar a iniciar sessao no VendaMais nos equipamentos do vendedor e
+   administrador para recarregar os dados.
+4. Testar com um novo pedido de movimento.
+
+A funcao usa CREATE OR REPLACE, portanto actualiza a funcao existente.
+Nao apaga vendas, produtos, clientes, caixas ou historico.
+O pedido que ficou pendente apenas no navegador pode nao ter chegado ao
+servidor. Depois da actualizacao, confirmar se aparece no painel do
+administrador antes de criar outro pedido. Nao repetir o movimento sem
+confirmar, para evitar duplicacao.
