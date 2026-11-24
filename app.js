@@ -246,7 +246,7 @@ function normaliseData(candidate) {
   restored.cashSessions = restored.cashSessions.map(session => ({ ...session, locationId: session.locationId || fallbackLocationId }));
   restored.transfers = restored.transfers.map(transfer => ({ ...transfer, fromLocationId: transfer.fromLocationId || fallbackLocationId, toLocationId: transfer.toLocationId || fallbackLocationId, items: Array.isArray(transfer.items) ? transfer.items : [] }));
   restored.integrations = { ...base.integrations, ...(source.integrations || {}) };
-  restored.settings.enabledModules = Array.isArray(source.settings?.enabledModules) ? [...new Set(source.settings.enabledModules.filter(key => ['commerce', 'restaurant'].includes(key)))].filter(key => key === 'commerce' || key === 'restaurant') : ['commerce'];
+  restored.settings.enabledModules = Array.isArray(source.settings?.enabledModules) ? [...new Set(source.settings.enabledModules.filter(key => ['commerce', 'restaurant', 'accounting'].includes(key)))] : ['commerce'];
   restored.restaurantTables = restored.restaurantTables.map(table => ({ ...table, id: String(table.id || uid('table')), name: String(table.name || 'Mesa').trim(), locationId: String(table.locationId || fallbackLocationId), capacity: Math.max(1, Number(table.capacity || 4)), status: ['Livre', 'Ocupada', 'Reservada'].includes(table.status) ? table.status : 'Livre', active: table.active !== false }));
   restored.restaurantOrders = restored.restaurantOrders.map(order => ({ ...order, id: String(order.id || uid('order')), tableId: String(order.tableId || ''), locationId: String(order.locationId || fallbackLocationId), status: ['Recebido', 'Em preparação', 'Pronto', 'Servido', 'Cancelado'].includes(order.status) ? order.status : 'Recebido', items: Array.isArray(order.items) ? order.items : [] }));
   backfillFinancialJournal(restored);
@@ -320,14 +320,14 @@ const MODULE_CATALOG = Object.freeze([
   { id: 'commerce', name: 'Comércio e vendas', description: 'Ponto de venda, produtos, stock, compras, clientes, caixa e relatórios.', icon: '🛒', status: 'active', entryView: 'dashboard' },
   { id: 'restaurant', name: 'Restaurante e bares', description: 'Mesas, comandas, pedidos e acompanhamento de cozinha. Fecho financeiro integrado em fase seguinte.', icon: '🍽️', status: 'active', entryView: 'restaurant' },
   { id: 'hotel', name: 'Hotelaria', description: 'Quartos, hóspedes, reservas, check-in e check-out.', icon: '🏨', status: 'planned' },
-  { id: 'accounting', name: 'Contabilidade', description: 'Plano de contas, diário, razão, balancete e reconciliação.', icon: '📊', status: 'planned' },
+  { id: 'accounting', name: 'Contabilidade', description: 'Diário financeiro consolidado, movimentos de caixa, dívidas e resultado de gestão, sem duplicar operações.', icon: '📊', status: 'active', entryView: 'accounting' },
   { id: 'hr', name: 'Recursos humanos', description: 'Funcionários, departamentos, horários, férias e salários.', icon: '👥', status: 'planned' },
   { id: 'school', name: 'Gestão escolar', description: 'Alunos, turmas, matrículas, avaliações e propinas.', icon: '🎓', status: 'planned' },
   { id: 'health', name: 'Gestão hospitalar', description: 'Pacientes, consultas, agenda e gestão clínica.', icon: '🏥', status: 'planned' }
 ]);
 const ROLE_VIEWS = {
-  Administrador: ['modules', 'admin', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'settings', 'restaurant'],
-  Gerente: ['modules', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'restaurant'],
+  Administrador: ['modules', 'admin', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'accounting', 'settings', 'restaurant'],
+  Gerente: ['modules', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'accounting', 'restaurant'],
   Vendedor: ['modules', 'dashboard', 'pos', 'cash', 'documents']
 };
 function canManage() { return currentUser?.role === 'Administrador' || currentUser?.role === 'Gerente'; }
@@ -347,13 +347,14 @@ function salesBetween(start, end) { return data.sales.filter(sale => { const tim
 function monthStart() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`; }
 
 function setTitle(view) {
-  const titles = { modules: 'Módulos ERP', admin: 'Painel administrativo', restaurant: 'Restaurante e bares', dashboard: isAdministrator() ? 'Visão geral' : 'Área operacional', pos: 'Nova venda', products: 'Produtos & stock', inventory: 'Inventário', customers: 'Clientes', suppliers: 'Fornecedores', purchases: 'Compras', cash: 'Caixa & turnos', documents: 'Documentos comerciais', reports: 'Balanço & relatórios', settings: 'Definições' };
+  const titles = { modules: 'Módulos ERP', accounting: 'Contabilidade', admin: 'Painel administrativo', restaurant: 'Restaurante e bares', dashboard: isAdministrator() ? 'Visão geral' : 'Área operacional', pos: 'Nova venda', products: 'Produtos & stock', inventory: 'Inventário', customers: 'Clientes', suppliers: 'Fornecedores', purchases: 'Compras', cash: 'Caixa & turnos', documents: 'Documentos comerciais', reports: 'Balanço & relatórios', settings: 'Definições' };
   $('#viewTitle').textContent = titles[view];
 }
 function canAccessView(view) {
   if (!currentUser || !ROLE_VIEWS[currentUser.role]?.includes(view)) return false;
   if (view === 'admin' || view === 'settings') return isAdministrator();
   if (view === 'restaurant' && !(data.settings.enabledModules || ['commerce']).includes('restaurant')) return false;
+  if (view === 'accounting' && (!(data.settings.enabledModules || ['commerce']).includes('accounting') || isSeller())) return false;
   if (currentUser.viewPermissions && Object.hasOwn(currentUser.viewPermissions, view)) return currentUser.viewPermissions[view] === true;
   return true;
 }
@@ -375,7 +376,7 @@ function applyRoleInterface() {
   const navigationGroups = {
     operations: ['dashboard', 'pos', 'cash', 'documents', 'restaurant'],
     management: ['products', 'inventory', 'customers', 'suppliers', 'purchases'],
-    analysis: ['reports'],
+    analysis: ['reports', 'accounting'],
     administration: ['admin', 'settings']
   };
   for (const [group, views] of Object.entries(navigationGroups)) {
@@ -419,6 +420,7 @@ function renderView(view) {
   if (view === 'cash') renderCash();
   if (view === 'documents') renderDocuments();
   if (view === 'reports') renderReports();
+  if (view === 'accounting') renderAccounting();
   if (view === 'settings') renderSettings();
 }
 function renderAll() { applyBrandTheme(); renderView($('.view.active').id.replace('View', '')); }
@@ -457,7 +459,7 @@ function openModule(moduleId) {
   const module = MODULE_CATALOG.find(item => item.id === moduleId);
   if (!module || module.status !== 'active') return notify('Este módulo ainda não está disponível.');
   if (!(data.settings.enabledModules || ['commerce']).includes(module.id)) return notify('Este módulo está desactivado nesta empresa.');
-  if (module.id === 'commerce' || module.id === 'restaurant') return showView(module.entryView);
+  if (module.id === 'commerce' || module.id === 'restaurant' || module.id === 'accounting') return showView(module.entryView);
 }
 
 function toggleCompanyModule(moduleId) {
@@ -1083,6 +1085,26 @@ function renderReports() {
   const sellerMonthly = $('#sellerMonthlyTable'); if (sellerMonthly) sellerMonthly.innerHTML = sellerData.monthly.length ? sellerData.monthly.map(row => `<tr><td>${shortMonth(row.month)}</td><td>${escapeHtml(row.seller)}</td><td>${row.count}</td><td class="money"><b>${money(row.total)}</b></td><td class="money">${money(row.average)}</td></tr>`).join('') : emptyRow(5, 'Sem vendas mensais no período.');
   const journal = (data.journalEntries || []).filter(entry => String(entry.date || '').slice(0, 10) >= start && String(entry.date || '').slice(0, 10) <= end && (locationFilter === 'all' || entry.locationId === locationFilter)).sort((a, b) => String(b.date).localeCompare(String(a.date))); const journalTotals = window.VendaMaisFinance.summarizeJournal(journal); const journalSummary = $('#journalSummary'); if (journalSummary) journalSummary.innerHTML = summaryRows([['Lançamentos únicos', String(journalTotals.count)], ['Impacto no caixa', money(journalTotals.cash)], ['Impacto no lucro', money(journalTotals.profit)], ['Variação de estoque', money(journalTotals.inventory)], ['A receber', money(journalTotals.receivable)], ['A pagar', money(journalTotals.payable)]]); const journalTable = $('#financialJournalTable'); if (journalTable) journalTable.innerHTML = journal.length ? journal.map(entry => `<tr><td>${fullDate(entry.date)}</td><td><b>${escapeHtml(entry.eventType)}</b></td><td>${escapeHtml(entry.category)}</td><td>${escapeHtml(entry.description)}</td><td class="money">${money(entry.amount)}</td><td class="money ${entry.cashImpact < 0 ? 'text-danger' : ''}">${entry.cashImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.cashImpact))}</td><td class="money ${entry.profitImpact < 0 ? 'text-danger' : ''}">${entry.profitImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.profitImpact))}</td><td class="money">${entry.receivableImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.receivableImpact))}</td><td class="money">${entry.liabilityImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.liabilityImpact))}</td></tr>`).join('') : emptyRow(9, 'Não existem lançamentos neste período.');
 }
+function renderAccounting() {
+  const start = $('#accountingStart'), end = $('#accountingEnd'), location = $('#accountingLocation');
+  if (!start || !end || !location) return;
+  if (!start.value) start.value = monthStart();
+  if (!end.value) end.value = dateISO();
+  const previous = location.value || 'all';
+  location.innerHTML = '<option value="all">Todas as lojas</option>' + activeLocations().filter(item => item.type === 'Loja').map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+  location.value = [...location.options].some(option => option.value === previous) ? previous : 'all';
+  if (end.value < start.value) { notify('A data final deve ser igual ou posterior à data inicial.'); return; }
+  // Fonte única: journalEntries. Nunca reconstruir nem gravar movimentos nesta vista.
+  const entries = (data.journalEntries || []).filter(entry => String(entry.date || '').slice(0,10) >= start.value && String(entry.date || '').slice(0,10) <= end.value && (location.value === 'all' || entry.locationId === location.value)).sort((a,b) => String(b.date).localeCompare(String(a.date)));
+  const totals = window.VendaMaisFinance.summarizeJournal(entries);
+  const sales = entries.filter(entry => entry.sourceType === 'sale').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const expenses = entries.filter(entry => entry.sourceType === 'expense').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const host = $('#accountingMetrics');
+  host.innerHTML = [['Lançamentos únicos', String(totals.count), 'Eventos operacionais, sem cópias'], ['Vendas registadas', money(sales), 'Documentos de venda'], ['Despesas reconhecidas', money(expenses), 'Despesa reconhecida uma vez'], ['Variação de caixa', money(totals.cash), 'Entradas menos saídas'], ['Resultado reconhecido', money(totals.profit), 'Impacto no resultado de gestão'], ['Variação a receber', money(totals.receivable), 'Movimentos líquidos no período'], ['Variação a pagar', money(totals.payable), 'Movimentos líquidos no período'], ['Stock adquirido', money(totals.inventory), 'Valor de entradas registadas']].map(([label,value,hint]) => `<article class="metric-card"><div class="metric-top"><span>${escapeHtml(label)}</span></div><div class="value">${value}</div><div class="hint">${escapeHtml(hint)}</div></article>`).join('');
+  const table = $('#accountingJournalTable');
+  table.innerHTML = entries.length ? entries.map(entry => `<tr><td>${fullDate(entry.date)}</td><td><b>${escapeHtml(entry.eventType)}</b></td><td>${escapeHtml(entry.category)}</td><td>${escapeHtml(entry.description)}</td><td class="money">${money(entry.amount)}</td><td class="money ${entry.cashImpact < 0 ? 'text-danger' : ''}">${entry.cashImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.cashImpact))}</td><td class="money ${entry.profitImpact < 0 ? 'text-danger' : ''}">${entry.profitImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.profitImpact))}</td><td class="money">${entry.receivableImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.receivableImpact))}</td><td class="money">${entry.liabilityImpact < 0 ? '− ' : '+ '}${money(Math.abs(entry.liabilityImpact))}</td></tr>`).join('') : emptyRow(9, 'Não existem movimentos neste período.');
+}
+
 function renderSettings() {
   const form = $('#settingsForm');
   Object.entries(data.settings).forEach(([key, value]) => { if (form.elements[key]) form.elements[key].value = value; });
@@ -1211,7 +1233,7 @@ function purchaseModal(suggested = []) {
       if (cashSession) data.cashMovements.push({ id: uid('cashmov'), sessionId: cashSession.id, userId: currentUser.id, date: `${values.date}T12:00:00`, type: 'Saída', amount: total, note: `Compra ${purchase.reference}` });
     }
     postFinancialEntry({ idempotencyKey: `purchase:${purchase.id}:created`, sourceType: 'purchase', sourceId: purchase.id, eventType: 'Compra de mercadoria', category: 'Estoque', description: `Compra ${purchase.reference}`, amount: total, date: `${values.date}T12:00:00`, locationId, cashImpact: 0, inventoryImpact: total, liabilityImpact: total, payment: values.payment });
-    if (!credit && data.supplierPayments.length) { const initialPayment = data.supplierPayments.at(-1); postFinancialEntry({ idempotencyKey: `supplier-payment:${initialPayment.id}`, sourceType: 'supplier-payment', sourceId: initialPayment.id, eventType: 'Pagamento de fornecedor', category: 'Liquidação de fornecedor', description: `Pagamento inicial da compra ${purchase.reference}`, amount: total, date: `${values.date}T12:00:00`, locationId, cashImpact: -total, liabilityImpact: -total, payment: values.payment }); }
+    if (!credit) { const initialPayment = data.supplierPayments.find(item => item.purchaseId === purchase.id); if (initialPayment) postFinancialEntry({ idempotencyKey: `supplier-payment:${initialPayment.id}`, sourceType: 'supplier-payment', sourceId: initialPayment.id, eventType: 'Pagamento de fornecedor', category: 'Liquidação de fornecedor', description: `Pagamento inicial da compra ${purchase.reference}`, amount: total, date: `${values.date}T12:00:00`, locationId, cashImpact: -total, liabilityImpact: -total, payment: values.payment }); }
     audit('Compra registada', `${purchase.reference} · ${locationName(purchase.locationId)} · ${money(total)} · ${values.payment}`);
     if (!persistOrRollback(snapshot, false)) return;
     closeModal(); notify('Compra registada e stock actualizado.'); renderAll();
@@ -1721,6 +1743,7 @@ document.addEventListener('click', event => {
   if (event.target.closest('#finishSale')) return saleModal();
   if (event.target.closest('#newExpense')) return expenseModal();
   if (event.target.closest('#applyReport')) return renderReports();
+  if (event.target.closest('#applyAccounting')) return renderAccounting();
   if (event.target.closest('#exportReport')) return exportReportExcel();
   if (event.target.closest('#backupData')) return backup();
   if (event.target.closest('#clearBusinessData')) return clearBusinessDataModal();

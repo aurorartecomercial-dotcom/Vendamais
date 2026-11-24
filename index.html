@@ -34,6 +34,7 @@
         <button class="nav-link" data-view="suppliers"><i>♧</i> Fornecedores</button>
         <button class="nav-link" data-view="purchases"><i>⊞</i> Compras</button>
         <div class="nav-label" data-nav-group="analysis">Análise</div>
+        <button class="nav-link" data-view="accounting"><i>▤</i> Contabilidade</button>
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
         <div class="nav-label" data-nav-group="administration">Administração</div>
         <button class="nav-link" data-view="admin"><i>▣</i> Painel administrativo</button>
@@ -51,6 +52,16 @@
       <section class="view" id="modulesView">
         <div class="section-head"><div><h2>Módulos do VendaMais ERP</h2><p>Escolha a área de negócio que pretende utilizar. Os módulos futuros só serão activados depois de implementados e testados.</p></div></div>
         <div class="module-grid" id="moduleCatalog" aria-live="polite"></div>
+      </section>
+
+      <section class="view" id="accountingView">
+        <div class="section-head"><div><h2>Contabilidade de gestão</h2><p>Consulta centralizada dos movimentos já registados em Vendas, Compras, Caixa e Despesas. Esta área não cria lançamentos paralelos.</p></div></div>
+        <article class="panel report-panel">
+          <div class="form-grid"><label>Data inicial<input type="date" id="accountingStart"></label><label>Data final<input type="date" id="accountingEnd"></label><label>Local<select id="accountingLocation"></select></label><div class="form-actions"><button class="btn primary" id="applyAccounting" type="button">Actualizar</button></div></div>
+        </article>
+        <div class="metric-grid" id="accountingMetrics" aria-live="polite"></div>
+        <article class="panel report-panel"><div class="panel-head"><div><h3>Movimentos financeiros consolidados</h3><p>Uma linha por evento de origem. Liquidações de dívidas afectam caixa e dívida, não voltam a reconhecer a despesa ou a compra.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Origem</th><th>Classificação</th><th>Descrição</th><th>Valor</th><th>Caixa</th><th>Resultado</th><th>A receber</th><th>A pagar</th></tr></thead><tbody id="accountingJournalTable"></tbody></table></div></article>
+        <p class="admin-footnote">Nota: este é um diário financeiro de gestão baseado nos registos operacionais existentes. Ainda não é um sistema de partidas dobradas, balancete legal ou substituto da contabilidade certificada.</p>
       </section>
 
       <section class="view" id="adminView">

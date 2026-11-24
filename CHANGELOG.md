@@ -314,3 +314,11 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Comandas ainda não movimentam stock, caixa ou faturação.
 - A migração SQL deve ser revista e executada manualmente no Supabase; não foi executada nesta entrega.
 - O PIN do modo local não substitui autenticação central e autorização no servidor.
+
+## Contabilidade integrada sem duplicação
+
+- Activado o módulo Contabilidade como área de consulta do diário financeiro já existente.
+- A nova vista lê exclusivamente `journalEntries`; não cria cópias de vendas, compras, despesas, recebimentos ou pagamentos.
+- Mantidos os identificadores de idempotência por evento para impedir lançamentos repetidos.
+- Corrigida a normalização dos módulos activos para preservar a opção `accounting` por empresa.
+- Corrigida a associação do pagamento inicial de uma compra à própria compra, evitando que um pagamento antigo seja reutilizado ao registar uma compra nova a crédito.
