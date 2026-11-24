@@ -313,10 +313,19 @@ function changeStock(product, locationId, delta) {
 }
 function currentCashSession() { return data.cashSessions.find(session => session.status === 'Aberto' && session.userId === currentUser?.id && session.locationId === currentLocationId()); }
 function currentCashForAll(locationId = currentLocationId()) { return data.cashSessions.find(session => session.status === 'Aberto' && session.locationId === locationId); }
+const MODULE_CATALOG = Object.freeze([
+  { id: 'commerce', name: 'Comércio e vendas', description: 'Ponto de venda, produtos, stock, compras, clientes, caixa e relatórios.', icon: '🛒', status: 'active', entryView: 'dashboard' },
+  { id: 'restaurant', name: 'Restaurante e bares', description: 'Mesas, comandas, reservas, pedidos e ecrã de cozinha.', icon: '🍽️', status: 'planned' },
+  { id: 'hotel', name: 'Hotelaria', description: 'Quartos, hóspedes, reservas, check-in e check-out.', icon: '🏨', status: 'planned' },
+  { id: 'accounting', name: 'Contabilidade', description: 'Plano de contas, diário, razão, balancete e reconciliação.', icon: '📊', status: 'planned' },
+  { id: 'hr', name: 'Recursos humanos', description: 'Funcionários, departamentos, horários, férias e salários.', icon: '👥', status: 'planned' },
+  { id: 'school', name: 'Gestão escolar', description: 'Alunos, turmas, matrículas, avaliações e propinas.', icon: '🎓', status: 'planned' },
+  { id: 'health', name: 'Gestão hospitalar', description: 'Pacientes, consultas, agenda e gestão clínica.', icon: '🏥', status: 'planned' }
+]);
 const ROLE_VIEWS = {
-  Administrador: ['dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'settings'],
-  Gerente: ['dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports'],
-  Vendedor: ['dashboard', 'pos', 'cash', 'documents']
+  Administrador: ['modules', 'admin', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'settings'],
+  Gerente: ['modules', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports'],
+  Vendedor: ['modules', 'dashboard', 'pos', 'cash', 'documents']
 };
 function canManage() { return currentUser?.role === 'Administrador' || currentUser?.role === 'Gerente'; }
 function isAdministrator() { return currentUser?.role === 'Administrador'; }
@@ -335,7 +344,7 @@ function salesBetween(start, end) { return data.sales.filter(sale => { const tim
 function monthStart() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`; }
 
 function setTitle(view) {
-  const titles = { dashboard: 'Visão geral', pos: 'Nova venda', products: 'Produtos & stock', inventory: 'Inventário', customers: 'Clientes', suppliers: 'Fornecedores', purchases: 'Compras', cash: 'Caixa & turnos', documents: 'Documentos comerciais', reports: 'Balanço & relatórios', settings: 'Definições' };
+  const titles = { modules: 'Módulos ERP', admin: 'Painel administrativo', dashboard: isAdministrator() ? 'Visão geral' : 'Área operacional', pos: 'Nova venda', products: 'Produtos & stock', inventory: 'Inventário', customers: 'Clientes', suppliers: 'Fornecedores', purchases: 'Compras', cash: 'Caixa & turnos', documents: 'Documentos comerciais', reports: 'Balanço & relatórios', settings: 'Definições' };
   $('#viewTitle').textContent = titles[view];
 }
 function canAccessView(view) {
@@ -346,7 +355,7 @@ function applyRoleInterface() {
   const workspace = $('#workspaceContext');
   applyLocationAccent();
   const workspaceConfig = {
-    Administrador: { key: 'admin', title: 'Área de gestão', description: 'Gestão total, lojas, vendedores, stock, caixa e relatórios.' },
+    Administrador: { key: 'admin', title: 'Área administrativa', description: 'Gestão da empresa, utilizadores, módulos, lojas e controlo financeiro.' },
     Gerente: { key: 'manager', title: 'Área de gestão', description: 'Operação comercial, stock, caixa e relatórios. As definições ficam reservadas ao administrador.' },
     Vendedor: { key: 'seller', title: 'Área do vendedor', description: 'Vendas, caixa próprio e documentos pessoais.' }
   };
@@ -354,10 +363,18 @@ function applyRoleInterface() {
   if (shell) shell.dataset.workspace = activeWorkspace.key;
   if (workspace) workspace.innerHTML = `<strong>${activeWorkspace.title}</strong><span>${activeWorkspace.description}</span>`;
   $$('.nav-link').forEach(item => { item.hidden = !canAccessView(item.dataset.view); });
-  const management = ['products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents']; const analysis = ['reports', 'settings'];
-  const managementLabel = $('.nav-label[data-nav-group="management"]'); const analysisLabel = $('.nav-label[data-nav-group="analysis"]');
-  if (managementLabel) managementLabel.hidden = !management.some(canAccessView);
-  if (analysisLabel) analysisLabel.hidden = !analysis.some(canAccessView);
+  const dashboardLink = $('.nav-link[data-view="dashboard"]');
+  if (dashboardLink) dashboardLink.innerHTML = `<i>▦</i> ${isAdministrator() ? 'Visão geral' : 'Área operacional'}`;
+  const navigationGroups = {
+    operations: ['dashboard', 'pos', 'cash', 'documents'],
+    management: ['products', 'inventory', 'customers', 'suppliers', 'purchases'],
+    analysis: ['reports'],
+    administration: ['admin', 'settings']
+  };
+  for (const [group, views] of Object.entries(navigationGroups)) {
+    const label = $(`.nav-label[data-nav-group="${group}"]`);
+    if (label) label.hidden = !views.some(canAccessView);
+  }
   const role = $('#sessionRole'); if (role && currentUser) role.textContent = currentUser.role;
   const locationSelect = $('#activeLocationSelect');
   if (locationSelect) {
@@ -382,6 +399,8 @@ function showView(view) {
   renderView(view);
 }
 function renderView(view) {
+  if (view === 'modules') renderModuleCatalog();
+  if (view === 'admin') renderAdminWorkspace();
   if (view === 'dashboard') renderDashboard();
   if (view === 'pos') renderPos();
   if (view === 'products') renderProducts();
@@ -396,8 +415,46 @@ function renderView(view) {
 }
 function renderAll() { applyBrandTheme(); renderView($('.view.active').id.replace('View', '')); }
 
+function renderAdminWorkspace() {
+  if (!isAdministrator()) return notify('Apenas o administrador pode abrir a central administrativa.');
+  const host = $('#adminMetrics');
+  if (!host) return;
+  const activeUsers = data.users.filter(user => user.active).length;
+  const activeLocationsCount = activeLocations().length;
+  const monthSales = salesBetween(monthStart(), dateISO());
+  const monthRevenue = sum(monthSales, sale => sale.total);
+  host.innerHTML = [
+    ['Utilizadores activos', activeUsers, 'Contas com acesso activo', '♙'],
+    ['Locais activos', activeLocationsCount, 'Lojas e armazéns', '⌂'],
+    ['Vendas neste mês', monthSales.length, 'Documentos concluídos', '▣'],
+    ['Faturação do mês', money(monthRevenue), 'Total com IVA incluído', '↗']
+  ].map(([label, value, hint, icon]) => `<article class="metric-card"><div class="metric-top"><span>${escapeHtml(label)}</span><span class="metric-icon">${icon}</span></div><div class="value">${value}</div><div class="hint">${escapeHtml(hint)}</div></article>`).join('');
+}
+
+function renderModuleCatalog() {
+  const host = $('#moduleCatalog');
+  if (!host) return;
+  host.innerHTML = MODULE_CATALOG.map(module => {
+    const available = module.status === 'active';
+    const status = available ? 'Disponível' : 'Planeado';
+    const action = available
+      ? `<button class="btn primary" type="button" data-module-open="${module.id}">Abrir módulo</button>`
+      : '<button class="btn secondary" type="button" disabled aria-disabled="true">Em desenvolvimento</button>';
+    return `<article class="module-card ${available ? 'is-active' : 'is-planned'}"><div class="module-card-icon" aria-hidden="true">${module.icon}</div><div class="module-card-copy"><span class="module-status ${available ? 'available' : 'planned'}">${status}</span><h3>${escapeHtml(module.name)}</h3><p>${escapeHtml(module.description)}</p></div><div class="module-card-action">${action}</div></article>`;
+  }).join('');
+}
+function openModule(moduleId) {
+  const module = MODULE_CATALOG.find(item => item.id === moduleId);
+  if (!module || module.status !== 'active') return notify('Este módulo ainda não está disponível.');
+  if (module.id === 'commerce') return showView(module.entryView);
+}
+
 function renderDashboard() {
   if (isSeller()) return renderSellerDashboard();
+  const welcomeTitle = $('#dashboardView .welcome-row h2');
+  const welcomeDescription = $('#dashboardView .welcome-row p');
+  if (welcomeTitle) welcomeTitle.textContent = `Área operacional · ${currentUser?.name || 'Equipa'}`;
+  if (welcomeDescription) welcomeDescription.textContent = 'Acompanhe as vendas, o stock, o caixa e as tarefas da loja.';
   const stockPanel = $('#lowStockList')?.closest('article'); if (stockPanel) stockPanel.hidden = false;
   const reportLink = $('#recentSales')?.closest('article')?.querySelector('[data-go="reports"]'); if (reportLink) reportLink.hidden = false;
   const today = dateISO(); const start = monthStart();
@@ -1325,7 +1382,7 @@ function accountModal() {
   if (window.VendaMaisCloud?.configured?.()) return cloudModal();
   const locked = sessionLocked;
   openModal(`${modalHeader(locked ? 'Aceder ao VendaMais' : 'Trocar utilizador', locked ? 'Seleccione o seu utilizador e introduza o PIN pessoal.' : 'Confirme o PIN do utilizador antes de trocar de área.', !locked)}<form id="accountForm"><div class="modal-form"><label class="full">Utilizador<select name="userId">${data.users.filter(user => user.active).map(user => `<option value="${user.id}" ${user.id === currentUser?.id ? 'selected' : ''}>${escapeHtml(user.name)} · ${escapeHtml(user.role)}</option>`).join('')}</select></label><label class="full">PIN pessoal<input class="pin-input" name="pin" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="8" pattern="[0-9]{4,8}" required placeholder="••••" /></label></div><p class="modal-note">Cada vendedor deve usar o seu próprio PIN. Nunca partilhe este código.</p><div class="modal-footer">${locked ? '' : '<button class="btn secondary" id="changeOwnPin" type="button">Alterar o meu PIN</button><button class="btn secondary" type="button" data-close-modal>Cancelar</button>'}<button class="btn primary" type="submit">${locked ? 'Entrar' : 'Confirmar utilizador'}</button></div></form>`);
-  $('#accountForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const next = userById(values.userId); if (!next || !next.active || next.pin !== values.pin) return notify('Utilizador ou PIN inválido.'); const mustChangePin = next.pinMustChange; currentUser = next; sessionLocked = false; pinChangeRequired = false; localStorage.setItem(USER_SESSION, next.id); audit('Sessão iniciada', `${next.name} · ${next.role}`); saveData(); if (!mustChangePin) closeModal(); renderAccountButton(); applyRoleInterface(); const activeView = $('.view.active')?.id.replace('View', ''); showView(canAccessView(activeView) ? activeView : (canAccessView('dashboard') ? 'dashboard' : 'pos')); if (mustChangePin) return changePinModal(next, true); notify(`Sessão activa: ${next.name}.`); });
+  $('#accountForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const next = userById(values.userId); if (!next || !next.active || next.pin !== values.pin) return notify('Utilizador ou PIN inválido.'); const mustChangePin = next.pinMustChange; currentUser = next; sessionLocked = false; pinChangeRequired = false; localStorage.setItem(USER_SESSION, next.id); audit('Sessão iniciada', `${next.name} · ${next.role}`); saveData(); if (!mustChangePin) closeModal(); renderAccountButton(); applyRoleInterface(); const activeView = $('.view.active')?.id.replace('View', ''); showView(canAccessView('admin') ? 'admin' : (canAccessView(activeView) ? activeView : (canAccessView('dashboard') ? 'dashboard' : 'pos'))); if (mustChangePin) return changePinModal(next, true); notify(`Sessão activa: ${next.name}.`); });
 }
 function lockSession() {
   if (cart.length && !confirm('A venda actual será limpa ao bloquear a sessão. Continuar?')) return;
@@ -1525,6 +1582,7 @@ document.addEventListener('click', event => {
   if (event.target.closest('#discountInboxButton')) return discountApprovalModal();
   const discountReview = event.target.closest('[data-discount-review]'); if (discountReview) { const id = discountReview.dataset.id; const approve = discountReview.dataset.discountReview === 'approve'; const rejectionNote = approve ? '' : prompt('Indique o motivo da rejeição:'); if (!approve && rejectionNote === null) return; const note = approve ? '' : (rejectionNote.trim() || 'Pedido rejeitado pelo administrador'); window.VendaMaisCloud.reviewDiscountRequest(id, approve, note).then(() => { notify(approve ? 'Desconto aprovado. O vendedor foi notificado.' : 'Pedido rejeitado. O vendedor foi notificado.'); return window.VendaMaisCloud.discountRequests(); }).then(rows => { const host = $('#discountRequestsList'); if (host) { host.innerHTML = rows.length ? rows.map(request => `<article class="discount-request-card"><b>${escapeHtml(request.product_name)}</b><p>${escapeHtml(request.requester_name || 'Vendedor')} · ${number(request.discount_percent)}% · ${money(request.discount_value)}</p><p>${escapeHtml(request.reason)}</p><div class="inline-actions"><button class="btn primary" data-discount-review="approve" data-id="${request.id}">Aprovar</button><button class="btn secondary" data-discount-review="reject" data-id="${request.id}">Rejeitar</button></div></article>`).join('') : '<div class="empty-state">Não existem pedidos de desconto pendentes.</div>'; } const count = $('#discountInboxCount'); if (count) count.textContent = String(rows.length); }).catch(error => notify(error.message || 'Não foi possível processar o pedido.')); return; }
   const reportTab=event.target.closest('[data-report-tab]'); if(reportTab){const key=reportTab.dataset.reportTab;$$('[data-report-tab]').forEach(button=>button.classList.toggle('active',button===reportTab));$$('[data-report-pane]').forEach(pane=>{const active=pane.dataset.reportPane===key;pane.hidden=!active;pane.classList.toggle('active',active);});return;}
+  const moduleButton = event.target.closest('[data-module-open]'); if (moduleButton) return openModule(moduleButton.dataset.moduleOpen);
   const nav = event.target.closest('.nav-link'); if (nav) return showView(nav.dataset.view);
   const go = event.target.closest('[data-go]'); if (go) return showView(go.dataset.go);
   if (event.target.closest('#menuToggle')) return $('#sidebar').classList.toggle('open');
@@ -1583,7 +1641,7 @@ $('#settingsForm').addEventListener('submit', event => { event.preventDefault();
 
 function initialize() {
   $('#topDate').textContent = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
-  applyBrandTheme(); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderDashboard(); updateCloudUi();
+  applyBrandTheme(); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); if (currentUser && isAdministrator()) showView('admin'); else renderDashboard(); updateCloudUi();
   if (window.VendaMaisCloud?.configured?.()) {
     window.VendaMaisCloud.prepare().then(result => { if (result?.needsBootstrap) return cloudNoProfileModal(); if (!result?.connected) cloudModal(); }).catch(() => cloudModal());
   } else accountModal();

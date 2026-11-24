@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#163d36" />
   <meta name="description" content="VendaMais — sistema local de ponto de venda, inventário e gestão comercial." />
-  <title>VendaMais — Gestão Comercial</title>
+  <title>VendaMais ERP — Gestão Empresarial</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
     .location-switcher{display:flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid #d7e4df;border-radius:8px;background:#f8fbf9;color:#64736d;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}.location-switcher select{max-width:165px;border:0;background:transparent;color:#123e35;font:inherit;font-size:11px;font-weight:750;outline:0;cursor:pointer}.location-switcher select:disabled{opacity:1;cursor:default}.location-note{font-size:10px;color:#126951;background:#e6f4ee;border-radius:12px;padding:6px 8px;font-weight:700;white-space:nowrap}.location-card{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid #e6ece9}.location-card:last-child{border-bottom:0}.location-card strong{display:block;font-size:13px}.location-card span{display:block;color:#6d7875;font-size:11px;margin-top:3px}.location-card .location-summary{margin-left:auto;text-align:right}.location-card .location-summary b{font-size:12px}.location-card .action-btn{margin-left:6px}.transfer-meta,.modal-note{font-size:11px;color:#6d7875;line-height:1.6;margin:15px 0 0}.transfer-meta{padding:10px 12px;background:#f3f8f6;border-radius:8px;color:#123e35;margin:12px 0 4px}@media(max-width:720px){.location-switcher span{display:none}.location-switcher select{max-width:120px}.location-note{width:100%}.location-card{align-items:flex-start}.location-card .location-summary{margin-left:0;text-align:left}.location-card{flex-wrap:wrap}}
@@ -19,21 +19,26 @@
       <p class="company-name" id="companyName">Minha Empresa</p>
       <div class="workspace-context" id="workspaceContext" aria-live="polite"><strong>Área de trabalho</strong><span>Entre para carregar as suas permissões.</span></div>
       <nav class="nav" aria-label="Navegação principal">
+        <div class="nav-label">Plataforma</div>
+        <button class="nav-link" data-view="modules"><i>▦</i> Módulos ERP</button>
+        <div class="nav-label" data-nav-group="operations">Operação</div>
         <button class="nav-link active" data-view="dashboard"><i>▦</i> Visão geral</button>
         <button class="nav-link" data-view="pos"><i>▣</i> Nova venda</button>
-        <div class="nav-label" data-nav-group="management">Gestão</div>
+        <button class="nav-link" data-view="cash"><i>▤</i> Caixa & turnos</button>
+        <button class="nav-link" data-view="documents"><i>▧</i> Documentos</button>
+        <div class="nav-label" data-nav-group="management">Gestão comercial</div>
         <button class="nav-link" data-view="products"><i>◈</i> Produtos & stock</button>
         <button class="nav-link" data-view="inventory"><i>↕</i> Inventário</button>
         <button class="nav-link" data-view="customers"><i>♙</i> Clientes</button>
         <button class="nav-link" data-view="suppliers"><i>♧</i> Fornecedores</button>
         <button class="nav-link" data-view="purchases"><i>⊞</i> Compras</button>
-        <button class="nav-link" data-view="cash"><i>▤</i> Caixa & turnos</button>
-        <button class="nav-link" data-view="documents"><i>▧</i> Documentos</button>
         <div class="nav-label" data-nav-group="analysis">Análise</div>
         <button class="nav-link" data-view="reports"><i>◒</i> Balanço & relatórios</button>
+        <div class="nav-label" data-nav-group="administration">Administração</div>
+        <button class="nav-link" data-view="admin"><i>▣</i> Painel administrativo</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.1.0</div>
+      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.3.1</div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -41,6 +46,25 @@
         <div><p class="eyebrow" id="topDate"></p><h1 id="viewTitle">Visão geral</h1></div>
         <div class="top-actions"><label class="location-switcher" title="Local de operação"><span>Local</span><select id="activeLocationSelect" aria-label="Local de operação"></select></label><button class="cloud-status offline" id="cloudStatus" type="button" title="Configurar dados online"><span aria-hidden="true">☁</span><span id="cloudStatusText">Só neste dispositivo</span></button><button class="btn secondary" id="discountInboxButton" type="button" hidden>▣ Descontos <span id="discountInboxCount">0</span></button><button class="icon-btn" id="quickSale" title="Nova venda">＋</button><span class="session-role" id="sessionRole"></span><button class="icon-btn" id="lockSession" title="Bloquear sessão">◉</button><button class="avatar" id="accountButton" title="Trocar utilizador">AD</button></div>
       </header>
+
+      <section class="view" id="modulesView">
+        <div class="section-head"><div><h2>Módulos do VendaMais ERP</h2><p>Escolha a área de negócio que pretende utilizar. Os módulos futuros só serão activados depois de implementados e testados.</p></div></div>
+        <div class="module-grid" id="moduleCatalog" aria-live="polite"></div>
+      </section>
+
+      <section class="view" id="adminView">
+        <div class="admin-hero">
+          <div><p class="eyebrow">CENTRAL DE CONTROLO</p><h2>Área administrativa</h2><p>Administre a empresa, os acessos, os módulos e acompanhe os resultados sem misturar estas tarefas com a operação diária.</p></div>
+          <button class="btn primary" type="button" data-go="modules">▦ Explorar módulos ERP</button>
+        </div>
+        <div class="metric-grid admin-metrics" id="adminMetrics" aria-live="polite"></div>
+        <div class="admin-workspace-grid">
+          <article class="panel admin-workspace-card"><span class="admin-card-icon">⚙</span><h3>Configuração da empresa</h3><p>Dados fiscais, identidade visual, lojas, armazéns, utilizadores e cópias de segurança.</p><button class="btn secondary" type="button" data-go="settings">Abrir definições</button></article>
+          <article class="panel admin-workspace-card"><span class="admin-card-icon">◒</span><h3>Indicadores e relatórios</h3><p>Consulte vendas, desempenho por loja, vendedores e movimentos financeiros.</p><button class="btn secondary" type="button" data-go="reports">Consultar relatórios</button></article>
+          <article class="panel admin-workspace-card"><span class="admin-card-icon">▦</span><h3>Módulos empresariais</h3><p>Veja os módulos disponíveis e acompanhe a expansão gradual do VendaMais ERP.</p><button class="btn secondary" type="button" data-go="modules">Gerir módulos</button></article>
+        </div>
+        <p class="admin-footnote">Esta área organiza as ferramentas administrativas. As permissões continuam a ser verificadas pelo perfil activo e pelas regras existentes.</p>
+      </section>
 
       <section class="view active" id="dashboardView">
         <div class="welcome-row"><div><h2>Bom dia, Administrador</h2><p>Acompanhe hoje o desempenho do seu negócio.</p></div><button class="btn primary" data-go="pos">＋ Registar venda</button></div>

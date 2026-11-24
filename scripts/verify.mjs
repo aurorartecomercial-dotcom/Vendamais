@@ -14,6 +14,7 @@ const requiredFiles = [
   'LICENSE',
   'package.json',
   'docs/ARQUITETURA.md',
+  'docs/ROADMAP-ERP-MODULAR.md',
   'docs/PRODUCAO.md',
   'docs/ONLINE.md',
   'docs/PROFESSIONAL.md',
@@ -24,6 +25,8 @@ const requiredFiles = [
   'tests/finance.test.mjs'
 ];
 const requiredInterfaceIds = [
+  'modulesView',
+  'adminView',
   'dashboardView',
   'posView',
   'productsView',
@@ -98,6 +101,8 @@ if (!html.includes('data-report-tab="journal"') || !html.includes('id="financial
 if (!app.includes('Retirada pessoal') || !app.includes('Pagamento de dívida antiga')) failures.push('Classificação de retiradas pessoais ou pagamento de dívida antiga em falta.');
 if (!financeCore.includes('summarizeJournal')) failures.push('Resumo de impactos do diário financeiro em falta.');
 
+if (!html.includes('data-nav-group="operations"') || !html.includes('data-nav-group="management"') || !html.includes('data-nav-group="analysis"') || !html.includes('data-nav-group="administration"')) failures.push('Separação estrutural da navegação por áreas incompleta.');
+if (!app.includes('const navigationGroups = {') || !app.includes("administration: ['admin', 'settings']")) failures.push('Visibilidade das áreas de navegação por perfil incompleta.');
 if (!html.includes('finance-core.js')) failures.push('Núcleo de cálculos financeiros não carregado.');
 for (const fn of ['calculateSaleTotals', 'validateSettlement', 'prorateMonthlyCost', 'hasActualFixedExpense', 'weightedAverageCost']) if (!financeCore.includes(fn)) failures.push(`Cálculo financeiro essencial em falta: ${fn}`);
 if (!financialSql.includes('create or replace function public.record_vendamais_sale')) failures.push('Migração de integridade financeira do servidor em falta.');
@@ -121,7 +126,11 @@ if (!app.includes('coversConfiguredCost')) failures.push('Prevenção explícita
 if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
 if (!app.includes('isAdministrator')) failures.push('Protecção de administrador não encontrada.');
 if (!app.includes('ROLE_VIEWS')) failures.push('Permissões por perfil não encontradas.');
-if (!app.includes("Vendedor: ['dashboard', 'pos', 'cash', 'documents']")) failures.push('Dashboard individual do vendedor não está acessível.');
+if (!app.includes("Administrador: ['modules', 'admin', 'dashboard'")) failures.push('Painel administrativo não está incluído no perfil de administrador.');
+if (!app.includes("Gerente: ['modules', 'dashboard'" ) || !app.includes("Vendedor: ['modules', 'dashboard'")) failures.push('Os perfis operacionais devem permanecer sem acesso ao painel administrativo.');
+if (!html.includes('data-view="admin"') || !app.includes('function renderAdminWorkspace')) failures.push('Área administrativa independente incompleta.');
+if (!app.includes("administration: ['admin', 'settings']")) failures.push('Navegação administrativa não inclui o painel independente.');
+if (!app.includes("Vendedor: ['modules', 'dashboard', 'pos', 'cash', 'documents']")) failures.push('Dashboard individual do vendedor não está acessível.');
 if (!app.includes('sale.operatorId === currentUser.id')) failures.push('Dashboard do vendedor sem filtro de titularidade das vendas.');
 if (!app.includes('sessionLocked')) failures.push('Bloqueio de sessão não encontrado.');
 if (!app.includes('pinMustChange')) failures.push('Controlo de PIN não encontrado.');

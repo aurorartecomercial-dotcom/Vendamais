@@ -149,3 +149,22 @@
 @media(max-width:850px){.pos-layout{height:auto;min-height:0;grid-template-columns:1fr}.pos-catalog{height:65vh;min-height:430px}.cart-panel{min-height:520px}}
 
 .cash-my-requests-panel{padding:18px 20px;margin-bottom:18px}.cash-my-requests-panel .table-wrap{margin-top:10px}
+
+
+/* Catálogo modular do ERP — módulos planeados não simulam funcionalidades activas. */
+.module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:stretch}
+.module-card{display:grid;grid-template-columns:58px minmax(0,1fr);gap:13px;align-items:start;padding:19px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:var(--shadow);min-width:0}
+.module-card.is-active{border-color:color-mix(in srgb,var(--green) 42%,#fff);background:linear-gradient(145deg,#fff 65%,var(--green-soft))}
+.module-card-icon{display:grid;place-items:center;width:58px;height:58px;border-radius:15px;background:var(--green-soft);font-size:28px}
+.module-card-copy{min-width:0}.module-card-copy h3{margin:8px 0 5px;font-size:15px;letter-spacing:-.2px}.module-card-copy p{margin:0;color:var(--muted);font-size:11px;line-height:1.55}
+.module-status{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.module-status.available{background:#e5f5ed;color:#17664c}.module-status.planned{background:#f0f2f4;color:#68737d}
+.module-card-action{grid-column:2;display:flex;align-items:center;margin-top:1px}.module-card-action .btn{font-size:10px;padding:9px 12px}.module-card.is-planned{background:#fbfcfd}.module-card .btn:disabled{opacity:.65;cursor:not-allowed}
+@media(max-width:760px){.module-grid{grid-template-columns:1fr}.module-card{padding:15px}}
+
+
+/* Área administrativa independente; reutiliza os serviços e ecrãs existentes. */
+.admin-hero{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:27px 30px;margin-bottom:18px;border-radius:16px;background:linear-gradient(120deg,#123e35,#126951);color:#fff;box-shadow:var(--shadow)}
+.admin-hero .eyebrow{color:#b9dfd0;font-weight:800;letter-spacing:.12em}.admin-hero h2{margin:5px 0 8px;font-size:24px;letter-spacing:-.6px}.admin-hero p:not(.eyebrow){max-width:650px;margin:0;color:#d6ebe3;font-size:12px;line-height:1.6}.admin-hero .btn{flex:none;background:#fff;color:var(--green-deep)}
+.admin-metrics{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px}.admin-workspace-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.admin-workspace-card{padding:20px;display:flex;flex-direction:column;align-items:flex-start;min-height:210px}.admin-card-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:var(--green-soft);color:var(--green);font-size:19px}.admin-workspace-card h3{margin:15px 0 7px;font-size:14px}.admin-workspace-card p{margin:0 0 18px;color:var(--muted);font-size:11px;line-height:1.55;flex:1}.admin-workspace-card .btn{margin-top:auto}.admin-footnote{margin:16px 2px;color:var(--muted);font-size:10px;line-height:1.5}
+@media(max-width:1050px){.admin-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-workspace-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.admin-hero{align-items:flex-start;flex-direction:column;padding:21px}.admin-hero h2{font-size:21px}.admin-workspace-grid{grid-template-columns:1fr}.admin-metrics{grid-template-columns:1fr 1fr}}

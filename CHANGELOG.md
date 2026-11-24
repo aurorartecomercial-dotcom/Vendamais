@@ -1,3 +1,32 @@
+## 2.3.1 — Área administrativa independente
+
+- Criada uma página própria de Painel administrativo, acessível apenas ao perfil Administrador.
+- Adicionados indicadores administrativos e atalhos para definições, relatórios e módulos ERP.
+- O início de sessão de administrador passa a encaminhar para o painel administrativo quando a vista anterior não é permitida.
+- Mantidos os ecrãs operacionais, regras comerciais, dados e estrutura Supabase existentes.
+- Nenhuma migração SQL ou alteração de dados foi introduzida nesta versão.
+
+# Alterações — 2.3.0
+
+## Fundação do ERP modular
+
+- Criado o catálogo central de módulos do VendaMais ERP.
+- Comércio e vendas é o único módulo marcado como disponível e encaminha para os ecrãs comerciais existentes.
+- Restaurante e bares, Hotelaria, Contabilidade, Recursos Humanos, Gestão Escolar e Gestão Hospitalar são apresentados como planeados, sem rotas ou operações simuladas.
+- Adicionada a página Módulos ERP à navegação dos perfis Administrador, Gerente e Vendedor.
+- Preservados os ecrãs comerciais, o modelo de dados local, os cálculos financeiros e as migrações Supabase existentes.
+- Acrescentadas verificações estruturais para o catálogo e a sua página.
+- Não foram executadas migrações SQL nem alterados dados de utilizadores.
+
+## Validação
+
+- `node --check app.js` concluído.
+- `node scripts/verify.mjs` concluído: 19 ficheiros e 12 ecrãs verificados.
+- `node --test tests/*.test.mjs` concluído: 10 testes aprovados.
+- A validação é estática e unitária; ainda não substitui testes visuais, E2E nem integração Supabase.
+
+---
+
 # Alterações — 2.2.0
 
 - Vendedores podem solicitar entradas e saídas manuais do próprio turno de caixa; os pedidos ficam pendentes até decisão do Administrador.

@@ -74,6 +74,10 @@ No Windows PowerShell:
 $env:PORT=8080; npm run serve
 ```
 
+## Evolução para ERP modular
+
+O plano técnico de reorganização da interface, separação por perfil e evolução modular está em [docs/ROADMAP-ERP-MODULAR.md](docs/ROADMAP-ERP-MODULAR.md). O plano preserva o núcleo comercial e financeiro existente e define critérios de segurança e aceitação por fase.
+
 ## Estrutura do projecto
 
 ```text
@@ -163,3 +167,10 @@ A migração deve ser aplicada antes de disponibilizar a versão online. Faça p
 ## Diário financeiro
 
 A versão actual inclui um diário financeiro idempotente em **Balanço & relatórios → Diário financeiro**. Consulte `docs/DIARIO-FINANCEIRO.md` para as regras de caixa, lucro, estoque, contas a receber e contas a pagar, bem como a migração compatível com os dados locais anteriores.
+
+
+### Áreas de trabalho
+
+- **Administrador:** entrada própria no Painel administrativo, com atalhos para definições, relatórios e módulos.
+- **Gerente e Vendedor:** entrada na Área operacional, com menus limitados às permissões do respectivo perfil.
+- A separação da interface não substitui políticas de autorização no servidor.
