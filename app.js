@@ -1,6 +1,6 @@
 /* VendaMais — aplicação local de gestão comercial */
 const STORE = 'vendamais_local_v1';
-const STORAGE_VERSION = 8;
+const STORAGE_VERSION = 9;
 const USER_SESSION = 'vendamais_user_session_v1';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -169,7 +169,7 @@ function normaliseCustomer(customer = {}) {
 function normaliseRole(role) { return role === 'Caixa' ? 'Vendedor' : ['Administrador', 'Gerente', 'Vendedor'].includes(role) ? role : 'Vendedor'; }
 function normaliseUser(user = {}, fallbackLocationId = 'loc_main') {
   const pin = String(user.pin || ''); const hasValidPin = /^\d{4,8}$/.test(pin);
-  return { ...user, name: String(user.name || 'Utilizador').trim(), initials: String(user.initials || '').trim().toUpperCase().slice(0, 3), role: normaliseRole(user.role), locationId: String(user.locationId || fallbackLocationId), active: user.active !== false, pin: hasValidPin ? pin : '0000', pinMustChange: hasValidPin ? Boolean(user.pinMustChange) : true };
+  return { ...user, name: String(user.name || 'Utilizador').trim(), initials: String(user.initials || '').trim().toUpperCase().slice(0, 3), role: normaliseRole(user.role), viewPermissions: user.viewPermissions && typeof user.viewPermissions === 'object' ? { ...user.viewPermissions } : {}, locationId: String(user.locationId || fallbackLocationId), active: user.active !== false, pin: hasValidPin ? pin : '0000', pinMustChange: hasValidPin ? Boolean(user.pinMustChange) : true };
 }
 function normaliseLocation(location = {}) {
   const fixedCosts = Object.fromEntries(FIXED_COST_LABELS.map(label => [label, Math.max(0, Number(location.fixedCosts?.[label] || 0))]));
@@ -225,7 +225,7 @@ function blankData(previous = {}) {
 function normaliseData(candidate) {
   const base = blankData();
   const source = candidate && typeof candidate === 'object' && candidate.settings ? candidate : base;
-  const collections = ['suppliers', 'movements', 'receipts', 'supplierPayments', 'expensePayments', 'cashSessions', 'cashMovements', 'cashMovementRequests', 'returns', 'auditLog', 'transfers', 'expenses', 'journalEntries'];
+  const collections = ['suppliers', 'movements', 'receipts', 'supplierPayments', 'expensePayments', 'cashSessions', 'cashMovements', 'cashMovementRequests', 'returns', 'auditLog', 'transfers', 'expenses', 'journalEntries', 'restaurantTables', 'restaurantOrders'];
   const restored = { ...base, ...source, settings: { ...base.settings, ...source.settings }, meta: { ...base.meta, ...source.meta, schemaVersion: STORAGE_VERSION } };
   collections.forEach(key => { restored[key] = Array.isArray(source[key]) ? source[key] : []; });
   restored.locations = (Array.isArray(source.locations) && source.locations.length ? source.locations : base.locations).map(normaliseLocation);
@@ -246,6 +246,9 @@ function normaliseData(candidate) {
   restored.cashSessions = restored.cashSessions.map(session => ({ ...session, locationId: session.locationId || fallbackLocationId }));
   restored.transfers = restored.transfers.map(transfer => ({ ...transfer, fromLocationId: transfer.fromLocationId || fallbackLocationId, toLocationId: transfer.toLocationId || fallbackLocationId, items: Array.isArray(transfer.items) ? transfer.items : [] }));
   restored.integrations = { ...base.integrations, ...(source.integrations || {}) };
+  restored.settings.enabledModules = Array.isArray(source.settings?.enabledModules) ? [...new Set(source.settings.enabledModules.filter(key => ['commerce', 'restaurant'].includes(key)))].filter(key => key === 'commerce' || key === 'restaurant') : ['commerce'];
+  restored.restaurantTables = restored.restaurantTables.map(table => ({ ...table, id: String(table.id || uid('table')), name: String(table.name || 'Mesa').trim(), locationId: String(table.locationId || fallbackLocationId), capacity: Math.max(1, Number(table.capacity || 4)), status: ['Livre', 'Ocupada', 'Reservada'].includes(table.status) ? table.status : 'Livre', active: table.active !== false }));
+  restored.restaurantOrders = restored.restaurantOrders.map(order => ({ ...order, id: String(order.id || uid('order')), tableId: String(order.tableId || ''), locationId: String(order.locationId || fallbackLocationId), status: ['Recebido', 'Em preparação', 'Pronto', 'Servido', 'Cancelado'].includes(order.status) ? order.status : 'Recebido', items: Array.isArray(order.items) ? order.items : [] }));
   backfillFinancialJournal(restored);
   return restored;
 }
@@ -274,7 +277,7 @@ function backfillFinancialJournal(target) {
 }
 function loadData() { try { return normaliseData(JSON.parse(localStorage.getItem(STORE))); } catch { return normaliseData(null); } }
 let data = loadData();
-function getSessionUser() { const id = localStorage.getItem(USER_SESSION); return data.users.find(user => user.id === id && user.active) || data.users.find(user => user.role === 'Administrador' && user.active) || data.users.find(user => user.active) || data.users[0]; }
+function getSessionUser() { const id = localStorage.getItem(USER_SESSION); return id ? (data.users.find(user => user.id === id && user.active) || null) : null; }
 let currentUser = getSessionUser();
 let sessionLocked = true;
 let pinChangeRequired = false;
@@ -315,7 +318,7 @@ function currentCashSession() { return data.cashSessions.find(session => session
 function currentCashForAll(locationId = currentLocationId()) { return data.cashSessions.find(session => session.status === 'Aberto' && session.locationId === locationId); }
 const MODULE_CATALOG = Object.freeze([
   { id: 'commerce', name: 'Comércio e vendas', description: 'Ponto de venda, produtos, stock, compras, clientes, caixa e relatórios.', icon: '🛒', status: 'active', entryView: 'dashboard' },
-  { id: 'restaurant', name: 'Restaurante e bares', description: 'Mesas, comandas, reservas, pedidos e ecrã de cozinha.', icon: '🍽️', status: 'planned' },
+  { id: 'restaurant', name: 'Restaurante e bares', description: 'Mesas, comandas, pedidos e acompanhamento de cozinha. Fecho financeiro integrado em fase seguinte.', icon: '🍽️', status: 'active', entryView: 'restaurant' },
   { id: 'hotel', name: 'Hotelaria', description: 'Quartos, hóspedes, reservas, check-in e check-out.', icon: '🏨', status: 'planned' },
   { id: 'accounting', name: 'Contabilidade', description: 'Plano de contas, diário, razão, balancete e reconciliação.', icon: '📊', status: 'planned' },
   { id: 'hr', name: 'Recursos humanos', description: 'Funcionários, departamentos, horários, férias e salários.', icon: '👥', status: 'planned' },
@@ -323,8 +326,8 @@ const MODULE_CATALOG = Object.freeze([
   { id: 'health', name: 'Gestão hospitalar', description: 'Pacientes, consultas, agenda e gestão clínica.', icon: '🏥', status: 'planned' }
 ]);
 const ROLE_VIEWS = {
-  Administrador: ['modules', 'admin', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'settings'],
-  Gerente: ['modules', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports'],
+  Administrador: ['modules', 'admin', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'settings', 'restaurant'],
+  Gerente: ['modules', 'dashboard', 'pos', 'products', 'inventory', 'customers', 'suppliers', 'purchases', 'cash', 'documents', 'reports', 'restaurant'],
   Vendedor: ['modules', 'dashboard', 'pos', 'cash', 'documents']
 };
 function canManage() { return currentUser?.role === 'Administrador' || currentUser?.role === 'Gerente'; }
@@ -344,11 +347,15 @@ function salesBetween(start, end) { return data.sales.filter(sale => { const tim
 function monthStart() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`; }
 
 function setTitle(view) {
-  const titles = { modules: 'Módulos ERP', admin: 'Painel administrativo', dashboard: isAdministrator() ? 'Visão geral' : 'Área operacional', pos: 'Nova venda', products: 'Produtos & stock', inventory: 'Inventário', customers: 'Clientes', suppliers: 'Fornecedores', purchases: 'Compras', cash: 'Caixa & turnos', documents: 'Documentos comerciais', reports: 'Balanço & relatórios', settings: 'Definições' };
+  const titles = { modules: 'Módulos ERP', admin: 'Painel administrativo', restaurant: 'Restaurante e bares', dashboard: isAdministrator() ? 'Visão geral' : 'Área operacional', pos: 'Nova venda', products: 'Produtos & stock', inventory: 'Inventário', customers: 'Clientes', suppliers: 'Fornecedores', purchases: 'Compras', cash: 'Caixa & turnos', documents: 'Documentos comerciais', reports: 'Balanço & relatórios', settings: 'Definições' };
   $('#viewTitle').textContent = titles[view];
 }
 function canAccessView(view) {
-  return Boolean(ROLE_VIEWS[currentUser?.role]?.includes(view));
+  if (!currentUser || !ROLE_VIEWS[currentUser.role]?.includes(view)) return false;
+  if (view === 'admin' || view === 'settings') return isAdministrator();
+  if (view === 'restaurant' && !(data.settings.enabledModules || ['commerce']).includes('restaurant')) return false;
+  if (currentUser.viewPermissions && Object.hasOwn(currentUser.viewPermissions, view)) return currentUser.viewPermissions[view] === true;
+  return true;
 }
 function applyRoleInterface() {
   const shell = $('.app-shell');
@@ -366,7 +373,7 @@ function applyRoleInterface() {
   const dashboardLink = $('.nav-link[data-view="dashboard"]');
   if (dashboardLink) dashboardLink.innerHTML = `<i>▦</i> ${isAdministrator() ? 'Visão geral' : 'Área operacional'}`;
   const navigationGroups = {
-    operations: ['dashboard', 'pos', 'cash', 'documents'],
+    operations: ['dashboard', 'pos', 'cash', 'documents', 'restaurant'],
     management: ['products', 'inventory', 'customers', 'suppliers', 'purchases'],
     analysis: ['reports'],
     administration: ['admin', 'settings']
@@ -401,6 +408,7 @@ function showView(view) {
 function renderView(view) {
   if (view === 'modules') renderModuleCatalog();
   if (view === 'admin') renderAdminWorkspace();
+  if (view === 'restaurant') renderRestaurant();
   if (view === 'dashboard') renderDashboard();
   if (view === 'pos') renderPos();
   if (view === 'products') renderProducts();
@@ -437,16 +445,82 @@ function renderModuleCatalog() {
   host.innerHTML = MODULE_CATALOG.map(module => {
     const available = module.status === 'active';
     const status = available ? 'Disponível' : 'Planeado';
-    const action = available
+    const enabled = (data.settings.enabledModules || ['commerce']).includes(module.id);
+    const action = available && enabled
       ? `<button class="btn primary" type="button" data-module-open="${module.id}">Abrir módulo</button>`
-      : '<button class="btn secondary" type="button" disabled aria-disabled="true">Em desenvolvimento</button>';
-    return `<article class="module-card ${available ? 'is-active' : 'is-planned'}"><div class="module-card-icon" aria-hidden="true">${module.icon}</div><div class="module-card-copy"><span class="module-status ${available ? 'available' : 'planned'}">${status}</span><h3>${escapeHtml(module.name)}</h3><p>${escapeHtml(module.description)}</p></div><div class="module-card-action">${action}</div></article>`;
+      : available ? '<span class="module-status planned">Desactivado nesta empresa</span>' : '<button class="btn secondary" type="button" disabled aria-disabled="true">Em desenvolvimento</button>';
+    const toggle = isAdministrator() && available ? `<button class="text-btn" type="button" data-module-toggle="${module.id}">${enabled ? 'Desactivar' : 'Activar'} nesta empresa</button>` : '';
+    return `<article class="module-card ${available ? 'is-active' : 'is-planned'}"><div class="module-card-icon" aria-hidden="true">${module.icon}</div><div class="module-card-copy"><span class="module-status ${available ? 'available' : 'planned'}">${available ? (enabled ? 'Disponível nesta empresa' : 'Implementado · desactivado') : status}</span><h3>${escapeHtml(module.name)}</h3><p>${escapeHtml(module.description)}</p></div><div class="module-card-action">${action}${toggle}</div></article>`;
   }).join('');
 }
 function openModule(moduleId) {
   const module = MODULE_CATALOG.find(item => item.id === moduleId);
   if (!module || module.status !== 'active') return notify('Este módulo ainda não está disponível.');
-  if (module.id === 'commerce') return showView(module.entryView);
+  if (!(data.settings.enabledModules || ['commerce']).includes(module.id)) return notify('Este módulo está desactivado nesta empresa.');
+  if (module.id === 'commerce' || module.id === 'restaurant') return showView(module.entryView);
+}
+
+function toggleCompanyModule(moduleId) {
+  if (!isAdministrator()) return notify('Apenas o administrador pode activar módulos da empresa.');
+  const module = MODULE_CATALOG.find(item => item.id === moduleId && item.status === 'active');
+  if (!module) return notify('Este módulo ainda não está disponível para activação.');
+  data.settings.enabledModules ||= ['commerce'];
+  const enabled = data.settings.enabledModules.includes(moduleId);
+  data.settings.enabledModules = enabled ? data.settings.enabledModules.filter(key => key !== moduleId) : [...data.settings.enabledModules, moduleId];
+  audit(enabled ? 'Módulo desactivado' : 'Módulo activado', module.name);
+  saveData(); renderModuleCatalog(); notify(`${module.name}: ${enabled ? 'desactivado' : 'activado'}.`);
+}
+let restaurantDraftItems = [];
+function renderRestaurant() {
+  if (!canAccessView('restaurant') || !(data.settings.enabledModules || []).includes('restaurant')) return notify('O módulo Restaurante está indisponível para esta empresa ou perfil.');
+  const locationId = currentLocationId();
+  const tables = data.restaurantTables.filter(table => table.active && table.locationId === locationId);
+  const orders = data.restaurantOrders.filter(order => order.locationId === locationId && !['Servido', 'Cancelado'].includes(order.status));
+  const host = $('#restaurantTables'); const orderHost = $('#restaurantOrders');
+  if (!host || !orderHost) return;
+  host.innerHTML = tables.length ? tables.map(table => {
+    const order = orders.find(item => item.tableId === table.id);
+    const status = order?.status || table.status;
+    return `<article class="restaurant-table-card status-${status.toLowerCase().replaceAll(' ', '-')}" data-table-card="${escapeHtml(table.id)}"><div class="restaurant-table-top"><span class="restaurant-table-icon">▦</span><span class="module-status ${status === 'Livre' ? 'available' : 'planned'}">${escapeHtml(status)}</span></div><h3>${escapeHtml(table.name)}</h3><p>${table.capacity} lugares · ${escapeHtml(locationName(table.locationId))}</p><div class="inline-actions"><button class="btn primary" type="button" data-restaurant-order="${escapeHtml(table.id)}">${order ? 'Abrir comanda' : 'Nova comanda'}</button>${!order ? `<button class="btn secondary" type="button" data-table-status="${escapeHtml(table.id)}">Reservar</button>` : ''}</div></article>`;
+  }).join('') : '<div class="empty-state">Ainda não existem mesas neste local. Crie a primeira mesa para começar.</div>';
+  orderHost.innerHTML = orders.length ? orders.map(order => `<article class="restaurant-order-row"><div><b>${escapeHtml(tables.find(table => table.id === order.tableId)?.name || 'Mesa removida')}</b><span>${escapeHtml(order.reference || order.id)} · ${order.items.length} linha(s) · ${escapeHtml(order.status)}</span></div><div class="inline-actions">${order.status === 'Recebido' ? `<button class="action-btn" data-order-state="Em preparação" data-order-id="${escapeHtml(order.id)}">Enviar cozinha</button>` : ''}${order.status === 'Em preparação' ? `<button class="action-btn" data-order-state="Pronto" data-order-id="${escapeHtml(order.id)}">Marcar pronto</button>` : ''}${order.status === 'Pronto' ? `<button class="action-btn" data-order-state="Servido" data-order-id="${escapeHtml(order.id)}">Servido</button>` : ''}</div></article>`).join('') : '<div class="empty-state">Não existem comandas activas.</div>';
+  const createButton = $('#newRestaurantTable'); if (createButton) createButton.hidden = !canManage();
+}
+function restaurantTableModal() {
+  if (!canManage()) return notify('Apenas gerente ou administrador pode gerir mesas.');
+  openModal(`${modalHeader('Nova mesa', 'Crie uma mesa para o local de operação actual.')}<form id="restaurantTableForm"><div class="modal-form"><label>Nome / número<input name="name" required maxlength="40" placeholder="Ex.: Mesa 01" /></label><label>Capacidade<input name="capacity" type="number" min="1" max="50" value="4" required /></label></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Criar mesa</button></div></form>`);
+  $('#restaurantTableForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); const name = values.name.trim(); if (!name) return notify('Indique o nome da mesa.'); if (data.restaurantTables.some(table => table.active && table.locationId === currentLocationId() && table.name.toLowerCase() === name.toLowerCase())) return notify('Já existe uma mesa com esse nome neste local.'); data.restaurantTables.push({ id: uid('table'), name, capacity: Math.max(1, Number(values.capacity || 4)), locationId: currentLocationId(), status: 'Livre', active: true, createdAt: new Date().toISOString() }); audit('Mesa criada', name); saveData(); closeModal(); renderRestaurant(); });
+}
+function restaurantOrderModal(tableId) {
+  const table = data.restaurantTables.find(item => item.id === tableId && item.active && item.locationId === currentLocationId());
+  if (!table) return notify('Mesa não encontrada neste local.');
+  if (!canAccessView('restaurant')) return notify('Sem autorização para abrir comandas.');
+  let order = data.restaurantOrders.find(item => item.tableId === tableId && !['Servido', 'Cancelado'].includes(item.status));
+  if (order) {
+    openModal(`${modalHeader(`Comanda · ${table.name}`, `Estado: ${order.status}. A comanda fica guardada neste equipamento e sincroniza com o estado da empresa quando a ligação online está activa.`)}<div class="restaurant-order-lines">${order.items.map(line => `<div class="restaurant-order-line"><b>${escapeHtml(line.name)}</b><span>${number(line.quantity)} × ${money(line.price)}</span></div>`).join('')}</div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Fechar</button>${order.status === 'Recebido' ? `<button class="btn primary" type="button" data-order-state="Em preparação" data-order-id="${escapeHtml(order.id)}">Enviar para cozinha</button>` : ''}</div>`);
+    return;
+  }
+  restaurantDraftItems = [];
+  const productOptions = data.products.filter(product => stockAt(product) > 0).map(product => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.name)} · ${money(product.price)}</option>`).join('');
+  openModal(`${modalHeader(`Nova comanda · ${table.name}`, 'Registe os artigos pedidos. O stock e a faturação não são movimentados nesta fase; o fecho integrado será activado após validação transaccional.') }<form id="restaurantOrderForm"><div class="modal-form"><label class="full">Produto<select id="restaurantProduct" required>${productOptions}</select></label><label>Quantidade<input id="restaurantQuantity" type="number" min="1" step="1" value="1" required /></label><div class="form-action"><button class="btn secondary" id="addRestaurantItem" type="button">Adicionar artigo</button></div></div><div id="restaurantDraftList" class="restaurant-order-lines"><div class="empty-state">Adicione os artigos da comanda.</div></div><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Guardar comanda</button></div></form>`);
+  const drawDraft = () => { const host = $('#restaurantDraftList'); if (host) host.innerHTML = restaurantDraftItems.length ? restaurantDraftItems.map(item => `<div class="restaurant-order-line"><b>${escapeHtml(item.name)} × ${number(item.quantity)}</b><span>${money(item.price * item.quantity)}</span></div>`).join('') : '<div class="empty-state">Adicione os artigos da comanda.</div>'; };
+  $('#addRestaurantItem').addEventListener('click', () => { const product = productById($('#restaurantProduct').value); const quantity = Math.max(1, Math.floor(Number($('#restaurantQuantity').value || 1))); if (!product) return notify('Seleccione um produto.'); if (quantity > stockAt(product)) return notify('Quantidade superior ao stock disponível neste local.'); const existing = restaurantDraftItems.find(item => item.productId === product.id); if (existing) { if (existing.quantity + quantity > stockAt(product)) return notify('Quantidade total superior ao stock disponível.'); existing.quantity += quantity; } else restaurantDraftItems.push({ productId: product.id, name: product.name, quantity, price: Number(product.price), cost: Number(product.cost || 0) }); drawDraft(); });
+  $('#restaurantOrderForm').addEventListener('submit', event => { event.preventDefault(); if (!restaurantDraftItems.length) return notify('Adicione pelo menos um artigo.'); const created = { id: uid('order'), reference: nextReference('CMD', data.restaurantOrders), tableId, locationId: currentLocationId(), items: restaurantDraftItems.map(item => ({ ...item })), status: 'Recebido', createdAt: new Date().toISOString(), createdBy: currentUser?.id || '' }; data.restaurantOrders.push(created); table.status = 'Ocupada'; audit('Comanda criada', `${table.name} · ${created.reference}`); saveData(); restaurantDraftItems = []; closeModal(); renderRestaurant(); notify(`Comanda ${created.reference} enviada para a operação.`); });
+}
+function updateRestaurantOrder(orderId, status) {
+  const order = data.restaurantOrders.find(item => item.id === orderId && item.locationId === currentLocationId());
+  if (!order || !['Em preparação', 'Pronto', 'Servido'].includes(status)) return notify('Comanda não encontrada ou estado inválido.');
+  if (status === 'Em preparação' && !canManage()) return notify('Apenas gerente ou administrador pode enviar comandas para a cozinha.');
+  order.status = status;
+  const table = data.restaurantTables.find(item => item.id === order.tableId);
+  if (table && status === 'Servido') table.status = 'Livre';
+  audit('Estado da comanda alterado', `${order.reference} · ${status}`); saveData(); renderRestaurant();
+}
+function toggleRestaurantTableStatus(tableId) {
+  if (!canManage()) return notify('Apenas gerente ou administrador pode reservar mesas.');
+  const table = data.restaurantTables.find(item => item.id === tableId && item.locationId === currentLocationId());
+  if (!table) return;
+  table.status = table.status === 'Reservada' ? 'Livre' : 'Reservada'; audit('Estado da mesa alterado', `${table.name} · ${table.status}`); saveData(); renderRestaurant();
 }
 
 function renderDashboard() {
@@ -1419,10 +1493,14 @@ function changeActiveLocation(locationId) {
 }
 function userModal(user = null) {
   if (!canManage()) return notify('Apenas a área de gestão pode criar ou alterar utilizadores.');
+  if (!isAdministrator() && user?.role === 'Administrador') return notify('Apenas um administrador pode alterar outro administrador.');
   const item = user || { name: '', initials: '', role: 'Vendedor', locationId: currentLocationId(), active: true, pin: '' };
-  openModal(`${modalHeader(user ? 'Editar utilizador' : 'Novo utilizador', 'Escolha a loja já existente e as autorizações deste utilizador.')}<form id="userForm"><div class="modal-form"><label>Nome completo<input name="name" required value="${escapeHtml(item.name)}" /></label><label>Iniciais<input name="initials" maxlength="3" required value="${escapeHtml(item.initials || '')}" placeholder="Ex.: JM" /></label><label>Função<select name="role"><option ${item.role === 'Vendedor' ? 'selected' : ''}>Vendedor</option><option ${item.role === 'Gerente' ? 'selected' : ''}>Gerente</option><option ${item.role === 'Administrador' ? 'selected' : ''}>Administrador</option></select></label><label>Loja atribuída<select name="locationId">${options(activeLocations(), item.locationId || currentLocationId(), location => `${location.name} · ${location.type}`)}</select></label><label>Estado<select name="active"><option value="true" ${item.active !== false ? 'selected' : ''}>Activo</option><option value="false" ${item.active === false ? 'selected' : ''}>Inactivo</option></select></label><label class="full">${user ? 'Novo PIN (deixe vazio para manter)' : 'PIN temporário'}<input class="pin-input" name="pin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" ${user ? '' : 'required'} placeholder="4 a 8 dígitos" /></label></div><p class="role-note"><b>Autorizações por perfil:</b> Administrador — controlo total, incluindo definições e utilizadores; Gerente — operação comercial e relatórios; Vendedor — nova venda, caixa próprio e documentos das próprias vendas. O vendedor é associado à loja que seleccionar acima; nenhuma loja nova é criada pelo nome dele.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${user ? 'Guardar alterações' : 'Criar utilizador'}</button></div></form>`);
+  const roleOptions = isAdministrator() ? ['Vendedor', 'Gerente', 'Administrador'] : ['Vendedor', 'Gerente'];
+  const allowedViews = ROLE_VIEWS[item.role] || ROLE_VIEWS.Vendedor;
+  const permissionControls = roleOptions.length && item.role !== 'Administrador' ? `<fieldset class="permission-editor full"><legend>Autorizações individuais (apenas restringem o perfil)</legend><div class="permission-grid">${allowedViews.filter(view => !['modules', 'admin', 'settings'].includes(view)).map(view => `<label><input type="checkbox" name="viewPermission" value="${view}" ${item.viewPermissions?.[view] === false ? '' : 'checked'} />${({dashboard:'Painel operacional',pos:'Ponto de venda',cash:'Caixa',documents:'Documentos',products:'Produtos e stock',inventory:'Inventário',customers:'Clientes',suppliers:'Fornecedores',purchases:'Compras',reports:'Relatórios',restaurant:'Restaurante'}[view] || view)}</label>`).join('')}</div><small>As autorizações individuais não concedem acesso a funções acima do perfil. A área administrativa e as definições permanecem exclusivas do administrador.</small></fieldset>` : '';
+  openModal(`${modalHeader(user ? 'Editar utilizador' : 'Novo utilizador', 'Escolha a loja, a função e as autorizações individuais.')}<form id="userForm"><div class="modal-form"><label>Nome completo<input name="name" required value="${escapeHtml(item.name)}" /></label><label>Iniciais<input name="initials" maxlength="3" required value="${escapeHtml(item.initials || '')}" placeholder="Ex.: JM" /></label><label>Função<select name="role">${roleOptions.map(role => `<option ${item.role === role ? 'selected' : ''}>${role}</option>`).join('')}</select></label><label>Loja atribuída<select name="locationId">${options(activeLocations(), item.locationId || currentLocationId(), location => `${location.name} · ${location.type}`)}</select></label><label>Estado<select name="active"><option value="true" ${item.active !== false ? 'selected' : ''}>Activo</option><option value="false" ${item.active === false ? 'selected' : ''}>Inactivo</option></select></label><label class="full">${user ? 'Novo PIN (deixe vazio para manter)' : 'PIN temporário'}<input class="pin-input" name="pin" type="password" inputmode="numeric" minlength="4" maxlength="8" pattern="[0-9]{4,8}" ${user ? '' : 'required'} placeholder="4 a 8 dígitos" /></label>${permissionControls}</div><p class="role-note"><b>Segurança:</b> o administrador controla as autorizações. O gerente não pode criar ou promover administradores. O vendedor fica associado à loja atribuída.</p><div class="modal-footer"><button class="btn secondary" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">${user ? 'Guardar alterações' : 'Criar utilizador'}</button></div></form>`);
   if (window.VendaMaisCloud?.connected?.()) $('#userForm').insertAdjacentHTML('afterbegin', '<p class="modal-note">Para o acesso em outro computador, use <b>Dados online → Gerir acessos → Convidar colaborador</b>. O convite já leva a loja e a função escolhidas.</p>');
-  $('#userForm').addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.name = values.name.trim(); values.initials = values.initials.trim().toUpperCase(); values.active = values.active === 'true'; const pin = String(values.pin || '').trim(); delete values.pin; if (pin && !/^\d{4,8}$/.test(pin)) return notify('O PIN deve ter apenas 4 a 8 dígitos.'); if (!user && !pin) return notify('Defina um PIN temporário para o utilizador.'); const activeAdmins = data.users.filter(existing => existing.role === 'Administrador' && existing.active && existing.id !== user?.id); if (user?.id === currentUser.id && !values.active) return notify('Não pode desactivar o utilizador que está em sessão.'); if (user?.role === 'Administrador' && user.active && (values.role !== 'Administrador' || !values.active) && activeAdmins.length === 0) return notify('O sistema deve manter pelo menos um administrador activo.'); const userId = user?.id || uid('user');
+  $('#userForm').addEventListener('submit', event => { event.preventDefault(); const formData = new FormData(event.currentTarget); const values = Object.fromEntries(formData.entries()); const selectedViews = formData.getAll('viewPermission'); delete values.viewPermission; values.viewPermissions = {}; (ROLE_VIEWS[values.role] || []).forEach(view => { if (!['modules', 'admin', 'settings'].includes(view)) values.viewPermissions[view] = selectedViews.includes(view); }); values.name = values.name.trim(); values.initials = values.initials.trim().toUpperCase(); values.active = values.active === 'true'; const pin = String(values.pin || '').trim(); delete values.pin; if (!isAdministrator() && values.role === 'Administrador') return notify('Apenas um administrador pode atribuir o perfil Administrador.'); if (pin && !/^\d{4,8}$/.test(pin)) return notify('O PIN deve ter apenas 4 a 8 dígitos.'); if (!user && !pin) return notify('Defina um PIN temporário para o utilizador.'); const activeAdmins = data.users.filter(existing => existing.role === 'Administrador' && existing.active && existing.id !== user?.id); if (user?.id === currentUser.id && !values.active) return notify('Não pode desactivar o utilizador que está em sessão.'); if (user?.role === 'Administrador' && user.active && (values.role !== 'Administrador' || !values.active) && activeAdmins.length === 0) return notify('O sistema deve manter pelo menos um administrador activo.'); const userId = user?.id || uid('user');
     if (user) { Object.assign(user, values); if (pin) Object.assign(user, { pin, pinMustChange: true }); }
     else data.users.push(normaliseUser({ id: userId, ...values, pin, pinMustChange: true }));
     audit(user ? 'Utilizador actualizado' : 'Utilizador criado', `${values.name} · ${values.role}`); saveData(); closeModal(); if (user?.id === currentUser.id) { renderAccountButton(); applyRoleInterface(); const activeView = $('.view.active')?.id.replace('View', ''); if (!canAccessView(activeView)) showView(canAccessView('dashboard') ? 'dashboard' : 'pos'); } notify('Utilizador guardado.'); if (isAdministrator()) usersModal(); else renderAll(); });
@@ -1582,7 +1660,12 @@ document.addEventListener('click', event => {
   if (event.target.closest('#discountInboxButton')) return discountApprovalModal();
   const discountReview = event.target.closest('[data-discount-review]'); if (discountReview) { const id = discountReview.dataset.id; const approve = discountReview.dataset.discountReview === 'approve'; const rejectionNote = approve ? '' : prompt('Indique o motivo da rejeição:'); if (!approve && rejectionNote === null) return; const note = approve ? '' : (rejectionNote.trim() || 'Pedido rejeitado pelo administrador'); window.VendaMaisCloud.reviewDiscountRequest(id, approve, note).then(() => { notify(approve ? 'Desconto aprovado. O vendedor foi notificado.' : 'Pedido rejeitado. O vendedor foi notificado.'); return window.VendaMaisCloud.discountRequests(); }).then(rows => { const host = $('#discountRequestsList'); if (host) { host.innerHTML = rows.length ? rows.map(request => `<article class="discount-request-card"><b>${escapeHtml(request.product_name)}</b><p>${escapeHtml(request.requester_name || 'Vendedor')} · ${number(request.discount_percent)}% · ${money(request.discount_value)}</p><p>${escapeHtml(request.reason)}</p><div class="inline-actions"><button class="btn primary" data-discount-review="approve" data-id="${request.id}">Aprovar</button><button class="btn secondary" data-discount-review="reject" data-id="${request.id}">Rejeitar</button></div></article>`).join('') : '<div class="empty-state">Não existem pedidos de desconto pendentes.</div>'; } const count = $('#discountInboxCount'); if (count) count.textContent = String(rows.length); }).catch(error => notify(error.message || 'Não foi possível processar o pedido.')); return; }
   const reportTab=event.target.closest('[data-report-tab]'); if(reportTab){const key=reportTab.dataset.reportTab;$$('[data-report-tab]').forEach(button=>button.classList.toggle('active',button===reportTab));$$('[data-report-pane]').forEach(pane=>{const active=pane.dataset.reportPane===key;pane.hidden=!active;pane.classList.toggle('active',active);});return;}
+  const moduleToggle = event.target.closest('[data-module-toggle]'); if (moduleToggle) return toggleCompanyModule(moduleToggle.dataset.moduleToggle);
   const moduleButton = event.target.closest('[data-module-open]'); if (moduleButton) return openModule(moduleButton.dataset.moduleOpen);
+  if (event.target.closest('#newRestaurantTable')) return restaurantTableModal();
+  const restaurantOrderButton = event.target.closest('[data-restaurant-order]'); if (restaurantOrderButton) return restaurantOrderModal(restaurantOrderButton.dataset.restaurantOrder);
+  const restaurantTableStatus = event.target.closest('[data-table-status]'); if (restaurantTableStatus) return toggleRestaurantTableStatus(restaurantTableStatus.dataset.tableStatus);
+  const orderStateButton = event.target.closest('[data-order-state]'); if (orderStateButton) return updateRestaurantOrder(orderStateButton.dataset.orderId, orderStateButton.dataset.orderState);
   const nav = event.target.closest('.nav-link'); if (nav) return showView(nav.dataset.view);
   const go = event.target.closest('[data-go]'); if (go) return showView(go.dataset.go);
   if (event.target.closest('#menuToggle')) return $('#sidebar').classList.toggle('open');
@@ -1641,7 +1724,7 @@ $('#settingsForm').addEventListener('submit', event => { event.preventDefault();
 
 function initialize() {
   $('#topDate').textContent = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
-  applyBrandTheme(); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); if (currentUser && isAdministrator()) showView('admin'); else renderDashboard(); updateCloudUi();
+  applyBrandTheme(); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); if (currentUser && isAdministrator()) showView('admin'); else if (currentUser) showView(canAccessView('dashboard') ? 'dashboard' : 'pos'); updateCloudUi();
   if (window.VendaMaisCloud?.configured?.()) {
     window.VendaMaisCloud.prepare().then(result => { if (result?.needsBootstrap) return cloudNoProfileModal(); if (!result?.connected) cloudModal(); }).catch(() => cloudModal());
   } else accountModal();

@@ -141,3 +141,22 @@ Os módulos devem declarar metadados explícitos: `id`, `name`, `status`, `requi
 - Gerente e Vendedor continuam a utilizar a área operacional (`dashboardView`) e não recebem a rota `admin`.
 - Os ecrãs comerciais existentes continuam a ser reutilizados; não foram criadas tabelas, migrações ou cópias paralelas de dados.
 - Esta separação é de interface e autorização da aplicação cliente; não substitui a validação de permissões no servidor/Supabase.
+
+
+## Entrega consolidada 2.4.0 — permissões, módulos e restaurante inicial
+
+- Adicionada activação de módulos implementados por empresa; apenas Administrador pode activar/desactivar.
+- Adicionadas autorizações individuais por ecrã para utilizadores não administradores. Estas autorizações apenas restringem o perfil-base e não elevam privilégios.
+- Impedida a gestão/atribuição de perfil Administrador por utilizadores Gerente.
+- Corrigida a recuperação de sessão local: um identificador ausente ou inválido já não selecciona automaticamente outro utilizador.
+- Criado o primeiro fluxo de Restaurante: mesas, abertura de comanda, artigos, envio para cozinha, pronto e servido.
+- Limitação deliberada: nesta entrega, comandas não movimentam stock, caixa, faturação ou diário financeiro. A integração deve ser implementada numa transacção única e testada antes de activar fecho de contas.
+- Preparada migração Supabase aditiva para módulos, permissões e dados de restaurante; requer revisão e execução controlada no projecto Supabase.
+
+
+### Limites e verificações pendentes da versão 2.4.0
+
+- A autorização individual implementada na interface é um controlo de navegação/restrição local. A tabela `profile_permissions` e a função `has_vendamais_permission` preparadas na migração ainda não estão ligadas a todos os fluxos de leitura/escrita da aplicação. Não tratar esta entrega como certificação de segurança multiempresa.
+- O modo local continua a usar PIN guardado no estado local; para utilização multi-dispositivo, exigir Supabase Auth e validar autorização no servidor.
+- O módulo Restaurante permite gerir mesas, comandas e estados da cozinha, mas não regista venda nem baixa stock. Não usar a mudança para “Servido” como prova de pagamento.
+- Rever manualmente as inserções HTML dinâmicas/XSS e testar isolamento entre duas empresas reais antes de produção.

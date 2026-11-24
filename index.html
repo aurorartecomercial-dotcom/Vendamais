@@ -26,6 +26,7 @@
         <button class="nav-link" data-view="pos"><i>▣</i> Nova venda</button>
         <button class="nav-link" data-view="cash"><i>▤</i> Caixa & turnos</button>
         <button class="nav-link" data-view="documents"><i>▧</i> Documentos</button>
+        <button class="nav-link" data-view="restaurant"><i>🍽</i> Restaurante & cozinha</button>
         <div class="nav-label" data-nav-group="management">Gestão comercial</div>
         <button class="nav-link" data-view="products"><i>◈</i> Produtos & stock</button>
         <button class="nav-link" data-view="inventory"><i>↕</i> Inventário</button>
@@ -38,7 +39,7 @@
         <button class="nav-link" data-view="admin"><i>▣</i> Painel administrativo</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.3.1</div>
+      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.4.0</div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -64,6 +65,14 @@
           <article class="panel admin-workspace-card"><span class="admin-card-icon">▦</span><h3>Módulos empresariais</h3><p>Veja os módulos disponíveis e acompanhe a expansão gradual do VendaMais ERP.</p><button class="btn secondary" type="button" data-go="modules">Gerir módulos</button></article>
         </div>
         <p class="admin-footnote">Esta área organiza as ferramentas administrativas. As permissões continuam a ser verificadas pelo perfil activo e pelas regras existentes.</p>
+      </section>
+
+      <section class="view" id="restaurantView">
+        <div class="section-head"><div><h2>Restaurante e bares</h2><p>Gestão inicial de mesas, comandas e estados de cozinha. O fecho de conta integrado com o POS será activado após validação transaccional.</p></div><button class="btn primary" id="newRestaurantTable" type="button">＋ Nova mesa</button></div>
+        <div class="restaurant-section-head"><h3>Mesas do local actual</h3><span class="module-status available">Operação local / sincronizável</span></div>
+        <div class="restaurant-table-grid" id="restaurantTables"></div>
+        <article class="panel restaurant-orders-panel"><div class="panel-head"><div><h3>Comandas e cozinha</h3><p>Acompanhe pedidos desde a recepção até ao serviço.</p></div></div><div class="restaurant-orders-list" id="restaurantOrders"></div></article>
+        <p class="admin-footnote">Nesta entrega, comandas não alteram stock, caixa, faturação nem diário financeiro. Não feche contas manualmente por fora do POS. A integração financeira será feita numa transacção única numa etapa própria.</p>
       </section>
 
       <section class="view active" id="dashboardView">

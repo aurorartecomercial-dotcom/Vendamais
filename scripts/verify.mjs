@@ -22,11 +22,14 @@ const requiredFiles = [
   'supabase/2026-11-professional-upgrade.sql',
   'supabase/2026-11-financial-integrity.sql',
   'supabase/2026-11-discount-approval.sql',
-  'tests/finance.test.mjs'
+  'supabase/2026-11-erp-modular-access-restaurant.sql',
+  'tests/finance.test.mjs',
+  'tests/erp-modular.test.mjs'
 ];
 const requiredInterfaceIds = [
   'modulesView',
   'adminView',
+  'restaurantView',
   'dashboardView',
   'posView',
   'productsView',
@@ -41,6 +44,9 @@ const requiredInterfaceIds = [
 ];
 const requiredFunctions = [
   'renderDashboard',
+  'renderRestaurant',
+  'restaurantOrderModal',
+  'toggleCompanyModule',
   'renderSellerDashboard',
   'renderPos',
   'renderProducts',
@@ -126,6 +132,10 @@ if (!app.includes('coversConfiguredCost')) failures.push('Prevenção explícita
 if (!app.includes('auditLog')) failures.push('Auditoria operacional não encontrada.');
 if (!app.includes('isAdministrator')) failures.push('Protecção de administrador não encontrada.');
 if (!app.includes('ROLE_VIEWS')) failures.push('Permissões por perfil não encontradas.');
+if (!app.includes('function canAccessView(view)') || !app.includes('viewPermissions')) failures.push('Permissões individuais por ecrã não encontradas.');
+if (!app.includes('function toggleCompanyModule') || !app.includes('enabledModules')) failures.push('Activação de módulos por empresa não encontrada.');
+if (!app.includes('restaurantOrders') || !app.includes('function updateRestaurantOrder')) failures.push('Gestão inicial de comandas e estados de cozinha não encontrada.');
+if (!app.includes('getSessionUser') || !app.includes('return id ?')) failures.push('Protecção contra fallback automático de sessão em falta.');
 if (!app.includes("Administrador: ['modules', 'admin', 'dashboard'")) failures.push('Painel administrativo não está incluído no perfil de administrador.');
 if (!app.includes("Gerente: ['modules', 'dashboard'" ) || !app.includes("Vendedor: ['modules', 'dashboard'")) failures.push('Os perfis operacionais devem permanecer sem acesso ao painel administrativo.');
 if (!html.includes('data-view="admin"') || !app.includes('function renderAdminWorkspace')) failures.push('Área administrativa independente incompleta.');

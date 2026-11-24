@@ -295,3 +295,22 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Adicionada migração local idempotente dos registos históricos sem duplicar movimentos de caixa que já são reflexo de compras ou despesas.
 - Adicionada classificação de retiradas pessoais e pagamentos de dívidas antigas sem reduzir o lucro operacional.
 - Adicionada consulta por período e loja em Balanço & relatórios.
+
+
+## [2.4.0] - 2026-11-24
+
+### Adicionado
+- Activação de módulos implementados por empresa.
+- Permissões individuais por ecrã, limitadas pelo perfil base.
+- Módulo inicial Restaurante: mesas, comandas e estados de cozinha.
+- Migração SQL aditiva para módulos, permissões e dados de restaurante.
+
+### Segurança
+- Sessão local inválida deixa de seleccionar automaticamente outro utilizador.
+- Gerentes deixam de poder atribuir ou editar o perfil Administrador.
+- Rotina SQL de limpeza passa a exigir o perfil Administrador na migração nova.
+
+### Limitações conhecidas
+- Comandas ainda não movimentam stock, caixa ou faturação.
+- A migração SQL deve ser revista e executada manualmente no Supabase; não foi executada nesta entrega.
+- O PIN do modo local não substitui autenticação central e autorização no servidor.

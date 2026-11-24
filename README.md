@@ -174,3 +174,8 @@ A versão actual inclui um diário financeiro idempotente em **Balanço & relat�
 - **Administrador:** entrada própria no Painel administrativo, com atalhos para definições, relatórios e módulos.
 - **Gerente e Vendedor:** entrada na Área operacional, com menus limitados às permissões do respectivo perfil.
 - A separação da interface não substitui políticas de autorização no servidor.
+
+
+### Versão 2.4.0 — ERP modular consolidado
+
+Esta versão inclui activação de módulos por empresa, permissões individuais restritivas por ecrã, correcção de selecção automática de utilizador em sessão inválida e o fluxo inicial de mesas/comandas/cozinha. Consulte `docs/ROADMAP-ERP-MODULAR.md` e `supabase/2026-11-erp-modular-access-restaurant.sql`. A migração SQL não é executada automaticamente.

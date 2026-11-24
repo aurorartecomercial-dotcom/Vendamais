@@ -19,3 +19,12 @@ O pedido que ficou pendente apenas no navegador pode nao ter chegado ao
 servidor. Depois da actualizacao, confirmar se aparece no painel do
 administrador antes de criar outro pedido. Nao repetir o movimento sem
 confirmar, para evitar duplicacao.
+
+
+Actualização ERP Modular 2.4.0:
+- Depois das migrações base (`schema.sql`, `2026-11-professional-upgrade.sql` e `2026-11-financial-integrity.sql`), rever e executar `2026-11-erp-modular-access-restaurant.sql` num ambiente de teste.
+- A migração é aditiva, cria tabelas e políticas de acesso e substitui a função de limpeza para exigir Administrador.
+- Não executar sobre produção sem backup verificado e sem testar utilizadores Administrador, Gerente e Vendedor.
+- A migração não foi executada automaticamente por esta entrega.
+- As permissões individuais na interface são restritivas por perfil. A aplicação ainda precisa ligar a leitura/gravação da tabela `profile_permissions` e aplicar a função `has_vendamais_permission` a todas as operações sensíveis antes de declarar autorização integral no servidor.
+- O fluxo de restaurante desta versão não fecha contas nem movimenta stock/caixa; essa integração depende de RPC transaccional própria.
