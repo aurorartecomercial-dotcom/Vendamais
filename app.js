@@ -1141,9 +1141,18 @@ function openModal(content) {
 }
 function closeModal() {
   if (sessionLocked || pinChangeRequired) return;
-  $('#modalBackdrop').classList.remove('open');
-  $('#modalBackdrop').setAttribute('aria-hidden', 'true');
+
+  const backdrop = $('#modalBackdrop');
+  const modal = $('#modal');
+
+  // A autenticação online usa estilos de ecrã inteiro. Remover apenas
+  // "open" não chega: o selector CSS :has() continua activo enquanto
+  // account-login-modal permanecer no elemento #modal.
+  backdrop.classList.remove('open', 'is-fullscreen-login');
+  modal.classList.remove('account-login-modal');
+  backdrop.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
+
   previouslyFocused?.focus?.();
   previouslyFocused = null;
 }
