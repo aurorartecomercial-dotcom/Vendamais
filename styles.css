@@ -172,3 +172,45 @@
 
 /* ERP modular 2.4.0: permissões individuais e operação inicial de restaurante */
 .permission-editor{border:1px solid var(--line,#dce6e1);border-radius:10px;padding:12px;margin:4px 0 0}.permission-editor legend{font-size:12px;font-weight:800;padding:0 5px}.permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:8px 0}.permission-grid label{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:650}.permission-editor small{display:block;color:var(--muted,#718079);font-size:10px;line-height:1.5}.restaurant-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 12px}.restaurant-section-head h3{margin:0;font-size:14px}.restaurant-table-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}.restaurant-table-card{background:#fff;border:1px solid var(--line,#dce6e1);border-radius:13px;padding:16px;box-shadow:var(--shadow-soft,0 4px 15px rgba(20,50,40,.04))}.restaurant-table-top{display:flex;align-items:center;justify-content:space-between}.restaurant-table-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--green-soft);color:var(--green);font-size:20px}.restaurant-table-card h3{margin:12px 0 4px;font-size:16px}.restaurant-table-card p{margin:0 0 14px;color:var(--muted,#718079);font-size:11px}.restaurant-order-row,.restaurant-order-line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line,#e6ece9)}.restaurant-order-row:last-child,.restaurant-order-line:last-child{border-bottom:0}.restaurant-order-row span{display:block;color:var(--muted,#718079);font-size:11px;margin-top:4px}.restaurant-orders-list,.restaurant-order-lines{display:flex;flex-direction:column}.restaurant-order-line{font-size:12px}.restaurant-order-line span{color:var(--muted,#718079)}.restaurant-orders-panel{margin-top:12px}.form-action{display:flex;align-items:end}.status-reservada .restaurant-table-icon{background:#fff2d6;color:#9b6500}.status-ocupada .restaurant-table-icon{background:#fde8e8;color:#a22}.status-em-preparação .restaurant-table-icon{background:#e8f0ff;color:#2456a6}@media(max-width:900px){.restaurant-table-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.restaurant-table-grid{grid-template-columns:1fr}.permission-grid{grid-template-columns:1fr}.restaurant-order-row{align-items:flex-start;flex-direction:column}}
+
+/* Entrada de sessão e catálogo inicial com identidade visual VendaMais. */
+#modal.account-login-modal{width:min(790px,100%);max-height:92vh;padding:0;border:1px solid #f0d6d6;border-radius:22px;overflow:hidden}
+.account-login-layout{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);min-height:440px}
+.account-login-brand{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;justify-content:center;padding:42px 34px;background:linear-gradient(145deg,#7f171b 0%,#b51f25 58%,#d63c3d 100%);color:#fff}
+.account-login-logo{display:flex;align-items:center;gap:10px;font-size:25px;font-weight:850;letter-spacing:-.8px}
+.account-login-logo .brand-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#fff;color:#a51d23;font-size:20px}
+.account-login-logo strong{color:#ffd9d9}
+.account-login-kicker{margin-top:38px;font-size:9px;font-weight:850;letter-spacing:.16em;color:#ffd0d0}
+.account-login-brand h2{max-width:290px;margin:12px 0 8px;font-size:29px;line-height:1.12;letter-spacing:-1px}
+.account-login-brand p{max-width:270px;margin:0;color:#ffe1e1;font-size:12px;line-height:1.7}
+.account-login-brand>small{position:relative;z-index:1;margin-top:65px;color:#ffdada;font-size:10px}
+.account-login-decoration{position:absolute;z-index:-1;width:270px;height:270px;right:-105px;bottom:-120px;border:1px solid rgba(255,255,255,.24);border-radius:50%}
+.account-login-decoration:before,.account-login-decoration:after{content:"";position:absolute;inset:22px;border:1px solid rgba(255,255,255,.18);border-radius:50%}
+.account-login-decoration:after{inset:48px}
+.account-login-decoration i{position:absolute;width:9px;height:9px;border-radius:50%;background:#f8b2a9;top:28px;left:36px}
+.account-login-decoration i:nth-child(2){top:105px;left:205px;background:#ffd16e}.account-login-decoration i:nth-child(3){top:215px;left:80px;background:#fff}
+.account-login-panel{display:flex;flex-direction:column;justify-content:center;padding:36px 38px;background:#fff}
+.account-login-panel .modal-head{margin-bottom:24px}
+.account-login-panel .modal-head h2{font-size:21px;color:#252b2a}
+.account-login-panel .modal-head p{font-size:11px}
+.account-login-panel .modal-form{grid-template-columns:1fr;gap:15px}
+.account-login-panel .modal-form .full{grid-column:auto}
+.account-login-panel .modal-form label{font-size:11px}
+.account-login-panel .modal-form input,.account-login-panel .modal-form select{height:43px;border:1px solid #e4e8e7;border-radius:9px;padding:0 12px;background:#fbfcfc}
+.account-login-panel .modal-form .pin-input{letter-spacing:.2em;text-align:left;font-size:14px}
+.account-login-panel .modal-note{margin:16px 0 0;background:#fff5f5;color:#795052}
+.account-login-panel .modal-footer{display:grid;grid-template-columns:1fr;gap:9px;margin-top:17px}
+.account-login-panel .modal-footer .btn{min-height:43px}
+.account-login-panel .btn.primary{background:#b51f25}.account-login-panel .btn.primary:hover{background:#95191e}
+.account-login-help{margin:20px 0 0;text-align:center;color:#89918f;font-size:9px}
+.module-card{grid-template-columns:64px minmax(0,1fr);padding:21px;border-color:#f0dada;box-shadow:0 10px 28px rgba(75,26,26,.045)}
+.module-card.is-active{background:linear-gradient(145deg,#fff 62%,#fff3f3);border-color:#e8caca}
+.module-card-icon{width:62px;height:62px;background:#fff0f0;color:#a51f25;border-radius:15px}
+.module-status.available{background:#e8f5ef;color:#17664c}
+.module-card-copy h3{font-size:16px;color:#202b29}
+.module-card-action{gap:9px;flex-wrap:wrap}
+.module-card-action .btn.primary{background:#b51f25}.module-card-action .btn.primary:hover{background:#95191e}
+.module-card.is-planned{border-color:#e8eded;background:#fbfcfc}
+.module-card.is-planned .module-card-icon{background:#f4f0f2}
+.module-card-action .btn.secondary{color:#8d5555;border-color:#e3dada}
+@media(max-width:650px){#modal.account-login-modal{width:min(480px,100%)}.account-login-layout{grid-template-columns:1fr}.account-login-brand{min-height:190px;padding:25px 26px}.account-login-kicker{margin-top:20px}.account-login-brand h2{font-size:22px;margin:8px 0 5px}.account-login-brand p{font-size:11px}.account-login-brand>small{margin-top:22px}.account-login-panel{padding:25px 22px}.account-login-decoration{width:180px;height:180px;right:-85px;bottom:-100px}}
