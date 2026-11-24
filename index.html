@@ -40,7 +40,7 @@
         <button class="nav-link" data-view="admin"><i>▣</i> Painel administrativo</button>
         <button class="nav-link" data-view="settings"><i>⚙</i> Definições</button>
       </nav>
-      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.4.0</div>
+      <div class="sidebar-foot">VendaMais ERP <span>•</span> v2.5.0</div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -55,13 +55,23 @@
       </section>
 
       <section class="view" id="accountingView">
-        <div class="section-head"><div><h2>Contabilidade de gestão</h2><p>Consulta centralizada dos movimentos já registados em Vendas, Compras, Caixa e Despesas. Esta área não cria lançamentos paralelos.</p></div></div>
+        <div class="section-head"><div><h2>Contabilidade organizada</h2><p>Diário geral, razão, balancete e demonstrações financeiras com partidas dobradas, integradas com as operações da empresa sem duplicar registos.</p></div></div>
         <article class="panel report-panel">
           <div class="form-grid"><label>Data inicial<input type="date" id="accountingStart"></label><label>Data final<input type="date" id="accountingEnd"></label><label>Local<select id="accountingLocation"></select></label><div class="form-actions"><button class="btn primary" id="applyAccounting" type="button">Actualizar</button></div></div>
         </article>
         <div class="metric-grid" id="accountingMetrics" aria-live="polite"></div>
-        <article class="panel report-panel"><div class="panel-head"><div><h3>Movimentos financeiros consolidados</h3><p>Uma linha por evento de origem. Liquidações de dívidas afectam caixa e dívida, não voltam a reconhecer a despesa ou a compra.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Origem</th><th>Classificação</th><th>Descrição</th><th>Valor</th><th>Caixa</th><th>Resultado</th><th>A receber</th><th>A pagar</th></tr></thead><tbody id="accountingJournalTable"></tbody></table></div></article>
-        <p class="admin-footnote">Nota: este é um diário financeiro de gestão baseado nos registos operacionais existentes. Ainda não é um sistema de partidas dobradas, balancete legal ou substituto da contabilidade certificada.</p>
+        <div class="accounting-tabs" role="tablist" aria-label="Relatórios contabilísticos">
+          <button class="accounting-tab active" data-account-tab="overview" type="button">Visão geral</button><button class="accounting-tab" data-account-tab="journal" type="button">Diário</button><button class="accounting-tab" data-account-tab="ledger" type="button">Razão</button><button class="accounting-tab" data-account-tab="trial" type="button">Balancete</button><button class="accounting-tab" data-account-tab="balance" type="button">Balanço</button><button class="accounting-tab" data-account-tab="income" type="button">Resultados</button><button class="accounting-tab" data-account-tab="cashflow" type="button">Fluxo de caixa</button><button class="accounting-tab" data-account-tab="accounts" type="button">Plano de contas</button>
+        </div>
+        <div class="accounting-panel active" data-account-panel="overview"><div class="accounting-report-grid"><article class="panel"><h3>Equação contabilística</h3><div id="accountingEquation" class="accounting-equation"></div></article><article class="panel"><h3>Verificação dos lançamentos</h3><div id="accountingIntegrity"></div></article></div><article class="panel"><div class="panel-head"><div><h3>Resumo do período</h3><p>Valores calculados a partir das operações existentes, sem duplicar documentos.</p></div></div><div class="table-wrap"><table><thead><tr><th>Conta</th><th>Designação</th><th>Débito</th><th>Crédito</th><th>Saldo</th></tr></thead><tbody id="accountingOverviewTable"></tbody></table></div></article></div>
+        <div class="accounting-panel" data-account-panel="journal"><article class="panel"><div class="panel-head"><div><h3>Diário geral — partidas dobradas</h3><p>Cada documento de origem é convertido em linhas de débito e crédito equilibradas.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Documento / origem</th><th>Conta</th><th>Descrição</th><th>Débito</th><th>Crédito</th></tr></thead><tbody id="accountingJournalLines"></tbody></table></div></article></div>
+        <div class="accounting-panel" data-account-panel="ledger"><article class="panel"><div class="panel-head"><div><h3>Razão por conta</h3><p>Movimentos acumulados e saldo de cada conta no período.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Conta</th><th>Documento</th><th>Descrição</th><th>Débito</th><th>Crédito</th><th>Saldo acumulado</th></tr></thead><tbody id="accountingLedgerTable"></tbody></table></div></article></div>
+        <div class="accounting-panel" data-account-panel="trial"><article class="panel"><div class="panel-head"><div><h3>Balancete de verificação</h3><p>Totais de movimentos e saldos devedores/credores.</p></div></div><div class="table-wrap"><table><thead><tr><th>Código</th><th>Conta</th><th>Total débito</th><th>Total crédito</th><th>Saldo devedor</th><th>Saldo credor</th></tr></thead><tbody id="accountingTrialTable"></tbody></table></div><div id="accountingTrialTotals" class="accounting-total-row"></div></article></div>
+        <div class="accounting-panel" data-account-panel="balance"><article class="panel"><div class="panel-head"><div><h3>Balanço patrimonial</h3><p>Posição patrimonial derivada dos movimentos contabilizados no VendaMais.</p></div></div><div class="accounting-report-grid"><div><h4>Activo</h4><div id="accountingAssets"></div></div><div><h4>Passivo e capital próprio</h4><div id="accountingLiabilities"></div></div></div><div id="accountingBalanceCheck" class="accounting-total-row"></div></article></div>
+        <div class="accounting-panel" data-account-panel="income"><article class="panel"><div class="panel-head"><div><h3>Demonstração de resultados por natureza</h3><p>Rendimentos menos custos reconhecidos no período.</p></div></div><div id="accountingIncomeStatement"></div></article></div>
+        <div class="accounting-panel" data-account-panel="cashflow"><article class="panel"><div class="panel-head"><div><h3>Fluxo de caixa</h3><p>Entradas e saídas efectivas de caixa e bancos, sem confundir faturação com recebimento.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Conta</th><th>Entrada</th><th>Saída</th></tr></thead><tbody id="accountingCashFlowTable"></tbody></table></div></article></div>
+        <div class="accounting-panel" data-account-panel="accounts"><article class="panel"><div class="panel-head"><div><h3>Plano de contas</h3><p>Estrutura interna organizada por classes do Plano Geral de Contabilidade de Angola.</p></div></div><div class="table-wrap"><table><thead><tr><th>Código</th><th>Conta</th><th>Natureza</th></tr></thead><tbody id="accountingAccountsTable"></tbody></table></div></article></div>
+        <p class="admin-footnote">A estrutura usa as classes do PGCA angolano (Decreto n.º 82/01) e subcontas operacionais internas. Os saldos de abertura, imobilizado, impostos e movimentos não integrados ainda precisam de parametrização e validação por contabilista certificado antes de uso fiscal ou de fecho oficial.</p>
       </section>
 
       <section class="view" id="adminView">
@@ -214,6 +224,7 @@
   <script src="supabase-config.js"></script>
   <script src="cloud.js"></script>
   <script src="finance-core.js"></script>
+  <script src="accounting-core.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

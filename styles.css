@@ -214,3 +214,17 @@
 .module-card.is-planned .module-card-icon{background:#f4f0f2}
 .module-card-action .btn.secondary{color:#8d5555;border-color:#e3dada}
 @media(max-width:650px){#modal.account-login-modal{width:min(480px,100%)}.account-login-layout{grid-template-columns:1fr}.account-login-brand{min-height:190px;padding:25px 26px}.account-login-kicker{margin-top:20px}.account-login-brand h2{font-size:22px;margin:8px 0 5px}.account-login-brand p{font-size:11px}.account-login-brand>small{margin-top:22px}.account-login-panel{padding:25px 22px}.account-login-decoration{width:180px;height:180px;right:-85px;bottom:-100px}}
+
+/* Contabilidade profissional */
+.accounting-tabs{display:flex;gap:7px;overflow-x:auto;padding:5px 1px 12px;margin:18px 0;scrollbar-width:thin}
+.accounting-tab{flex:0 0 auto;border:1px solid #e4e8e6;background:#fff;color:#52615c;border-radius:9px;padding:10px 14px;font-size:12px;font-weight:750;cursor:pointer}
+.accounting-tab.active{background:#b91f27;border-color:#b91f27;color:#fff;box-shadow:0 5px 14px #b91f2724}
+.accounting-panel{display:none}.accounting-panel.active{display:block}
+.accounting-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:15px}
+.accounting-report-grid>.panel{padding:18px}.accounting-report-grid h3,.accounting-report-grid h4{margin:0 0 13px}
+.accounting-equation{padding:13px;border-radius:10px;background:#f8f4f4;color:#7f2025;font-size:13px}.accounting-equation p{margin:8px 0 0;color:#4d5a55;font-weight:700}
+.accounting-statement-row{display:flex;justify-content:space-between;gap:14px;padding:12px 2px;border-bottom:1px solid #edf0ee;font-size:12px}.accounting-statement-row b{white-space:nowrap;font-variant-numeric:tabular-nums}.accounting-statement-total{border-top:2px solid #b91f27;margin-top:8px;font-weight:800;color:#8f1d23}
+.accounting-total-row{padding:13px 15px;margin-top:12px;background:#f6f8f7;border-radius:9px;font-size:12px;line-height:1.7;color:#34423d}
+#accountingIntegrity{font-size:12px;line-height:1.65}#accountingIntegrity p{margin:6px 0}
+#accountingJournalLines small{color:#73807b}
+@media(max-width:760px){.accounting-report-grid{grid-template-columns:1fr}.accounting-tab{padding:9px 11px}.accounting-panel .table-wrap{overflow-x:auto}}

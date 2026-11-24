@@ -322,3 +322,12 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Mantidos os identificadores de idempotência por evento para impedir lançamentos repetidos.
 - Corrigida a normalização dos módulos activos para preservar a opção `accounting` por empresa.
 - Corrigida a associação do pagamento inicial de uma compra à própria compra, evitando que um pagamento antigo seja reutilizado ao registar uma compra nova a crédito.
+
+## 2.5.0 — Contabilidade organizada
+
+- Adicionado motor de partidas dobradas derivado do diário financeiro existente, sem duplicar documentos operacionais.
+- Adicionados Diário Geral, Razão detalhado, Balancete, Balanço preliminar, Demonstração de Resultados, Fluxo de Caixa e Plano de Contas.
+- Estrutura de classes alinhada ao PGCA angolano, com subcontas internas iniciais e conta transitória para movimentos sem classificação suficiente.
+- Balanço calculado em posição acumulada até à data final; relatórios de movimentos respeitam o período e a loja seleccionados.
+- Incluídos testes de equilíbrio, filtros e não duplicação de liquidações.
+- Limitação explícita: faltam saldos de abertura e integração de activos fixos, impostos completos, reconciliação bancária e outros eventos antes de uso fiscal/legal.
