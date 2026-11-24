@@ -1132,6 +1132,7 @@ function renderSettings() {
 function openModal(content) {
   previouslyFocused = document.activeElement;
   $('#modal').classList.remove('account-login-modal');
+  $('#modalBackdrop').classList.remove('is-fullscreen-login');
   $('#modal').innerHTML = content;
   $('#modalBackdrop').classList.add('open');
   $('#modalBackdrop').setAttribute('aria-hidden', 'false');
@@ -1685,7 +1686,7 @@ function cloudModal() {
     ? `${modalHeader('Dados online', 'Empresa ligada à base central.')} ${online}`
     : `<div class="account-login-layout"><section class="account-login-brand"><div class="account-login-logo"><span class="brand-mark">V</span><span>Venda<strong>Mais</strong></span></div><span class="account-login-kicker">GESTÃO EMPRESARIAL INTELIGENTE</span><h2>O seu negócio, sob controlo.</h2><p>Entre na sua empresa e mantenha lojas, equipas e operações ligadas.</p><div class="account-login-decoration" aria-hidden="true"><i></i><i></i><i></i></div><small>VendaMais ERP · ${new Date().getFullYear()}</small></section><section class="account-login-panel">${modalHeader(config ? 'Aceder à sua empresa' : 'Ligar o VendaMais', config ? 'Entre com o e-mail e a palavra-passe da sua conta.' : 'Configure a ligação segura à base de dados da empresa.', false)} ${setup || login}</section></div>`;
   openModal(cloudModalContent);
-  if (!connected) $('#modal').classList.add('account-login-modal');
+  if (!connected) { $('#modal').classList.add('account-login-modal'); $('#modalBackdrop').classList.add('is-fullscreen-login'); }
   const configForm = $('#cloudConfigForm');
   if (configForm) configForm.addEventListener('submit', async event => { event.preventDefault(); const values = Object.fromEntries(new FormData(configForm).entries()); try { await cloud.configure(values.url, values.anonKey); cloudModal(); } catch (error) { notify(error.message || 'Não foi possível guardar a ligação.'); } });
   const loginForm = $('#cloudLoginForm');
