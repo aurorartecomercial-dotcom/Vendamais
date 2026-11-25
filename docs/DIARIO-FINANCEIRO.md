@@ -47,3 +47,7 @@ Este diário é um registo de gestão operacional com impactos separados e contr
 ## Testes
 
 `npm test` valida sintaxe, estrutura, cálculos financeiros e a separação entre caixa, lucro, estoque e dívidas. A validação não substitui testes de interface em navegador nem testes de concorrência/RLS no projecto Supabase real.
+
+## Limpeza segura de despesas indevidas
+
+Se a empresa apresentar despesas que o administrador confirma nunca ter registado, o ficheiro `supabase/2026-11-clear-false-expenses-only.sql` cria a função administrativa `clear_vendamais_expenses_only()`. A função remove apenas despesas, liquidações de despesas, respectivos lançamentos do diário e movimentos de caixa explicitamente ligados a despesas. Não altera produtos, quantidades, movimentos de inventário, compras, vendas, recebimentos nem pagamentos a fornecedores. A execução é deliberada no SQL Editor do Supabase e exige utilizador autenticado com permissão de administrador/gerente. Antes de executar em produção, exporte/guarde uma cópia de segurança do estado da empresa.
