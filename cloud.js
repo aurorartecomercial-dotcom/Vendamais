@@ -383,9 +383,9 @@ window.VendaMaisCloud = (() => {
     if (error) throw error;
     return data || [];
   }
-  async function clearExpensesOnly() {
+  async function resetFinancialDiary() {
     if (!connected()) throw new Error('Inicie sessão online como administrador.');
-    const { data, error } = await client.rpc('clear_vendamais_expenses_only');
+    const { data, error } = await client.rpc('reset_vendamais_financial_diary');
     if (error) throw error;
     await refresh();
     return Array.isArray(data) ? data[0] : data;
@@ -404,7 +404,7 @@ window.VendaMaisCloud = (() => {
   return {
     setHooks(nextHooks) { hooks = { ...hooks, ...nextHooks }; hooks.onStatus?.(currentStatus); },
     configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
-    resetPassword, clearBusinessData, clearExpensesOnly, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, requestDiscount, discountRequests, reviewDiscountRequest, auditEvents, backups,
+    resetPassword, clearBusinessData, resetFinancialDiary, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, requestDiscount, discountRequests, reviewDiscountRequest, auditEvents, backups,
     configured, connected, pendingCount: () => pendingSales().length, status: () => currentStatus, config: () => config
   };
 })();
