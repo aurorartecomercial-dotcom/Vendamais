@@ -278,6 +278,50 @@ window.VendaMaisCloud = (() => {
       return remaining.length === 0;
     } finally { flushing = false; }
   }
+  async function createFiscalRecord(sale, issuer, operationLocation) {
+    if (!connected()) throw new Error('Inicie sessão online para criar o registo interno do documento.');
+    if (!sale?.id || !sale?.reference) throw new Error('A venda não contém uma referência válida.');
+    // Idempotência: uma venda só pode ter um registo fiscal interno.
+    const existing = await client.from('fiscal_document_records')
+      .select('id, internal_reference, lifecycle_status, integrity_hash, sealed_at')
+      .eq('company_id', companyId).eq('sale_id', String(sale.id)).maybeSingle();
+    if (existing.error) throw existing.error;
+    if (existing.data) {
+      if (!existing.data.integrity_hash || !existing.data.sealed_at) throw new Error('O registo existe, mas não tem hash/selo da Etapa 3. Confirme se a migração de integridade foi aplicada correctamente.');
+      return { ...existing.data, existing: true };
+    }
+    const customer = sale.customer || {};
+    const items = Array.isArray(sale.items) ? sale.items : [];
+    const tax = Number(sale.tax || 0);
+    const total = Number(sale.total || 0);
+    const record = {
+      company_id: companyId,
+      sale_id: String(sale.id),
+      internal_reference: String(sale.reference),
+      document_type: String(sale.documentType || 'Documento comercial'),
+      lifecycle_status: 'internal_preview',
+      issue_datetime: sale.date || new Date().toISOString(),
+      currency_code: 'AOA',
+      issuer_snapshot: clone(issuer || {}),
+      customer_snapshot: clone(customer),
+      lines_snapshot: items.map(item => ({
+        product_id: String(item.productId || ''), name: String(item.name || ''),
+        quantity: Number(item.quantity || 0), unit_price: Number(item.price || 0),
+        discount_percent: Number(item.discountPct || 0), discount_value: Number(item.discountValue || 0),
+        line_total: Number(item.total ?? (Number(item.price || 0) * Number(item.quantity || 0) - Number(item.discountValue || 0)))
+      })),
+      tax_summary: [{ code: 'UNCLASSIFIED_INTERNAL', rate: Number(sale.taxRate || 0), taxable_base: Number((total - tax).toFixed(2)), tax_amount: tax, note: 'Classificação provisória; confirmar enquadramento fiscal oficial.' }],
+      totals_snapshot: { subtotal: Number(sale.subtotal || 0), discount: Number(sale.discountValue || 0), tax, total, amount_paid: Number(sale.amountPaid || 0), balance_due: Number(sale.balanceDue || 0) },
+      operation_location_snapshot: clone(operationLocation || { name: 'Local não definido' }),
+      payment_snapshot: { method: String(sale.payment || ''), status: String(sale.paymentStatus || ''), amount_received: Number(sale.amountReceived || 0), change: Number(sale.change || 0) },
+      source_snapshot: { application: 'VendaMais', sale_reference: String(sale.reference), source_sale_id: String(sale.id), schema_version: 'vendamais-fiscal-data-1.0', purpose: 'internal_preparation_only' }
+    };
+    const created = await client.from('fiscal_document_records').insert(record)
+      .select('id, internal_reference, lifecycle_status, integrity_hash, sealed_at').single();
+    if (created.error) throw created.error;
+    if (!created.data?.integrity_hash || !created.data?.sealed_at) throw new Error('O registo foi criado, mas o servidor não devolveu hash/selo. Verifique os triggers da Etapa 3 antes de continuar.');
+    return { ...created.data, existing: false };
+  }
   async function updateSale(sale) {
     if (!connected()) return { ok: true, localOnly: true };
     if (navigator.onLine === false) {
@@ -403,7 +447,7 @@ window.VendaMaisCloud = (() => {
   }
   return {
     setHooks(nextHooks) { hooks = { ...hooks, ...nextHooks }; hooks.onStatus?.(currentStatus); },
-    configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, flushPendingSales,
+    configure, prepare, signIn, bootstrap, signOut, clearConfig, scheduleSave, saveNow, recordSale, updateSale, createFiscalRecord, flushPendingSales,
     resetPassword, clearBusinessData, resetFinancialDiary, requestAccess, inviteStaff, invitations, accessRequests, reviewAccess, requestDiscount, discountRequests, reviewDiscountRequest, auditEvents, backups,
     configured, connected, pendingCount: () => pendingSales().length, status: () => currentStatus, config: () => config
   };
