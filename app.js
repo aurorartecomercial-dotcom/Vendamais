@@ -1385,8 +1385,100 @@ function receivePaymentModal(customer) {
   form.elements.saleId.addEventListener('change', () => { const sale = data.sales.find(item => item.id === form.elements.saleId.value); form.elements.amount.value = saleBalanceDue(sale).toFixed(2); });
   form.addEventListener('submit', event => { event.preventDefault(); const values = Object.fromEntries(new FormData(form).entries()); const sale = data.sales.find(item => item.id === values.saleId); const amount = roundMoney(Number(values.amount)); if (!sale || !Number.isFinite(amount) || amount <= 0) return notify('Introduza um valor válido.'); if (amount > saleBalanceDue(sale) + 0.001) return notify('O valor é superior ao saldo deste documento.'); const cashSession = values.payment === 'Dinheiro' ? data.cashSessions.find(item => item.status === 'Aberto' && item.userId === currentUser.id && item.locationId === sale.locationId) : null; if (values.payment === 'Dinheiro' && !cashSession) return notify('Abra o seu caixa na loja desta venda antes de receber em dinheiro.'); const snapshot = captureDataSnapshot(); sale.amountPaid = roundMoney(Number(sale.amountPaid || 0) + amount); sale.balanceDue = roundMoney(Math.max(0, saleBalanceDue(sale) - amount)); sale.paymentStatus = sale.balanceDue === 0 ? 'Pago' : 'Parcial'; sale.settlementIntegrityWarning = false; const receipt = { id: uid('receipt'), saleId: sale.id, customerId: customer.id, userId: currentUser.id, cashSessionId: cashSession?.id || '', date: `${values.date}T12:00:00`, amount, payment: values.payment, note: values.note.trim() }; data.receipts.push(receipt); postFinancialEntry({ idempotencyKey: `receipt:${receipt.id}`, sourceType: 'receipt', sourceId: receipt.id, eventType: 'Recebimento de cliente', category: 'Liquidação de cliente', description: receipt.note || `Recebimento ${sale.reference}`, amount, date: receipt.date, locationId: sale.locationId, cashImpact: amount, receivableImpact: -amount, payment: values.payment }); audit('Recebimento registado', `${sale.reference} · ${money(amount)} · ${values.payment}`); if (!persistOrRollback(snapshot, false)) return; window.VendaMaisCloud?.updateSale(sale).then(result => { if (result?.queued) notify('Recebimento guardado localmente; sincronização online pendente.'); }); closeModal(); notify(`Recebimento de ${money(amount)} registado.`); renderAll(); });
 }
+function amountInWordsPt(value) {
+  const units = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+  const teens = ['dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezasseis', 'dezassete', 'dezoito', 'dezanove'];
+  const tens = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+  const hundreds = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+  const underThousand = number => {
+    if (number === 0) return '';
+    if (number === 100) return 'cem';
+    const parts = [];
+    const h = Math.floor(number / 100), rest = number % 100;
+    if (h) parts.push(hundreds[h]);
+    if (rest >= 10 && rest < 20) parts.push(teens[rest - 10]);
+    else {
+      const t = Math.floor(rest / 10), u = rest % 10;
+      if (t) parts.push(tens[t]);
+      if (u) parts.push(units[u]);
+    }
+    return parts.join(' e ');
+  };
+  const integerWords = number => {
+    if (!Number.isFinite(number) || number < 0 || number > 999999999) return String(number);
+    if (number === 0) return 'zero';
+    const millions = Math.floor(number / 1000000);
+    const thousands = Math.floor((number % 1000000) / 1000);
+    const remainder = number % 1000;
+    const parts = [];
+    if (millions) parts.push(`${millions === 1 ? 'um milhão' : `${underThousand(millions)} milhões`}`);
+    if (thousands) parts.push(`${thousands === 1 ? 'mil' : `${underThousand(thousands)} mil`}`);
+    if (remainder) parts.push(underThousand(remainder));
+    return parts.join(' e ');
+  };
+  const centsValue = Math.round((Number(value) || 0) * 100);
+  const kwanzas = Math.floor(centsValue / 100);
+  const cents = centsValue % 100;
+  const whole = `${integerWords(kwanzas)} ${kwanzas === 1 ? 'kwanza' : 'kwanzas'}`;
+  return cents ? `${whole} e ${integerWords(cents)} ${cents === 1 ? 'cêntimo' : 'cêntimos'}` : whole;
+}
+
 function printReceipt(sale) {
-  const customer = saleCustomer(sale); const clientDetails = `${escapeHtml(customer.name)}${customer.type && customer.type !== 'Consumidor final' ? `<br><small>${escapeHtml(customer.type)}${customer.nif ? ` · NIF: ${escapeHtml(customer.nif)}` : ''}</small>` : ''}${customer.address ? `<br><small>${escapeHtml(customer.address)}</small>` : ''}`; const win = window.open('', '_blank', 'width=420,height=700'); if (!win) return; win.document.write(`<!doctype html><html><head><title>${escapeHtml(sale.documentType || 'Recibo')} ${sale.reference}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#222;font-size:13px}.head{text-align:center;border-bottom:1px dashed #999;padding-bottom:13px}.head h2{margin:0 0 6px}table{width:100%;border-collapse:collapse;margin:17px 0}td{padding:6px 0;border-bottom:1px solid #eee}.right{text-align:right}.total{font-size:17px;font-weight:bold;border-top:2px solid #222;padding-top:9px;margin-top:8px}.foot{text-align:center;color:#666;margin-top:26px;font-size:11px}@media print{button{display:none}}</style></head><body><div class="head"><h2>${escapeHtml(data.settings.company)}</h2><div>NIF: ${escapeHtml(data.settings.nif || '—')}</div><div>${escapeHtml(data.settings.address || '')}</div></div><p><b>${escapeHtml(sale.documentType || 'Recibo')}:</b> ${escapeHtml(sale.reference)}<br><b>Data:</b> ${fullDate(sale.date)}<br><b>Cliente:</b><br>${clientDetails}</p><table>${sale.items.map(item => `<tr><td>${escapeHtml(item.name)}<br><small>${number(item.quantity)} × ${money(item.price)}</small></td><td class="right">${money(item.quantity * item.price)}</td></tr>`).join('')}</table><div>Subtotal <span style="float:right">${money(sale.subtotal)}</span></div>${sale.discountValue ? `<div>Desconto <span style="float:right">− ${money(sale.discountValue)}</span></div>` : ''}<div>IVA <span style="float:right">${money(sale.tax)}</span></div><div class="total">TOTAL <span style="float:right">${money(sale.total)}</span></div><p>Pagamento: <b>${escapeHtml(sale.payment)}</b><br>Estado: <b>${escapeHtml(sale.paymentStatus || 'Pago')}</b>${saleBalanceDue(sale) ? `<br>Saldo por pagar: <b>${money(saleBalanceDue(sale))}</b>${sale.dueDate ? `<br>Vencimento: ${shortDate(sale.dueDate)}` : ''}` : ''}${sale.change ? `<br>Troco: <b>${money(sale.change)}</b>` : ''}</p><div class="foot">Documento gerado pelo VendaMais. Confirme os requisitos fiscais aplicáveis antes da emissão oficial.<br>Obrigado pela sua preferência.</div><button onclick="window.print()">Imprimir documento</button></body></html>`); win.document.close(); }
+  const customer = saleCustomer(sale);
+  const location = data.locations.find(item => item.id === sale.locationId);
+  const date = new Date(sale.date);
+  const dateTime = Number.isNaN(date.getTime()) ? fullDate(sale.date) : `${date.toLocaleDateString('pt-AO')} ${date.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })}`;
+  const clientDetails = `${escapeHtml(customer.name)}${customer.nif ? `<br><small>NIF: ${escapeHtml(customer.nif)}</small>` : ''}${customer.address ? `<br><small>${escapeHtml(customer.address)}</small>` : ''}`;
+  const taxRate = Number(sale.taxRate ?? data.settings.taxRate ?? 0);
+  const taxDescription = Number(sale.tax || 0) > 0
+    ? `IVA (${number(taxRate)}%)`
+    : `IVA (${number(taxRate)}%)`;
+  const taxReason = Number(sale.tax || 0) === 0
+    ? '<div class="fiscal-missing"><b>Motivo de não liquidação do IVA:</b> NÃO CONFIGURADO. Indicar o fundamento legal aplicável antes de qualquer emissão fiscal.</div>'
+    : '';
+  const items = (sale.items || []).map(item => `<tr><td>${escapeHtml(item.name)}<br><small>${number(item.quantity)} × ${money(item.price)}</small></td><td class="right">${money(item.quantity * item.price)}</td></tr>`).join('');
+  const win = window.open('', '_blank', 'width=480,height=760');
+  if (!win) return;
+  win.document.write(`<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pré-visualização ${escapeHtml(sale.reference)}</title><style>
+    body{font-family:Arial,sans-serif;padding:24px;color:#222;font-size:13px;max-width:720px;margin:auto}
+    .warning{border:2px solid #a33;color:#922;text-align:center;font-weight:bold;padding:10px;margin-bottom:16px}
+    .head{text-align:center;border-bottom:1px dashed #999;padding-bottom:13px}.head h2{margin:0 0 6px}
+    .meta{line-height:1.55}table{width:100%;border-collapse:collapse;margin:17px 0}td{padding:6px 0;border-bottom:1px solid #eee;vertical-align:top}
+    .right{text-align:right;white-space:nowrap}.total{font-size:17px;font-weight:bold;border-top:2px solid #222;padding-top:9px;margin-top:8px}
+    .words{margin-top:9px;font-size:12px}.fiscal-missing{margin-top:9px;padding:8px;border:1px solid #b88;background:#fff8e8}
+    .foot{text-align:center;color:#666;margin-top:22px;font-size:11px}
+    button{margin-top:14px}@media print{button{display:none}body{padding:8mm}.warning{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body>
+    <div class="warning">DOCUMENTO NÃO VALIDADO PELA AGT — SEM VALIDADE FISCAL</div>
+    <div class="head"><h2>${escapeHtml(data.settings.company || 'Empresa')}</h2>
+      <div>NIF: ${escapeHtml(data.settings.nif || 'NÃO CONFIGURADO')}</div>
+      <div>${escapeHtml(data.settings.address || 'Morada não configurada')}</div>
+      ${data.settings.phone ? `<div>Telefone: ${escapeHtml(data.settings.phone)}</div>` : ''}
+      ${data.settings.email ? `<div>${escapeHtml(data.settings.email)}</div>` : ''}
+    </div>
+    <p class="meta"><b>Pré-visualização de ${escapeHtml(sale.documentType || 'documento')}</b><br>
+      <b>Referência interna:</b> ${escapeHtml(sale.reference || '—')}<br>
+      <b>Data e hora:</b> ${escapeHtml(dateTime)}<br>
+      <b>Local da operação:</b> ${escapeHtml(location?.address || location?.name || 'NÃO CONFIGURADO')}<br>
+      <b>Cliente:</b><br>${clientDetails}
+    </p>
+    <table><tbody>${items}</tbody></table>
+    <div>Subtotal <span class="right" style="float:right">${money(sale.subtotal)}</span></div>
+    ${sale.discountValue ? `<div>Desconto <span class="right" style="float:right">− ${money(sale.discountValue)}</span></div>` : ''}
+    <div>${taxDescription} <span class="right" style="float:right">${money(sale.tax)}</span></div>
+    ${taxReason}
+    <div class="total">TOTAL <span class="right" style="float:right">${money(sale.total)}</span></div>
+    <div class="words"><b>Total por extenso:</b> ${escapeHtml(amountInWordsPt(sale.total))}</div>
+    <p>Pagamento: <b>${escapeHtml(sale.payment || '—')}</b><br>
+      Estado: <b>${escapeHtml(sale.paymentStatus || 'Pago')}</b>
+      ${saleBalanceDue(sale) ? `<br>Saldo por pagar: <b>${money(saleBalanceDue(sale))}</b>${sale.dueDate ? `<br>Vencimento: ${shortDate(sale.dueDate)}` : ''}` : ''}
+      ${sale.change ? `<br>Troco: <b>${money(sale.change)}</b>` : ''}
+    </p>
+    <div class="foot">Documento interno de demonstração/gestão emitido pelo VendaMais. Não substitui factura fiscal emitida por software validado pela AGT.<br>Não contém série fiscal autorizada, assinatura digital nem código hash fiscal.</div>
+    <button onclick="window.print()">Imprimir pré-visualização</button>
+  </body></html>`);
+  win.document.close();
+}
 
 function xmlEscape(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]); }
 function excelColumn(index) { let column = ''; for (let current = index + 1; current; current = Math.floor((current - 1) / 26)) column = String.fromCharCode(65 + (current - 1) % 26) + column; return column; }
