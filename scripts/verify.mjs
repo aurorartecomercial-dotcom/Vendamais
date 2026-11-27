@@ -9,6 +9,8 @@ const requiredFiles = [
   'app.js',
   'cloud.js',
   'finance-core.js',
+  'saft-preparation.js',
+  'pgca-mapping.js',
   'supabase-config.js',
   'README.md',
   'LICENSE',
@@ -24,6 +26,8 @@ const requiredFiles = [
   'supabase/2026-11-discount-approval.sql',
   'supabase/2026-11-erp-modular-access-restaurant.sql',
   'tests/finance.test.mjs',
+  'tests/saft-preparation.test.mjs',
+  'tests/pgca-mapping.test.mjs',
   'tests/erp-modular.test.mjs'
 ];
 const requiredInterfaceIds = [
@@ -80,7 +84,10 @@ const requiredFunctions = [
   'sellerRollup',
   'productPerformance',
   'previousPeriod',
-  'reportTrendHtml'
+  'reportTrendHtml',
+  'renderSaftPreparation',
+  'buildSaftDiagnostic',
+  'exportSaftDiagnostic'
 ];
 
 const failures = [];
@@ -109,6 +116,7 @@ if (!financeCore.includes('summarizeJournal')) failures.push('Resumo de impactos
 
 if (!html.includes('data-nav-group="operations"') || !html.includes('data-nav-group="management"') || !html.includes('data-nav-group="analysis"') || !html.includes('data-nav-group="administration"')) failures.push('Separação estrutural da navegação por áreas incompleta.');
 if (!app.includes('const navigationGroups = {') || !app.includes("administration: ['admin', 'settings']")) failures.push('Visibilidade das áreas de navegação por perfil incompleta.');
+if (!html.includes('pgca-mapping.js') || !html.includes('id="pgcaMappingTable"') || !app.includes('function savePgcaMapping')) failures.push('Gestão de mapeamento PGCA em falta.');
 if (!html.includes('finance-core.js')) failures.push('Núcleo de cálculos financeiros não carregado.');
 for (const fn of ['calculateSaleTotals', 'validateSettlement', 'prorateMonthlyCost', 'hasActualFixedExpense', 'weightedAverageCost']) if (!financeCore.includes(fn)) failures.push(`Cálculo financeiro essencial em falta: ${fn}`);
 if (!financialSql.includes('create or replace function public.record_vendamais_sale')) failures.push('Migração de integridade financeira do servidor em falta.');

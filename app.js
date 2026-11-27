@@ -1111,6 +1111,62 @@ function renderReports() {
     const fiscalDisclaimer = $('#fiscalReportDisclaimer');
     if (fiscalDisclaimer) fiscalDisclaimer.textContent = fiscalReport.disclaimer;
   }
+  renderSaftPreparation(start, end, locationFilter);
+}
+function buildSaftDiagnostic(start, end, locationFilter = 'all') {
+  const postings = window.VendaMaisAccounting?.buildLedger(data, { start, end, locationId: locationFilter }) || [];
+  const settings = data.settings || {};
+  const accountMappings = window.VendaMaisPgcaMapping?.analyze(window.VendaMaisAccounting?.ACCOUNTS || []) || null;
+  return window.VendaMaisSaftPreparation?.analyze({ company: settings.company, nif: settings.nif, address: settings.address, phone: settings.phone, start, end, postings, accountMappings }) || null;
+}
+function renderSaftPreparation(start, end, locationFilter) {
+  const result = buildSaftDiagnostic(start, end, locationFilter);
+  const metrics = $('#saftDiagnosticMetrics'), checks = $('#saftDiagnosticChecks');
+  if (!result || !metrics || !checks) return;
+  metrics.innerHTML = [
+    ['Movimentos analisados', String(result.totals.postings), 'Lançamentos derivados do diário financeiro'],
+    ['Débitos', money(result.totals.debit), 'Total calculado no período'],
+    ['Créditos', money(result.totals.credit), 'Total calculado no período'],
+    ['Pendências impeditivas', String(result.totals.blockers), 'Ainda não pronto para exportação oficial']
+  ].map(([label, value, hint]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span></div><div class="value">${value}</div><div class="hint">${hint}</div></article>`).join('');
+  checks.innerHTML = result.checks.map(item => `<div class="summary-row"><span><b>${escapeHtml(item.label)}</b><small class="muted" style="display:block;margin-top:3px">${escapeHtml(item.detail)}</small></span><strong class="status ${item.ok ? 'completed' : (item.severity === 'warning' ? 'pending' : 'danger')}">${item.ok ? 'Verificado' : (item.severity === 'warning' ? 'Atenção' : 'Pendente')}</strong></div>`).join('');
+  renderPgcaMapping();
+}
+function renderPgcaMapping() {
+  const engine = window.VendaMaisPgcaMapping, accounts = window.VendaMaisAccounting?.ACCOUNTS || [];
+  const table = $('#pgcaMappingTable'), metrics = $('#pgcaMappingMetrics');
+  if (!engine || !table || !metrics) return;
+  const result = engine.analyze(accounts);
+  metrics.innerHTML = [
+    ['Contas internas', String(result.total), 'Contas usadas pelo motor contabilístico'],
+    ['Com código PGCA', String(result.mapped), 'Código preenchido e com formato válido'],
+    ['Revistas', String(result.reviewed), 'Marcadas como confirmadas pelo contabilista'],
+    ['Por mapear', String(result.missing), 'Ainda sem código PGCA']
+  ].map(([label, value, hint]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span></div><div class="value">${value}</div><div class="hint">${hint}</div></article>`).join('');
+  table.innerHTML = result.rows.map(row => `<tr><td><b>${escapeHtml(row.internalCode)}</b><br><small>${escapeHtml(row.internalName)}</small></td><td><input class="pgca-map-code" data-internal-code="${escapeHtml(row.internalCode)}" value="${escapeHtml(row.officialCode)}" placeholder="Código PGCA" aria-label="Código PGCA para ${escapeHtml(row.internalCode)}"></td><td><input class="pgca-map-parent" data-internal-code="${escapeHtml(row.internalCode)}" value="${escapeHtml(row.parentCode)}" placeholder="Conta agregadora" aria-label="Conta agregadora para ${escapeHtml(row.internalCode)}"></td><td><label><input type="checkbox" class="pgca-map-reviewed" data-internal-code="${escapeHtml(row.internalCode)}" ${row.reviewed ? 'checked' : ''}> Confirmada</label></td></tr>`).join('');
+}
+function savePgcaMapping() {
+  const engine = window.VendaMaisPgcaMapping;
+  if (!engine) return notify('Módulo de mapeamento PGCA indisponível.');
+  const mapping = {};
+  $$('#pgcaMappingTable [data-internal-code]').forEach(field => {
+    const code = field.dataset.internalCode;
+    mapping[code] ||= {};
+    if (field.classList.contains('pgca-map-code')) mapping[code].officialCode = field.value.trim();
+    if (field.classList.contains('pgca-map-parent')) mapping[code].parentCode = field.value.trim();
+    if (field.classList.contains('pgca-map-reviewed')) mapping[code].reviewed = field.checked;
+  });
+  try { engine.save(mapping); renderReports(); notify('Mapeamento PGCA guardado neste navegador.'); }
+  catch (error) { notify(`Não foi possível guardar o mapeamento: ${error.message || 'erro local'}`); }
+}
+function exportSaftDiagnostic() {
+  const start = $('#reportStart')?.value || monthStart(), end = $('#reportEnd')?.value || dateISO(), locationFilter = $('#reportLocationFilter')?.value || 'all';
+  if (end < start) return notify('A data final deve ser igual ou posterior à data inicial.');
+  const result = buildSaftDiagnostic(start, end, locationFilter);
+  if (!result) return notify('Não foi possível preparar o diagnóstico SAF-T.');
+  const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json;charset=utf-8' });
+  download(`vendamais-diagnostico-saft-ao-${start}-${end}.json`, blob);
+  notify('Diagnóstico interno exportado. Este ficheiro JSON não é SAF-T (AO) nem pode ser submetido à AGT.');
 }
 function renderAccounting() {
   const start = $('#accountingStart'), end = $('#accountingEnd'), location = $('#accountingLocation');
@@ -1894,6 +1950,8 @@ document.addEventListener('click', event => {
   if (event.target.closest('#applyReport')) return renderReports();
   if (event.target.closest('#applyAccounting')) return renderAccounting();
   if (event.target.closest('#exportReport')) return exportReportExcel();
+  if (event.target.closest('#exportSaftDiagnostic')) return exportSaftDiagnostic();
+  if (event.target.closest('#savePgcaMapping')) return savePgcaMapping();
   if (event.target.closest('#backupData')) return backup();
   if (event.target.closest('#clearBusinessData')) return clearBusinessDataModal();
   if (event.target.closest('#resetDemo')) { if (!isAdministrator()) return notify('Apenas administradores podem repor dados de demonstração.'); if (confirm('Isto substitui todos os dados actuais pelos dados de demonstração. Continuar?')) { data = demoData(); currentUser = getSessionUser(); cart = []; sessionLocked = true; saveData(); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderAll(); notify('Dados de demonstração repostos.'); accountModal(); } return; }

@@ -190,7 +190,7 @@
         <div class="section-head"><div><h2>Balanço e relatórios</h2><p>Resultados claros, com a origem de cada cálculo visível no período seleccionado.</p></div><button class="btn secondary" id="exportReport">⇩ Exportar relatório Excel</button></div>
         <div class="report-filters panel"><label>De <input type="date" id="reportStart" /></label><label>Até <input type="date" id="reportEnd" /></label><label>Loja / visão geral<select id="reportLocationFilter"><option value="all">Todas as lojas</option></select></label><button class="btn primary" id="applyReport">Actualizar</button></div>
         <p class="report-period" id="reportPeriodLabel" aria-live="polite"></p>
-        <nav class="report-tabs" aria-label="Secções do balanço"><button class="report-tab active" type="button" data-report-tab="overview">Visão geral</button><button class="report-tab" type="button" data-report-tab="stores">Por loja</button><button class="report-tab" type="button" data-report-tab="sales">Vendas</button><button class="report-tab" type="button" data-report-tab="expenses">Despesas</button><button class="report-tab" type="button" data-report-tab="finance">Demonstração financeira</button><button class="report-tab" type="button" data-report-tab="journal">Diário financeiro</button><button class="report-tab" type="button" data-report-tab="products">Produtos</button><button class="report-tab" type="button" data-report-tab="sellers">Vendedores</button><button class="report-tab" type="button" data-report-tab="fiscal">Resumo fiscal</button></nav>
+        <nav class="report-tabs" aria-label="Secções do balanço"><button class="report-tab active" type="button" data-report-tab="overview">Visão geral</button><button class="report-tab" type="button" data-report-tab="stores">Por loja</button><button class="report-tab" type="button" data-report-tab="sales">Vendas</button><button class="report-tab" type="button" data-report-tab="expenses">Despesas</button><button class="report-tab" type="button" data-report-tab="finance">Demonstração financeira</button><button class="report-tab" type="button" data-report-tab="journal">Diário financeiro</button><button class="report-tab" type="button" data-report-tab="products">Produtos</button><button class="report-tab" type="button" data-report-tab="sellers">Vendedores</button><button class="report-tab" type="button" data-report-tab="fiscal">Resumo fiscal</button><button class="report-tab" type="button" data-report-tab="saft">SAF-T (AO)</button></nav>
         <div class="report-pane active" data-report-pane="overview">
           <div class="metric-grid" id="reportMetrics"></div>
           <div class="report-quality-warning" id="reportQuality" hidden role="status"></div>
@@ -214,6 +214,19 @@
           <article class="panel report-panel"><div class="panel-head"><div><h3>Resumo por enquadramento interno</h3><p>Consolidação das classificações gravadas nas linhas das vendas do período.</p></div></div><div class="table-wrap"><table><thead><tr><th>Classificação interna</th><th>Taxa (%)</th><th>Linhas</th><th>Quantidade</th><th>Base estimada (Kz)</th><th>Imposto estimado (Kz)</th><th>Estado</th></tr></thead><tbody id="fiscalReportTable"></tbody></table></div></article>
           <p class="report-help" id="fiscalReportDisclaimer"></p>
         </div>
+        <div class="report-pane" data-report-pane="saft" hidden>
+          <article class="panel report-panel">
+            <div class="panel-head"><div><h3>Diagnóstico de preparação SAF-T (AO) — Contabilidade</h3><p>Verificações internas dos dados e movimentos do período seleccionado.</p></div><button class="btn secondary" id="exportSaftDiagnostic" type="button">⇩ Exportar diagnóstico JSON</button></div>
+            <div class="metric-grid compact" id="saftDiagnosticMetrics"></div>
+            <div id="saftDiagnosticChecks" class="summary-list" aria-live="polite"></div>
+            <hr>
+            <div class="panel-head"><div><h3>Mapeamento de contas para o PGCA</h3><p>Introduza os códigos oficiais e a conta agregadora após confirmação do contabilista. Os campos começam vazios intencionalmente.</p></div><button class="btn primary" id="savePgcaMapping" type="button">Guardar mapeamento</button></div>
+            <div class="metric-grid compact" id="pgcaMappingMetrics"></div>
+            <div class="table-wrap"><table><thead><tr><th>Conta interna VendaMais</th><th>Código PGCA</th><th>Conta agregadora</th><th>Revisão contabilística</th></tr></thead><tbody id="pgcaMappingTable"></tbody></table></div>
+            <p class="report-help">O mapeamento é guardado neste navegador. Ainda não é sincronizado entre utilizadores/dispositivos. Não foram sugeridos códigos oficiais automaticamente para evitar classificações contabilísticas incorrectas.</p>
+            <p class="report-help">A exportação desta etapa é somente um diagnóstico JSON. Não gera o XML SAF-T (AO), não valida o XSD e não constitui autorização ou submissão à AGT. O Decreto Executivo n.º 317/20 define a estrutura do SAF-T de contabilidade, incluindo cabeçalho, tabelas mestres e movimentos contabilísticos.</p>
+          </article>
+        </div>
         <div class="report-pane" data-report-pane="sellers" hidden><div class="seller-filter panel"><label>Vendedor<select id="sellerReportFilter"><option value="all">Todos os vendedores</option></select></label><p>Escolha um vendedor para consultar exactamente o que vendeu por dia e por mês.</p></div><div class="metric-grid" id="sellerMetrics"></div><article class="panel report-panel"><div class="panel-head"><div><h3>Resumo por vendedor</h3><p>Faturação e valor médio apenas das vendas concluídas.</p></div></div><div class="table-wrap"><table><thead><tr><th>Vendedor</th><th>Vendas</th><th>Faturação c/ IVA</th><th>Média por venda</th><th>Por receber</th></tr></thead><tbody id="sellerPerformanceTable"></tbody></table></div></article><div class="seller-report-grid"><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas por dia</h3><p>Fecho diário por vendedor.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Vendedor</th><th>Vendas</th><th>Faturação</th><th>Média</th></tr></thead><tbody id="sellerDailyTable"></tbody></table></div></article><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas por mês</h3><p>Consolidação mensal por vendedor.</p></div></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Vendedor</th><th>Vendas</th><th>Faturação</th><th>Média</th></tr></thead><tbody id="sellerMonthlyTable"></tbody></table></div></article></div></div>
       </section>
 
@@ -230,9 +243,11 @@
   <script src="fiscal-validation.js"></script>
   <script src="fiscal-preview.js"></script>
   <script src="fiscal-report.js"></script>
+  <script src="saft-preparation.js"></script>
   <script src="cloud.js"></script>
   <script src="finance-core.js"></script>
   <script src="accounting-core.js"></script>
+  <script src="pgca-mapping.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
