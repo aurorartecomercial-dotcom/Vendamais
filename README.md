@@ -187,3 +187,6 @@ Na área **Balanço & relatórios → SAF-T (AO)** pode exportar o diário conta
 
 ### Etapa 13 — Saldos de abertura
 O módulo de contabilidade permite registar saldos de abertura por exercício e calcular um balancete acumulado. Nesta versão os saldos ficam guardados localmente no navegador; não são sincronizados com Supabase. Consulte `docs/ETAPA-13-SALDOS-ABERTURA-BALANCETE.md`.
+
+### Etapa 14 — Encerramento do exercício
+O módulo Contabilidade inclui uma preparação assistida do encerramento anual: calcula rendimentos, gastos e resultado, e prepara saldos de abertura do exercício seguinte após confirmação. A ferramenta exige saldos iniciais equilibrados e valida os lançamentos. Os dados ficam no navegador; não é um fecho oficial, não bloqueia períodos e requer revisão por contabilista certificado. Consulte `docs/ETAPA-14-ENCERRAMENTO-EXERCICIO.md`.

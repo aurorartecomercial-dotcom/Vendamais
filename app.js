@@ -1253,6 +1253,36 @@ function clearOpeningBalances() {
   renderAccounting();
 }
 
+function buildFiscalYearClose() {
+  const year = Number($('#openingBalanceYear')?.value);
+  if (!Number.isInteger(year) || year < 2000 || year > 2099) return null;
+  const engine = window.VendaMaisAccounting, closeEngine = window.VendaMaisFiscalYearClose;
+  if (!engine || !closeEngine) return null;
+  const openingRows = readOpeningBalances(year);
+  const postings = engine.buildLedger(data, { start: `${year}-01-01`, end: `${year}-12-31`, locationId: 'all' });
+  return closeEngine.prepare({ year, accounts: engine.ACCOUNTS, openingRows, postings });
+}
+function renderFiscalYearClose() {
+  const host = $('#fiscalYearCloseSummary');
+  if (!host) return;
+  const result = buildFiscalYearClose();
+  if (!result) { host.textContent = 'Seleccione um exercício válido para analisar o encerramento.'; return; }
+  const fmt = value => money(value);
+  host.innerHTML = `<b>Exercício ${result.year}</b> · Rendimentos: ${fmt(result.revenue)} · Gastos: ${fmt(result.expenses)} · <b>${result.resultType}: ${fmt(Math.abs(result.result))}</b><br>Movimentos: ${result.postings} · Próximo exercício: ${result.nextYear} · Saldos preparados: ${fmt(result.nextDebit)} D / ${fmt(result.nextCredit)} C<br>${result.errors.length ? `<span class="text-danger">${result.errors.map(escapeHtml).join(' ')}</span>` : 'Pré-validação concluída; confirme os avisos antes de gravar.'}${result.warnings.length ? `<br>Atenção: ${result.warnings.map(escapeHtml).join(' ')}` : ''}`;
+  const button = $('#prepareFiscalYearClose'); if (button) button.disabled = !result.valid;
+}
+function prepareFiscalYearClose() {
+  const result = buildFiscalYearClose();
+  if (!result?.valid) return notify(result?.errors?.join(' ') || 'Não foi possível preparar o encerramento.');
+  if (result.warnings.length && !confirm(`Existem avisos: ${result.warnings.join(' ')} Continuar?`)) return;
+  const nextKey = openingBalanceStorageKey(result.nextYear);
+  if (localStorage.getItem(nextKey) && !confirm(`Já existem saldos de abertura para ${result.nextYear}. Substituir esses saldos por esta preparação?`)) return;
+  localStorage.setItem(nextKey, JSON.stringify({ year: result.nextYear, rows: result.nextOpeningRows, savedAt: new Date().toISOString(), source: 'encerramento-assistido', sourceYear: result.year }));
+  const status = $('#fiscalYearCloseStatus');
+  if (status) status.textContent = `Saldos de abertura de ${result.nextYear} preparados neste navegador. O exercício ${result.year} não foi bloqueado nem alterado; valide o resultado e os lançamentos com o contabilista.`;
+  notify(`Saldos de abertura de ${result.nextYear} preparados.`);
+}
+
 function renderAccounting() {
   const start = $('#accountingStart'), end = $('#accountingEnd'), location = $('#accountingLocation');
   if (!start || !end || !location || !window.VendaMaisAccounting) return;
@@ -1292,6 +1322,7 @@ function renderAccounting() {
   const trialBody=$('#accountingTrialTable'); if(trialBody) trialBody.innerHTML=trial.length?trial.map(a=>`<tr><td>${escapeHtml(a.code)}</td><td><b>${escapeHtml(a.name)}</b></td><td class="money">${fmt(a.openingDebit)}</td><td class="money">${fmt(a.openingCredit)}</td><td class="money">${fmt(a.movementDebit)}</td><td class="money">${fmt(a.movementCredit)}</td><td class="money">${fmt(a.closingDebit)}</td><td class="money">${fmt(a.closingCredit)}</td></tr>`).join(''):emptyRow(8,'Sem movimentos ou saldos de abertura neste período.');
   const totals=accumulatedTrial.totals||{};
   const trialTotals=$('#accountingTrialTotals'); if(trialTotals) trialTotals.innerHTML=`Abertura: <b>${fmt(totals.openingDebit||0)}</b> D / <b>${fmt(totals.openingCredit||0)}</b> C · Movimentos: <b>${fmt(totals.movementDebit||0)}</b> D / <b>${fmt(totals.movementCredit||0)}</b> C · Fecho: <b>${fmt(totals.closingDebit||0)}</b> D / <b>${fmt(totals.closingCredit||0)}</b> C. ${totals.closingBalanced?'Balancete equilibrado.':'Diferença a verificar.'} ${openingScopeValid && openingValidation?.valid?'':'Saldos iniciais não aplicados.'}`;
+  renderFiscalYearClose();
   const assets=positionBalances.filter(a=>['11','12','22','31.1','41.1','42.1'].includes(a.code)).map(a=>({...a,value:Math.max(0,a.balance)}));
   const liabilities=positionBalances.filter(a=>['32.1','34.1','51.1'].includes(a.code)).map(a=>({...a,value:Math.max(0,-a.balance)}));
   const assetsTotal=roundMoney(assets.reduce((s,a)=>s+a.value,0)); const liabilitiesTotal=roundMoney(liabilities.reduce((s,a)=>s+a.value,0));
@@ -2051,6 +2082,7 @@ document.addEventListener('click', event => {
   if (event.target.closest('#applyAccounting')) return renderAccounting();
   if (event.target.closest('#saveOpeningBalances')) return saveOpeningBalances();
   if (event.target.closest('#clearOpeningBalances')) return clearOpeningBalances();
+  if (event.target.closest('#prepareFiscalYearClose')) return prepareFiscalYearClose();
   if (event.target.closest('#exportReport')) return exportReportExcel();
   if (event.target.closest('#exportSaftDiagnostic')) return exportSaftDiagnostic();
   if (event.target.closest('#exportSaftXmlBlueprint')) return exportSaftXmlBlueprint();

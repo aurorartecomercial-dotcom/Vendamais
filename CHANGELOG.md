@@ -354,3 +354,10 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 
 ## Etapa 13
 - Adicionados saldos de abertura por exercício, validação de equilíbrio e balancete acumulado com saldos iniciais, movimentos e saldos finais.
+
+## Etapa 14 — Encerramento do exercício
+- Adicionado motor auxiliar de apuramento anual e preparação de saldos para o exercício seguinte.
+- Incluída validação dos saldos de abertura e dos lançamentos contabilísticos.
+- Transferência do resultado anual para a conta interna 88.1 e reinício das contas de rendimentos/gastos nos saldos preparados.
+- A gravação do próximo exercício exige confirmação e alerta quando já existem saldos.
+- Preparação local, sem bloqueio do exercício, sem lançamento definitivo e sem certificação fiscal.

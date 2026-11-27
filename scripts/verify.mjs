@@ -119,6 +119,7 @@ if (!html.includes('data-nav-group="operations"') || !html.includes('data-nav-gr
 if (!app.includes('const navigationGroups = {') || !app.includes("administration: ['admin', 'settings']")) failures.push('Visibilidade das áreas de navegação por perfil incompleta.');
 if (!html.includes('pgca-mapping.js') || !html.includes('id="pgcaMappingTable"') || !app.includes('function savePgcaMapping')) failures.push('Gestão de mapeamento PGCA em falta.');
 if (!html.includes('opening-balances.js') || !html.includes('id="openingBalancesTable"') || !app.includes('function saveOpeningBalances') || !app.includes('function openingBalanceStorageKey')) failures.push('Gestão de saldos de abertura por exercício em falta.');
+if (!html.includes('fiscal-year-close.js') || !html.includes('id="prepareFiscalYearClose"') || !app.includes('function buildFiscalYearClose') || !app.includes('function prepareFiscalYearClose')) failures.push('Encerramento anual e preparação de saldos seguintes em falta.');
 if (!html.includes('saft-xml-blueprint.js') || !html.includes('id="exportSaftXmlBlueprint"') || !app.includes('function exportSaftXmlBlueprint')) failures.push('Modelo XML SAF-T de estudo em falta.');
 if (!html.includes('finance-core.js')) failures.push('Núcleo de cálculos financeiros não carregado.');
 for (const fn of ['calculateSaleTotals', 'validateSettlement', 'prorateMonthlyCost', 'hasActualFixedExpense', 'weightedAverageCost']) if (!financeCore.includes(fn)) failures.push(`Cálculo financeiro essencial em falta: ${fn}`);

@@ -72,6 +72,7 @@
             <div class="table-wrap"><table><thead><tr><th>Conta</th><th>Designação</th><th>Saldo devedor (AOA)</th><th>Saldo credor (AOA)</th></tr></thead><tbody id="openingBalancesTable"></tbody></table></div><div id="openingBalancesStatus" class="accounting-total-row"></div>
           </article>
           <article class="panel"><div class="panel-head"><div><h3>Balancete acumulado</h3><p>Saldo de abertura + movimentos do período = saldo final por conta.</p></div></div><div class="table-wrap"><table><thead><tr><th>Código</th><th>Conta</th><th>Abertura D</th><th>Abertura C</th><th>Mov. D</th><th>Mov. C</th><th>Fecho D</th><th>Fecho C</th></tr></thead><tbody id="accountingTrialTable"></tbody></table></div><div id="accountingTrialTotals" class="accounting-total-row"></div></article>
+          <article class="panel"><div class="panel-head"><div><h3>Encerramento do exercício</h3><p>Apura o resultado anual, zera contas de rendimentos e gastos e prepara os saldos patrimoniais para o exercício seguinte. Não bloqueia nem apaga lançamentos.</p></div></div><div id="fiscalYearCloseSummary" class="accounting-total-row">Seleccione um exercício com saldos de abertura válidos para analisar o encerramento.</div><div class="form-actions"><button class="btn primary" id="prepareFiscalYearClose" type="button">Preparar saldos do próximo exercício</button></div><div id="fiscalYearCloseStatus" class="report-help">A preparação só grava os saldos de abertura do próximo ano depois de confirmar. Faça uma cópia de segurança e peça revisão ao contabilista.</div></article>
         </div>
         <div class="accounting-panel" data-account-panel="balance"><article class="panel"><div class="panel-head"><div><h3>Balanço patrimonial</h3><p>Posição patrimonial derivada dos movimentos contabilizados no VendaMais.</p></div></div><div class="accounting-report-grid"><div><h4>Activo</h4><div id="accountingAssets"></div></div><div><h4>Passivo e capital próprio</h4><div id="accountingLiabilities"></div></div></div><div id="accountingBalanceCheck" class="accounting-total-row"></div></article></div>
         <div class="accounting-panel" data-account-panel="income"><article class="panel"><div class="panel-head"><div><h3>Demonstração de resultados por natureza</h3><p>Rendimentos menos custos reconhecidos no período.</p></div></div><div id="accountingIncomeStatement"></div></article></div>
@@ -266,6 +267,7 @@
   <script src="saft-xml-blueprint.js"></script>
   <script src="saft-accounting-export.js"></script>
   <script src="opening-balances.js"></script>
+  <script src="fiscal-year-close.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
