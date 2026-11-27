@@ -338,3 +338,10 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Os campos são copiados para as linhas da venda e para os snapshots do registo interno.
 - A pré-validação alerta para artigos por classificar e possíveis isenções/não sujeições sem fundamento, e bloqueia taxas internas fora de 0–100%.
 - O cálculo do IVA no POS permanece inalterado; esta etapa não representa classificação fiscal oficial nem certificação AGT.
+
+## Etapa 11 — Modelo XML SAF-T (AO)
+- Adicionada pré-visualização e exportação de um modelo XML orientativo com namespace SAF-T AO 1.01_01.
+- O modelo inclui marcadores `PREENCHER` para os dados e elementos que ainda não existem ou não estão confirmados no VendaMais.
+- Incluídos avisos explícitos de que o modelo não é ficheiro oficial, não foi validado pelo XSD e não pode ser submetido à AGT.
+- Sem migração SQL.
+- Testes locais: 40 aprovados.

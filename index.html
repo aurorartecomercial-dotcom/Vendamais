@@ -224,6 +224,11 @@
             <div class="metric-grid compact" id="pgcaMappingMetrics"></div>
             <div class="table-wrap"><table><thead><tr><th>Conta interna VendaMais</th><th>Código PGCA</th><th>Conta agregadora</th><th>Revisão contabilística</th></tr></thead><tbody id="pgcaMappingTable"></tbody></table></div>
             <p class="report-help">O mapeamento é guardado neste navegador. Ainda não é sincronizado entre utilizadores/dispositivos. Não foram sugeridos códigos oficiais automaticamente para evitar classificações contabilísticas incorrectas.</p>
+            <hr>
+            <div class="panel-head"><div><h3>Modelo de estrutura XML SAF-T (AO)</h3><p>Pré-visualização orientativa dos elementos principais do ficheiro de contabilidade.</p></div><button class="btn secondary" id="exportSaftXmlBlueprint" type="button">⇩ Exportar modelo XML</button></div>
+            <div class="summary-list" id="saftXmlBlueprintChecks" aria-live="polite"></div>
+            <pre id="saftXmlBlueprintPreview" class="code-preview" aria-label="Pré-visualização do modelo XML"></pre>
+            <p class="report-help">Este modelo contém marcadores PREENCHER. Não é um SAF-T válido, não foi validado pelo XSD e não deve ser submetido à AGT.</p>
             <p class="report-help">A exportação desta etapa é somente um diagnóstico JSON. Não gera o XML SAF-T (AO), não valida o XSD e não constitui autorização ou submissão à AGT. O Decreto Executivo n.º 317/20 define a estrutura do SAF-T de contabilidade, incluindo cabeçalho, tabelas mestres e movimentos contabilísticos.</p>
           </article>
         </div>
@@ -248,6 +253,7 @@
   <script src="finance-core.js"></script>
   <script src="accounting-core.js"></script>
   <script src="pgca-mapping.js"></script>
+  <script src="saft-xml-blueprint.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

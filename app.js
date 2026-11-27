@@ -1131,6 +1131,17 @@ function renderSaftPreparation(start, end, locationFilter) {
   ].map(([label, value, hint]) => `<article class="metric-card"><div class="metric-top"><span>${label}</span></div><div class="value">${value}</div><div class="hint">${hint}</div></article>`).join('');
   checks.innerHTML = result.checks.map(item => `<div class="summary-row"><span><b>${escapeHtml(item.label)}</b><small class="muted" style="display:block;margin-top:3px">${escapeHtml(item.detail)}</small></span><strong class="status ${item.ok ? 'completed' : (item.severity === 'warning' ? 'pending' : 'danger')}">${item.ok ? 'Verificado' : (item.severity === 'warning' ? 'Atenção' : 'Pendente')}</strong></div>`).join('');
   renderPgcaMapping();
+  renderSaftXmlBlueprint();
+}
+function renderSaftXmlBlueprint() {
+  const engine = window.VendaMaisSaftXmlBlueprint;
+  const preview = $('#saftXmlBlueprintPreview'), checks = $('#saftXmlBlueprintChecks');
+  if (!engine || !preview || !checks) return;
+  const settings = data.settings || {};
+  const start = $('#reportStart')?.value || monthStart(), end = $('#reportEnd')?.value || dateISO();
+  const result = engine.buildTemplate({ company: settings.company, nif: settings.nif, address: settings.address, phone: settings.phone, email: settings.email, start, end });
+  preview.textContent = result.xml;
+  checks.innerHTML = `<div class="summary-row"><span><b>Campos e integrações ainda necessários</b><small class="muted" style="display:block;margin-top:3px">${result.missing.map(escapeHtml).join(' · ')}</small></span><strong class="status danger">${result.missing.length} pendências</strong></div>`;
 }
 function renderPgcaMapping() {
   const engine = window.VendaMaisPgcaMapping, accounts = window.VendaMaisAccounting?.ACCOUNTS || [];
@@ -1168,6 +1179,18 @@ function exportSaftDiagnostic() {
   download(`vendamais-diagnostico-saft-ao-${start}-${end}.json`, blob);
   notify('Diagnóstico interno exportado. Este ficheiro JSON não é SAF-T (AO) nem pode ser submetido à AGT.');
 }
+
+function exportSaftXmlBlueprint() {
+  const engine = window.VendaMaisSaftXmlBlueprint;
+  if (!engine) return notify('Módulo de modelo XML indisponível.');
+  const settings = data.settings || {};
+  const start = $('#reportStart')?.value || monthStart(), end = $('#reportEnd')?.value || dateISO();
+  const result = engine.buildTemplate({ company: settings.company, nif: settings.nif, address: settings.address, phone: settings.phone, email: settings.email, start, end });
+  const blob = new Blob([result.xml], { type: 'application/xml;charset=utf-8' });
+  download(`vendamais-modelo-xml-saft-ao-${start}-${end}.xml`, blob);
+  notify('Modelo XML de estudo exportado. Contém campos pendentes e não pode ser submetido à AGT.');
+}
+
 function renderAccounting() {
   const start = $('#accountingStart'), end = $('#accountingEnd'), location = $('#accountingLocation');
   if (!start || !end || !location || !window.VendaMaisAccounting) return;
@@ -1951,6 +1974,7 @@ document.addEventListener('click', event => {
   if (event.target.closest('#applyAccounting')) return renderAccounting();
   if (event.target.closest('#exportReport')) return exportReportExcel();
   if (event.target.closest('#exportSaftDiagnostic')) return exportSaftDiagnostic();
+  if (event.target.closest('#exportSaftXmlBlueprint')) return exportSaftXmlBlueprint();
   if (event.target.closest('#savePgcaMapping')) return savePgcaMapping();
   if (event.target.closest('#backupData')) return backup();
   if (event.target.closest('#clearBusinessData')) return clearBusinessDataModal();
