@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "serve": "node scripts/serve.mjs",
-    "check": "node --check app.js && node --check cloud.js && node --check finance-core.js && node --check accounting-core.js && node scripts/verify.mjs",
+    "check": "node --check app.js && node --check cloud.js && node --check fiscal-validation.js && node --check finance-core.js && node --check accounting-core.js && node scripts/verify.mjs",
     "test": "npm run check && node --test tests/*.test.mjs"
   },
   "engines": {

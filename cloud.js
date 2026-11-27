@@ -281,6 +281,9 @@ window.VendaMaisCloud = (() => {
   async function createFiscalRecord(sale, issuer, operationLocation) {
     if (!connected()) throw new Error('Inicie sessão online para criar o registo interno do documento.');
     if (!sale?.id || !sale?.reference) throw new Error('A venda não contém uma referência válida.');
+    const preflight = window.VendaMaisFiscalValidation?.validate(sale, issuer || {});
+    if (!preflight) throw new Error('O módulo de validação interna não foi carregado. Actualize os ficheiros do VendaMais.');
+    if (!preflight.valid) throw new Error(`Validação interna: ${preflight.errors.join(' ')}`);
     // Idempotência: uma venda só pode ter um registo fiscal interno.
     const existing = await client.from('fiscal_document_records')
       .select('id, internal_reference, lifecycle_status, integrity_hash, sealed_at')
@@ -314,13 +317,13 @@ window.VendaMaisCloud = (() => {
       totals_snapshot: { subtotal: Number(sale.subtotal || 0), discount: Number(sale.discountValue || 0), tax, total, amount_paid: Number(sale.amountPaid || 0), balance_due: Number(sale.balanceDue || 0) },
       operation_location_snapshot: clone(operationLocation || { name: 'Local não definido' }),
       payment_snapshot: { method: String(sale.payment || ''), status: String(sale.paymentStatus || ''), amount_received: Number(sale.amountReceived || 0), change: Number(sale.change || 0) },
-      source_snapshot: { application: 'VendaMais', sale_reference: String(sale.reference), source_sale_id: String(sale.id), schema_version: 'vendamais-fiscal-data-1.0', purpose: 'internal_preparation_only' }
+      source_snapshot: { application: 'VendaMais', sale_reference: String(sale.reference), source_sale_id: String(sale.id), schema_version: 'vendamais-fiscal-data-1.0', purpose: 'internal_preparation_only', preflight: clone(preflight) }
     };
     const created = await client.from('fiscal_document_records').insert(record)
       .select('id, internal_reference, lifecycle_status, integrity_hash, sealed_at').single();
     if (created.error) throw created.error;
     if (!created.data?.integrity_hash || !created.data?.sealed_at) throw new Error('O registo foi criado, mas o servidor não devolveu hash/selo. Verifique os triggers da Etapa 3 antes de continuar.');
-    return { ...created.data, existing: false };
+    return { ...created.data, existing: false, warnings: preflight.warnings };
   }
   async function updateSale(sale) {
     if (!connected()) return { ok: true, localOnly: true };
