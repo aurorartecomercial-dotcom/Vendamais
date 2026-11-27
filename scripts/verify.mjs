@@ -10,6 +10,7 @@ const requiredFiles = [
   'cloud.js',
   'finance-core.js',
   'saft-preparation.js',
+  'saft-accounting-export.js',
   'pgca-mapping.js',
   'supabase-config.js',
   'README.md',
@@ -187,6 +188,7 @@ if (!app.includes("escapeHtml(supplier?.name || 'Fornecedor')")) failures.push('
 if (!app.includes('const previousData = JSON.stringify(data);')) failures.push('Venda sem cópia de segurança para rollback local.');
 if (!app.includes('if (!saveData({ skipCloudSync:')) failures.push('Venda não verifica falha de persistência local.');
 
+if (!html.includes('saft-accounting-export.js') || !html.includes('id="exportSaftAccountingJson"') || !app.includes('function exportSaftAccounting')) failures.push('Exportação auxiliar do diário contabilístico em falta.');
 if (failures.length) {
   console.error('Validação falhou:\n- ' + failures.join('\n- '));
   process.exit(1);

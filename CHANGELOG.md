@@ -345,3 +345,9 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Incluídos avisos explícitos de que o modelo não é ficheiro oficial, não foi validado pelo XSD e não pode ser submetido à AGT.
 - Sem migração SQL.
 - Testes locais: 40 aprovados.
+
+## Etapa 12 — Exportação auxiliar do diário contabilístico
+- Adicionada exportação de lançamentos contabilísticos derivados para JSON e CSV.
+- Incluídos códigos PGCA introduzidos, conta agregadora, revisão, débitos, créditos e origem.
+- Incluídos controlos de equilíbrio, conta 39.9, valores negativos e avisos de mapeamento.
+- Exportação identificada explicitamente como auxiliar, não como SAF-T oficial.

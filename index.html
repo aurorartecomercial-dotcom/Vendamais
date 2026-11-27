@@ -230,6 +230,10 @@
             <pre id="saftXmlBlueprintPreview" class="code-preview" aria-label="Pré-visualização do modelo XML"></pre>
             <p class="report-help">Este modelo contém marcadores PREENCHER. Não é um SAF-T válido, não foi validado pelo XSD e não deve ser submetido à AGT.</p>
             <p class="report-help">A exportação desta etapa é somente um diagnóstico JSON. Não gera o XML SAF-T (AO), não valida o XSD e não constitui autorização ou submissão à AGT. O Decreto Executivo n.º 317/20 define a estrutura do SAF-T de contabilidade, incluindo cabeçalho, tabelas mestres e movimentos contabilísticos.</p>
+            <hr>
+            <div class="panel-head"><div><h3>Diário contabilístico para revisão</h3><p>Exporta os lançamentos derivados do diário financeiro, com códigos PGCA que foram introduzidos e as respectivas pendências.</p></div><div class="backup-actions"><button class="btn secondary" id="exportSaftAccountingJson" type="button">⇩ Exportar JSON contabilístico</button><button class="btn secondary" id="exportSaftAccountingCsv" type="button">⇩ Exportar CSV contabilístico</button></div></div>
+            <div class="summary-list" id="saftAccountingExportSummary" aria-live="polite"></div>
+            <p class="report-help">Este pacote é auxiliar para o contabilista. Não é SAF-T (AO), não contém saldos de abertura/fecho nem tabelas mestres completas e não deve ser submetido à AGT. Confirme todos os lançamentos com os documentos originais.</p>
           </article>
         </div>
         <div class="report-pane" data-report-pane="sellers" hidden><div class="seller-filter panel"><label>Vendedor<select id="sellerReportFilter"><option value="all">Todos os vendedores</option></select></label><p>Escolha um vendedor para consultar exactamente o que vendeu por dia e por mês.</p></div><div class="metric-grid" id="sellerMetrics"></div><article class="panel report-panel"><div class="panel-head"><div><h3>Resumo por vendedor</h3><p>Faturação e valor médio apenas das vendas concluídas.</p></div></div><div class="table-wrap"><table><thead><tr><th>Vendedor</th><th>Vendas</th><th>Faturação c/ IVA</th><th>Média por venda</th><th>Por receber</th></tr></thead><tbody id="sellerPerformanceTable"></tbody></table></div></article><div class="seller-report-grid"><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas por dia</h3><p>Fecho diário por vendedor.</p></div></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Vendedor</th><th>Vendas</th><th>Faturação</th><th>Média</th></tr></thead><tbody id="sellerDailyTable"></tbody></table></div></article><article class="panel report-panel"><div class="panel-head"><div><h3>Vendas por mês</h3><p>Consolidação mensal por vendedor.</p></div></div><div class="table-wrap"><table><thead><tr><th>Mês</th><th>Vendedor</th><th>Vendas</th><th>Faturação</th><th>Média</th></tr></thead><tbody id="sellerMonthlyTable"></tbody></table></div></article></div></div>
@@ -254,6 +258,7 @@
   <script src="accounting-core.js"></script>
   <script src="pgca-mapping.js"></script>
   <script src="saft-xml-blueprint.js"></script>
+  <script src="saft-accounting-export.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

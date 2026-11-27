@@ -1132,6 +1132,7 @@ function renderSaftPreparation(start, end, locationFilter) {
   checks.innerHTML = result.checks.map(item => `<div class="summary-row"><span><b>${escapeHtml(item.label)}</b><small class="muted" style="display:block;margin-top:3px">${escapeHtml(item.detail)}</small></span><strong class="status ${item.ok ? 'completed' : (item.severity === 'warning' ? 'pending' : 'danger')}">${item.ok ? 'Verificado' : (item.severity === 'warning' ? 'Atenção' : 'Pendente')}</strong></div>`).join('');
   renderPgcaMapping();
   renderSaftXmlBlueprint();
+  renderSaftAccountingExportSummary();
 }
 function renderSaftXmlBlueprint() {
   const engine = window.VendaMaisSaftXmlBlueprint;
@@ -1178,6 +1179,34 @@ function exportSaftDiagnostic() {
   const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json;charset=utf-8' });
   download(`vendamais-diagnostico-saft-ao-${start}-${end}.json`, blob);
   notify('Diagnóstico interno exportado. Este ficheiro JSON não é SAF-T (AO) nem pode ser submetido à AGT.');
+}
+
+function buildSaftAccountingExport() {
+  const engine = window.VendaMaisSaftAccountingExport;
+  if (!engine || !window.VendaMaisAccounting) return null;
+  const start = $('#reportStart')?.value || monthStart(), end = $('#reportEnd')?.value || dateISO(), locationId = $('#reportLocationFilter')?.value || 'all';
+  const settings = data.settings || {};
+  const postings = window.VendaMaisAccounting.buildLedger(data, { start, end, locationId });
+  const mapping = window.VendaMaisPgcaMapping?.analyze(window.VendaMaisAccounting.ACCOUNTS) || null;
+  return engine.prepare({ company: settings.company, nif: settings.nif, start, end, locationId, postings, accountMappings: mapping });
+}
+function renderSaftAccountingExportSummary() {
+  const target = $('#saftAccountingExportSummary');
+  if (!target) return;
+  const report = buildSaftAccountingExport();
+  if (!report) return;
+  target.innerHTML = `<div class="summary-row"><span><b>${report.totals.entries} lançamentos · ${report.totals.lines} linhas</b><small class="muted" style="display:block;margin-top:3px">Débito ${money(report.totals.debit)} · Crédito ${money(report.totals.credit)} · Diferença ${money(Math.abs(report.totals.difference))}</small></span><strong class="status ${report.controls.balanced ? 'completed' : 'danger'}">${report.controls.balanced ? 'Equilibrado' : 'Verificar'}</strong></div><div class="summary-row"><span><b>${report.controls.suspenseLines} linhas por classificar · ${report.controls.negativeLines} linhas negativas</b><small class="muted" style="display:block;margin-top:3px">${report.warnings.length ? report.warnings.map(escapeHtml).join(' · ') : 'Sem avisos detectados nos controlos automáticos.'}</small></span><strong class="status ${report.warnings.length ? 'pending' : 'completed'}">${report.warnings.length} avisos</strong></div>`;
+}
+function exportSaftAccounting(format) {
+  const engine = window.VendaMaisSaftAccountingExport;
+  const report = buildSaftAccountingExport();
+  if (!engine || !report) return notify('Exportador contabilístico indisponível.');
+  if (format === 'csv') {
+    download(`vendamais-diario-contabilistico-${report.period.start}-${report.period.end}.csv`, new Blob([engine.toCsv(report)], { type: 'text/csv;charset=utf-8' }));
+  } else {
+    download(`vendamais-diario-contabilistico-${report.period.start}-${report.period.end}.json`, new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' }));
+  }
+  notify(`Exportação auxiliar preparada com ${report.totals.entries} lançamentos e ${report.warnings.length} aviso(s). Não é SAF-T oficial.`);
 }
 
 function exportSaftXmlBlueprint() {
@@ -1975,6 +2004,8 @@ document.addEventListener('click', event => {
   if (event.target.closest('#exportReport')) return exportReportExcel();
   if (event.target.closest('#exportSaftDiagnostic')) return exportSaftDiagnostic();
   if (event.target.closest('#exportSaftXmlBlueprint')) return exportSaftXmlBlueprint();
+  if (event.target.closest('#exportSaftAccountingJson')) return exportSaftAccounting('json');
+  if (event.target.closest('#exportSaftAccountingCsv')) return exportSaftAccounting('csv');
   if (event.target.closest('#savePgcaMapping')) return savePgcaMapping();
   if (event.target.closest('#backupData')) return backup();
   if (event.target.closest('#clearBusinessData')) return clearBusinessDataModal();

@@ -179,3 +179,7 @@ A versão actual inclui um diário financeiro idempotente em **Balanço & relat�
 ### Versão 2.4.0 — ERP modular consolidado
 
 Esta versão inclui activação de módulos por empresa, permissões individuais restritivas por ecrã, correcção de selecção automática de utilizador em sessão inválida e o fluxo inicial de mesas/comandas/cozinha. Consulte `docs/ROADMAP-ERP-MODULAR.md` e `supabase/2026-11-erp-modular-access-restaurant.sql`. A migração SQL não é executada automaticamente.
+
+### Etapa 12 — Exportação contabilística auxiliar
+
+Na área **Balanço & relatórios → SAF-T (AO)** pode exportar o diário contabilístico derivado para JSON ou CSV, com mapeamento PGCA introduzido e avisos de revisão. Estes ficheiros são auxiliares para o contabilista; não são SAF-T (AO), não incluem saldos de abertura/fecho e não devem ser submetidos à AGT. Consulte `docs/ETAPA-12-EXPORTACAO-DIARIO-CONTABILISTICO.md`.
