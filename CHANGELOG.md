@@ -1,3 +1,9 @@
+## Etapa 15 — Demonstrações financeiras preliminares
+- Integra balanço patrimonial e capital próprio com o balancete acumulado (abertura + movimentos do exercício).
+- Apresenta demonstração de resultados por natureza com detalhe de rendimentos e gastos no período filtrado.
+- Acrescenta demonstração simplificada das alterações no capital próprio e controlo da equação patrimonial.
+- Inclui testes automatizados para saldos, resultado e diferenças patrimoniais.
+
 ## 2.3.1 — Área administrativa independente
 
 - Criada uma página própria de Painel administrativo, acessível apenas ao perfil Administrador.

@@ -190,3 +190,7 @@ O módulo de contabilidade permite registar saldos de abertura por exercício e 
 
 ### Etapa 14 — Encerramento do exercício
 O módulo Contabilidade inclui uma preparação assistida do encerramento anual: calcula rendimentos, gastos e resultado, e prepara saldos de abertura do exercício seguinte após confirmação. A ferramenta exige saldos iniciais equilibrados e valida os lançamentos. Os dados ficam no navegador; não é um fecho oficial, não bloqueia períodos e requer revisão por contabilista certificado. Consulte `docs/ETAPA-14-ENCERRAMENTO-EXERCICIO.md`.
+
+
+### Etapa 15 — Demonstrações financeiras
+A versão inclui demonstrações preliminares ligadas ao balancete acumulado. Consulte `docs/ETAPA-15-DEMONSTRACOES-FINANCEIRAS.md` para limites e procedimento de instalação. Os relatórios não são demonstrações oficiais certificadas.
