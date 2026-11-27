@@ -1220,6 +1220,39 @@ function exportSaftXmlBlueprint() {
   notify('Modelo XML de estudo exportado. Contém campos pendentes e não pode ser submetido à AGT.');
 }
 
+function openingBalanceStorageKey(year) {
+  const company = String(data.settings.nif || data.settings.company || 'empresa').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 48) || 'empresa';
+  return `vendamais:opening-balances:${company}:${year}`;
+}
+function readOpeningBalances(year) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(openingBalanceStorageKey(year)) || 'null');
+    return Array.isArray(parsed?.rows) ? parsed.rows : [];
+  } catch { return []; }
+}
+function saveOpeningBalances() {
+  const year = Number($('#openingBalanceYear')?.value);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return notify('Indique um exercício válido.');
+  const rows = [...document.querySelectorAll('[data-opening-account]')].map(input => ({
+    accountCode: input.dataset.openingAccount,
+    debit: Number(document.querySelector(`[data-opening-debit="${input.dataset.openingAccount}"]`)?.value || 0),
+    credit: Number(document.querySelector(`[data-opening-credit="${input.dataset.openingAccount}"]`)?.value || 0)
+  }));
+  const result = window.VendaMaisOpeningBalances?.validate(rows, window.VendaMaisAccounting?.ACCOUNTS || []);
+  if (!result?.valid) return notify(result?.errors?.join(' ') || 'Não foi possível validar os saldos.');
+  localStorage.setItem(openingBalanceStorageKey(year), JSON.stringify({ year, rows: result.rows, savedAt: new Date().toISOString() }));
+  notify(`Saldos de abertura de ${year} guardados neste navegador.`);
+  renderAccounting();
+}
+function clearOpeningBalances() {
+  const year = Number($('#openingBalanceYear')?.value);
+  if (!Number.isInteger(year)) return notify('Seleccione um exercício válido.');
+  if (!confirm(`Eliminar os saldos de abertura do exercício ${year} guardados neste navegador?`)) return;
+  localStorage.removeItem(openingBalanceStorageKey(year));
+  notify(`Saldos de abertura de ${year} removidos deste navegador.`);
+  renderAccounting();
+}
+
 function renderAccounting() {
   const start = $('#accountingStart'), end = $('#accountingEnd'), location = $('#accountingLocation');
   if (!start || !end || !location || !window.VendaMaisAccounting) return;
@@ -1230,8 +1263,19 @@ function renderAccounting() {
   if (end.value < start.value) { notify('A data final deve ser igual ou posterior à data inicial.'); return; }
   const engine = window.VendaMaisAccounting;
   const postings = engine.buildLedger(data, { start: start.value, end: end.value, locationId: location.value });
-  const summary = engine.summarize(postings), balances = summary.balances, income = engine.incomeStatement(postings), trial = engine.trialBalance(postings);
+  const summary = engine.summarize(postings), balances = summary.balances, income = engine.incomeStatement(postings);
   const cash = engine.cashFlow(postings);
+  const openingYear = Number(start.value.slice(0, 4));
+  const yearField = $('#openingBalanceYear');
+  if (yearField && !yearField.value) yearField.value = String(openingYear);
+  const selectedOpeningYear = Number(yearField?.value || openingYear);
+  const openingRows = readOpeningBalances(selectedOpeningYear);
+  const openingEngine = window.VendaMaisOpeningBalances;
+  const openingScopeValid = start.value.slice(0, 4) === String(selectedOpeningYear) && end.value.slice(0, 4) === String(selectedOpeningYear);
+  const openingValidation = openingEngine?.validate(openingRows, engine.ACCOUNTS);
+  const yearToDatePostings = openingScopeValid ? engine.buildLedger(data, { start: `${selectedOpeningYear}-01-01`, end: end.value, locationId: location.value }) : [];
+  const accumulatedTrial = openingEngine?.buildTrialBalance({ accounts: engine.ACCOUNTS, openingRows: openingScopeValid && openingValidation?.valid ? openingValidation.rows : [], postings: yearToDatePostings }) || { rows: [], totals: {} };
+  const trial = accumulatedTrial.rows;
   const positionPostings = engine.buildLedger(data, { start: '0000-01-01', end: end.value, locationId: location.value });
   const positionBalances = engine.accountBalances(positionPostings);
   const positionIncome = engine.incomeStatement(positionPostings);
@@ -1242,8 +1286,12 @@ function renderAccounting() {
   const overview=$('#accountingOverviewTable'); if(overview) overview.innerHTML=rows(balances);
   const journal=$('#accountingJournalLines'); if(journal) journal.innerHTML=postings.length?postings.slice().reverse().flatMap(p=>p.lines.map((l,i)=>`<tr><td>${fullDate(p.date)}</td><td><b>${escapeHtml(p.reference)}</b><br><small>${escapeHtml(p.description)}</small></td><td>${escapeHtml(l.accountCode)} · ${escapeHtml(l.accountName)}</td><td>${i===0?escapeHtml(p.description):'—'}</td><td class="money">${l.debit?fmt(l.debit):'—'}</td><td class="money">${l.credit?fmt(l.credit):'—'}</td></tr>`)).join(''):emptyRow(6,'Sem lançamentos no período.');
   const ledger=$('#accountingLedgerTable'); if(ledger){const lines=postings.flatMap(p=>p.lines.map(l=>({date:p.date,reference:p.reference,description:p.description,...l}))).sort((a,b)=>String(a.date).localeCompare(String(b.date)));const running=new Map();ledger.innerHTML=lines.length?lines.map(l=>{const prior=running.get(l.accountCode)||0;const next=roundMoney(prior+l.debit-l.credit);running.set(l.accountCode,next);return `<tr><td>${fullDate(l.date)}</td><td><b>${escapeHtml(l.accountCode)} · ${escapeHtml(l.accountName)}</b></td><td>${escapeHtml(l.reference)}</td><td>${escapeHtml(l.description)}</td><td class="money">${l.debit?fmt(l.debit):'—'}</td><td class="money">${l.credit?fmt(l.credit):'—'}</td><td class="money"><b>${fmt(Math.abs(next))} ${next>0?'D':next<0?'C':''}</b></td></tr>`;}).join(''):emptyRow(7,'Sem movimentos no período.');}
-  const trialBody=$('#accountingTrialTable'); if(trialBody) trialBody.innerHTML=trial.length?trial.map(a=>`<tr><td>${escapeHtml(a.code)}</td><td><b>${escapeHtml(a.name)}</b></td><td class="money">${fmt(a.debit)}</td><td class="money">${fmt(a.credit)}</td><td class="money">${fmt(a.trialDebit)}</td><td class="money">${fmt(a.trialCredit)}</td></tr>`).join(''):emptyRow(6,'Sem movimentos no período.');
-  const trialTotals=$('#accountingTrialTotals'); if(trialTotals) trialTotals.innerHTML=`Total dos movimentos: <b>${fmt(summary.debit)}</b> débito · <b>${fmt(summary.credit)}</b> crédito. ${summary.balanced?'Lançamentos equilibrados.':'Existem diferenças a verificar.'}`;
+  const openingTable=$('#openingBalancesTable');
+  if(openingTable) openingTable.innerHTML=engine.ACCOUNTS.map(account=>{const row=openingRows.find(item=>item.accountCode===account.code)||{};return `<tr><td><b>${escapeHtml(account.code)}</b></td><td>${escapeHtml(account.name)}</td><td><input type="number" min="0" step="0.01" inputmode="decimal" data-opening-account="${escapeHtml(account.code)}" data-opening-debit="${escapeHtml(account.code)}" value="${row.debit||''}" aria-label="Saldo devedor ${escapeHtml(account.code)}"></td><td><input type="number" min="0" step="0.01" data-opening-credit="${escapeHtml(account.code)}" value="${row.credit||''}" aria-label="Saldo credor ${escapeHtml(account.code)}"></td></tr>`;}).join('');
+  const openingStatus=$('#openingBalancesStatus'); if(openingStatus){const saved=openingValidation?.valid;openingStatus.innerHTML=!openingScopeValid?`Para aplicar os saldos de abertura de ${selectedOpeningYear}, seleccione um período inteiramente dentro desse exercício. O balancete não aplicou saldos iniciais.`:saved?`Saldos de abertura guardados para ${selectedOpeningYear}. Total: <b>${fmt(openingValidation.totalDebit)}</b> a débito e <b>${fmt(openingValidation.totalCredit)}</b> a crédito.`:`Ainda não existem saldos de abertura válidos para ${selectedOpeningYear}. Preencha as contas necessárias e guarde com totais equilibrados.`;}
+  const trialBody=$('#accountingTrialTable'); if(trialBody) trialBody.innerHTML=trial.length?trial.map(a=>`<tr><td>${escapeHtml(a.code)}</td><td><b>${escapeHtml(a.name)}</b></td><td class="money">${fmt(a.openingDebit)}</td><td class="money">${fmt(a.openingCredit)}</td><td class="money">${fmt(a.movementDebit)}</td><td class="money">${fmt(a.movementCredit)}</td><td class="money">${fmt(a.closingDebit)}</td><td class="money">${fmt(a.closingCredit)}</td></tr>`).join(''):emptyRow(8,'Sem movimentos ou saldos de abertura neste período.');
+  const totals=accumulatedTrial.totals||{};
+  const trialTotals=$('#accountingTrialTotals'); if(trialTotals) trialTotals.innerHTML=`Abertura: <b>${fmt(totals.openingDebit||0)}</b> D / <b>${fmt(totals.openingCredit||0)}</b> C · Movimentos: <b>${fmt(totals.movementDebit||0)}</b> D / <b>${fmt(totals.movementCredit||0)}</b> C · Fecho: <b>${fmt(totals.closingDebit||0)}</b> D / <b>${fmt(totals.closingCredit||0)}</b> C. ${totals.closingBalanced?'Balancete equilibrado.':'Diferença a verificar.'} ${openingScopeValid && openingValidation?.valid?'':'Saldos iniciais não aplicados.'}`;
   const assets=positionBalances.filter(a=>['11','12','22','31.1','41.1','42.1'].includes(a.code)).map(a=>({...a,value:Math.max(0,a.balance)}));
   const liabilities=positionBalances.filter(a=>['32.1','34.1','51.1'].includes(a.code)).map(a=>({...a,value:Math.max(0,-a.balance)}));
   const assetsTotal=roundMoney(assets.reduce((s,a)=>s+a.value,0)); const liabilitiesTotal=roundMoney(liabilities.reduce((s,a)=>s+a.value,0));
@@ -2001,6 +2049,8 @@ document.addEventListener('click', event => {
   if (event.target.closest('#newExpense')) return expenseModal();
   if (event.target.closest('#applyReport')) return renderReports();
   if (event.target.closest('#applyAccounting')) return renderAccounting();
+  if (event.target.closest('#saveOpeningBalances')) return saveOpeningBalances();
+  if (event.target.closest('#clearOpeningBalances')) return clearOpeningBalances();
   if (event.target.closest('#exportReport')) return exportReportExcel();
   if (event.target.closest('#exportSaftDiagnostic')) return exportSaftDiagnostic();
   if (event.target.closest('#exportSaftXmlBlueprint')) return exportSaftXmlBlueprint();
@@ -2012,7 +2062,7 @@ document.addEventListener('click', event => {
   if (event.target.closest('#resetDemo')) { if (!isAdministrator()) return notify('Apenas administradores podem repor dados de demonstração.'); if (confirm('Isto substitui todos os dados actuais pelos dados de demonstração. Continuar?')) { data = demoData(); currentUser = getSessionUser(); cart = []; sessionLocked = true; saveData(); $('#companyName').textContent = data.settings.company; renderAccountButton(); applyRoleInterface(); renderAll(); notify('Dados de demonstração repostos.'); accountModal(); } return; }
 });
 document.addEventListener('input', event => { if (event.target.id === 'productSearch') renderPosProducts(); if (event.target.id === 'saleDiscount') renderCart(); const table = event.target.dataset?.table; if (table === 'products') filterProducts(); if (table === 'customers') filterCustomers(); if (table === 'suppliers') filterSuppliers(); if (table === 'documents') filterDocuments(); });
-document.addEventListener('change', event => { if (event.target.id === 'posCategory') renderPosProducts(); if (event.target.id === 'productCategoryFilter') filterProducts(); if (event.target.id === 'saleCustomer') renderSaleCustomerInfo(); if (event.target.id === 'documentStatusFilter') filterDocuments(); if (event.target.id === 'activeLocationSelect') changeActiveLocation(event.target.value); if (event.target.id === 'reportLocationFilter' || event.target.id === 'sellerReportFilter') renderReports(); if (event.target.id === 'restoreData') restore(event.target.files[0]); });
+document.addEventListener('change', event => { if (event.target.id === 'posCategory') renderPosProducts(); if (event.target.id === 'productCategoryFilter') filterProducts(); if (event.target.id === 'saleCustomer') renderSaleCustomerInfo(); if (event.target.id === 'documentStatusFilter') filterDocuments(); if (event.target.id === 'openingBalanceYear') renderAccounting(); if (event.target.id === 'accountingStart' || event.target.id === 'accountingEnd' || event.target.id === 'accountingLocation') renderAccounting(); if (event.target.id === 'activeLocationSelect') changeActiveLocation(event.target.value); if (event.target.id === 'reportLocationFilter' || event.target.id === 'sellerReportFilter') renderReports(); if (event.target.id === 'restoreData') restore(event.target.files[0]); });
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && $('#modalBackdrop').classList.contains('open')) closeModal(); });
 window.addEventListener('resize', updateProductScrollControls);
 $('#settingsForm').addEventListener('submit', event => { event.preventDefault(); if (!isAdministrator()) return notify('Apenas administradores podem alterar definições.'); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); values.taxRate = Number(values.taxRate); values.stockLimit = Number(values.stockLimit); values.themeId = brandTheme(values.themeId).id; data.settings = { ...data.settings, ...values }; applyBrandTheme(); saveData(); $('#companyName').textContent = data.settings.company; notify('Definições e identidade visual guardadas.'); renderAll(); });

@@ -351,3 +351,6 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Incluídos códigos PGCA introduzidos, conta agregadora, revisão, débitos, créditos e origem.
 - Incluídos controlos de equilíbrio, conta 39.9, valores negativos e avisos de mapeamento.
 - Exportação identificada explicitamente como auxiliar, não como SAF-T oficial.
+
+## Etapa 13
+- Adicionados saldos de abertura por exercício, validação de equilíbrio e balancete acumulado com saldos iniciais, movimentos e saldos finais.

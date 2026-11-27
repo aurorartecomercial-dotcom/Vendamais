@@ -183,3 +183,7 @@ Esta versão inclui activação de módulos por empresa, permissões individuais
 ### Etapa 12 — Exportação contabilística auxiliar
 
 Na área **Balanço & relatórios → SAF-T (AO)** pode exportar o diário contabilístico derivado para JSON ou CSV, com mapeamento PGCA introduzido e avisos de revisão. Estes ficheiros são auxiliares para o contabilista; não são SAF-T (AO), não incluem saldos de abertura/fecho e não devem ser submetidos à AGT. Consulte `docs/ETAPA-12-EXPORTACAO-DIARIO-CONTABILISTICO.md`.
+
+
+### Etapa 13 — Saldos de abertura
+O módulo de contabilidade permite registar saldos de abertura por exercício e calcular um balancete acumulado. Nesta versão os saldos ficam guardados localmente no navegador; não são sincronizados com Supabase. Consulte `docs/ETAPA-13-SALDOS-ABERTURA-BALANCETE.md`.
