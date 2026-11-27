@@ -311,13 +311,16 @@ window.VendaMaisCloud = (() => {
         product_id: String(item.productId || ''), name: String(item.name || ''),
         quantity: Number(item.quantity || 0), unit_price: Number(item.price || 0),
         discount_percent: Number(item.discountPct || 0), discount_value: Number(item.discountValue || 0),
+        fiscal_classification_internal: String(item.fiscalTreatment || 'UNCLASSIFIED_INTERNAL'),
+        fiscal_rate_internal: item.fiscalRate === '' || item.fiscalRate === undefined ? null : Number(item.fiscalRate),
+        fiscal_reason_internal: String(item.fiscalReason || ''),
         line_total: Number(item.total ?? (Number(item.price || 0) * Number(item.quantity || 0) - Number(item.discountValue || 0)))
       })),
       tax_summary: [{ code: 'UNCLASSIFIED_INTERNAL', rate: Number(sale.taxRate || 0), taxable_base: Number((total - tax).toFixed(2)), tax_amount: tax, note: 'Classificação provisória; confirmar enquadramento fiscal oficial.' }],
       totals_snapshot: { subtotal: Number(sale.subtotal || 0), discount: Number(sale.discountValue || 0), tax, total, amount_paid: Number(sale.amountPaid || 0), balance_due: Number(sale.balanceDue || 0) },
       operation_location_snapshot: clone(operationLocation || { name: 'Local não definido' }),
       payment_snapshot: { method: String(sale.payment || ''), status: String(sale.paymentStatus || ''), amount_received: Number(sale.amountReceived || 0), change: Number(sale.change || 0) },
-      source_snapshot: { application: 'VendaMais', sale_reference: String(sale.reference), source_sale_id: String(sale.id), schema_version: 'vendamais-fiscal-data-1.0', purpose: 'internal_preparation_only', preflight: clone(preflight) }
+      source_snapshot: { application: 'VendaMais', sale_reference: String(sale.reference), source_sale_id: String(sale.id), schema_version: 'vendamais-fiscal-data-1.0', purpose: 'internal_preparation_only', preflight: clone(preflight), fiscal_catalog_ruleset: 'vendamais-internal-fiscal-catalog-1.0' }
     };
     const created = await client.from('fiscal_document_records').insert(record)
       .select('id, internal_reference, lifecycle_status, integrity_hash, sealed_at').single();

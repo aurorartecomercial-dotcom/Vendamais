@@ -331,3 +331,10 @@ Todas as alterações relevantes deste projecto são documentadas neste ficheiro
 - Balanço calculado em posição acumulada até à data final; relatórios de movimentos respeitam o período e a loja seleccionados.
 - Incluídos testes de equilíbrio, filtros e não duplicação de liquidações.
 - Limitação explícita: faltam saldos de abertura e integração de activos fixos, impostos completos, reconciliação bancária e outros eventos antes de uso fiscal/legal.
+
+## Etapa 6 — Catálogo de classificação fiscal interna
+
+- Adicionados campos internos de enquadramento fiscal no cadastro de produtos.
+- Os campos são copiados para as linhas da venda e para os snapshots do registo interno.
+- A pré-validação alerta para artigos por classificar e possíveis isenções/não sujeições sem fundamento, e bloqueia taxas internas fora de 0–100%.
+- O cálculo do IVA no POS permanece inalterado; esta etapa não representa classificação fiscal oficial nem certificação AGT.

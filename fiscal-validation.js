@@ -22,6 +22,12 @@ window.VendaMaisFiscalValidation = (() => {
       if (!finite(item?.quantity) || Number(item.quantity) <= 0) errors.push(`A quantidade da linha ${n} deve ser superior a zero.`);
       if (!finite(item?.price) || Number(item.price) < 0) errors.push(`O preço da linha ${n} é inválido.`);
       if (item?.total !== undefined && (!finite(item.total) || Number(item.total) < 0)) errors.push(`O total da linha ${n} é inválido.`);
+      const treatment = String(item?.fiscalTreatment || 'UNCLASSIFIED_INTERNAL');
+      const allowedTreatments = ['UNCLASSIFIED_INTERNAL', 'RATE_CONFIGURED_PENDING_REVIEW', 'EXEMPT_PENDING_REVIEW', 'NOT_SUBJECT_PENDING_REVIEW'];
+      if (!allowedTreatments.includes(treatment)) errors.push(`A classificação interna da linha ${n} é desconhecida.`);
+      if (item?.fiscalRate !== '' && item?.fiscalRate !== undefined && (!finite(item.fiscalRate) || Number(item.fiscalRate) < 0 || Number(item.fiscalRate) > 100)) errors.push(`A taxa interna da linha ${n} deve estar entre 0 e 100%.`);
+      if (['EXEMPT_PENDING_REVIEW', 'NOT_SUBJECT_PENDING_REVIEW'].includes(treatment) && !String(item?.fiscalReason || '').trim()) warnings.push(`A linha ${n} está marcada para análise de isenção/não sujeição, mas não tem fundamento interno registado.`);
+      if (treatment === 'UNCLASSIFIED_INTERNAL') warnings.push(`A linha ${n} continua por classificar fiscalmente.`);
     });
     for (const [label, value] of [['Subtotal', sale?.subtotal], ['Desconto', sale?.discountValue || 0], ['IVA', sale?.tax || 0], ['Total', sale?.total]]) {
       if (!finite(value) || Number(value) < 0) errors.push(`${label} inválido ou negativo.`);
@@ -32,8 +38,8 @@ window.VendaMaisFiscalValidation = (() => {
     }
     if (finite(sale?.total) && Number(sale.total) <= 0) errors.push('O total da venda deve ser superior a zero.');
     if (!String(sale?.payment || '').trim()) warnings.push('O meio de pagamento não está indicado.');
-    warnings.push('A classificação do IVA permanece provisória e não foi validada segundo as regras oficiais da AGT.');
-    return { valid: errors.length === 0, errors, warnings, checkedAt: new Date().toISOString(), ruleset: 'vendamais-internal-preflight-1.0' };
+    warnings.push('As classificações e taxas por produto são apenas internas; não alteram o cálculo do IVA da venda e não foram validadas segundo as regras oficiais da AGT.');
+    return { valid: errors.length === 0, errors, warnings, checkedAt: new Date().toISOString(), ruleset: 'vendamais-internal-preflight-1.1' };
   }
 
   return { validate };

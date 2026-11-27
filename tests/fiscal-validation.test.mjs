@@ -38,3 +38,21 @@ test('avisa quando o NIF do emitente não tem dez algarismos', () => {
   assert.equal(result.valid, true);
   assert.ok(result.warnings.some(message => message.includes('NIF')));
 });
+
+test('avisa quando uma linha permanece sem classificação fiscal interna', () => {
+  const result = validate(sale, issuer);
+  assert.equal(result.valid, true);
+  assert.ok(result.warnings.some(message => message.includes('linha 1 continua por classificar')));
+});
+
+test('bloqueia taxa interna fora do intervalo permitido', () => {
+  const result = validate({ ...sale, items: [{ ...sale.items[0], fiscalTreatment: 'RATE_CONFIGURED_PENDING_REVIEW', fiscalRate: 140 }] }, issuer);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(message => message.includes('entre 0 e 100%')));
+});
+
+test('avisa quando possível isenção não tem fundamento interno', () => {
+  const result = validate({ ...sale, items: [{ ...sale.items[0], fiscalTreatment: 'EXEMPT_PENDING_REVIEW' }] }, issuer);
+  assert.equal(result.valid, true);
+  assert.ok(result.warnings.some(message => message.includes('não tem fundamento interno')));
+});
