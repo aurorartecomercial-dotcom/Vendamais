@@ -360,3 +360,4 @@
     justify-content:center!important;
   }
 }
+.fiscal-preview{border:1px dashed #d9c89e;background:#fffaf0;border-radius:8px;padding:10px;margin:0 0 12px;font-size:11px;color:#66552e}.fiscal-preview>b{display:block;margin-bottom:7px;color:#57451f}.fiscal-preview-row,.fiscal-preview-total{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid rgba(150,120,60,.15)}.fiscal-preview-row span{min-width:0}.fiscal-preview-row small{display:block;color:#89784f;font-size:10px;margin-top:2px}.fiscal-preview-row strong,.fiscal-preview-total strong{white-space:nowrap}.fiscal-preview-total{font-weight:700;margin-top:4px}.fiscal-preview>small{display:block;line-height:1.5;margin-top:6px;color:#786943}

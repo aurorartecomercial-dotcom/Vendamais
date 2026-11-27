@@ -2,11 +2,11 @@
   "name": "vendamais",
   "version": "2.5.0",
   "private": true,
-  "description": "Sistema local de ponto de venda, invent\u00e1rio e gest\u00e3o comercial.",
+  "description": "Sistema local de ponto de venda, inventário e gestão comercial.",
   "type": "module",
   "scripts": {
     "serve": "node scripts/serve.mjs",
-    "check": "node --check app.js && node --check cloud.js && node --check fiscal-validation.js && node --check finance-core.js && node --check accounting-core.js && node scripts/verify.mjs",
+    "check": "node --check app.js && node --check cloud.js && node --check fiscal-validation.js && node --check fiscal-preview.js && node --check fiscal-report.js && node --check finance-core.js && node --check accounting-core.js && node scripts/verify.mjs",
     "test": "npm run check && node --test tests/*.test.mjs"
   },
   "engines": {
